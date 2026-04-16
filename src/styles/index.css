@@ -1,36 +1,31 @@
 /* QuantDinger Mobile - 全局样式 */
 
 :root {
-  /* 主色调 - 深色金融风格 */
-  --primary-color: #3b82f6;
-  --primary-light: #60a5fa;
-  --primary-dark: #2563eb;
-  
-  /* 背景色 */
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-tertiary: #334155;
-  
-  /* 文字颜色 */
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  
-  /* 状态颜色 */
-  --success-color: #22c55e;
-  --danger-color: #ef4444;
-  --warning-color: #f59e0b;
-  --info-color: #3b82f6;
-  
-  /* 涨跌色 */
-  --up-color: #22c55e;
-  --down-color: #ef4444;
-  
-  /* 安全区域 */
+  --primary-color: #d4b06a;
+  --primary-light: #f0d39b;
+  --primary-dark: #8e6a36;
+
+  --bg-primary: #000000;
+  --bg-secondary: #0b0b0d;
+  --bg-tertiary: #141417;
+  --bg-elevated: #111114;
+  --surface-border: rgba(255, 255, 255, 0.08);
+  --surface-glow: rgba(212, 176, 106, 0.16);
+
+  --text-primary: #f5f5f7;
+  --text-secondary: #a1a1aa;
+  --text-muted: #6b7280;
+
+  --success-color: #34c759;
+  --danger-color: #ff5f57;
+  --warning-color: #ffb020;
+  --info-color: var(--primary-color);
+
+  --up-color: #34c759;
+  --down-color: #ff5f57;
+
   --safe-area-top: env(safe-area-inset-top);
   --safe-area-bottom: env(safe-area-inset-bottom);
-  
-  /* 底部导航高度 */
   --tabbar-height: 50px;
 }
 
@@ -45,7 +40,7 @@ html, body {
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 14px;
-  background-color: var(--bg-primary);
+  background-color: #000;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -75,10 +70,12 @@ html, body {
 
 /* 卡片样式 */
 .card {
-  background: var(--bg-secondary);
+  background: linear-gradient(180deg, rgba(16, 16, 18, 0.96), rgba(9, 9, 11, 0.98));
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
+  border: 1px solid var(--surface-border);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
 }
 
 .card-title {
@@ -117,36 +114,156 @@ html, body {
   --van-primary-color: var(--primary-color);
   --van-background: var(--bg-primary);
   --van-background-2: var(--bg-secondary);
-  --van-background-3: var(--bg-tertiary);
+  --van-background-3: var(--bg-elevated);
   --van-text-color: var(--text-primary);
   --van-text-color-2: var(--text-secondary);
   --van-text-color-3: var(--text-muted);
-  --van-border-color: var(--bg-tertiary);
-  
-  /* NavBar */
+  --van-border-color: rgba(255, 255, 255, 0.06);
+  --van-overlay-background: rgba(0, 0, 0, 0.75);
   --van-nav-bar-background: var(--bg-secondary);
   --van-nav-bar-title-text-color: var(--text-primary);
   --van-nav-bar-icon-color: var(--text-primary);
-  
-  /* TabBar */
   --van-tabbar-background: var(--bg-secondary);
   --van-tabbar-item-text-color: var(--text-muted);
   --van-tabbar-item-active-color: var(--primary-color);
-  
-  /* Cell */
   --van-cell-background: var(--bg-secondary);
   --van-cell-text-color: var(--text-primary);
   --van-cell-value-color: var(--text-secondary);
-  
-  /* Button */
   --van-button-primary-background: var(--primary-color);
   --van-button-primary-border-color: var(--primary-color);
-  
-  /* Loading */
   --van-loading-spinner-color: var(--primary-color);
-  
-  /* Empty */
   --van-empty-description-color: var(--text-muted);
+  --van-search-background: transparent;
+  --van-search-content-background: var(--bg-tertiary);
+  --van-field-input-text-color: var(--text-primary);
+  --van-popup-background: var(--bg-secondary);
+  --van-dialog-background: var(--bg-secondary);
+  --van-dialog-has-title-message-text-color: var(--text-secondary);
+  --van-picker-background: var(--bg-secondary);
+  --van-picker-option-text-color: var(--text-primary);
+  --van-picker-mask-color: linear-gradient(180deg, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.4)),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.4));
+}
+
+:where([class$='-page']) {
+  background: var(--bg-primary) !important;
+  color: var(--text-primary);
+}
+
+:where(
+  .asset-card,
+  .total-card,
+  .user-card,
+  .menu-group,
+  .broker-list,
+  .broker-card,
+  .indicator-card,
+  .strategy-card,
+  .mini-strategy-card,
+  .info-card,
+  .price-card,
+  .index-card,
+  .sentiment-card,
+  .trade-item,
+  .notification-item,
+  .detail-summary,
+  .info-section,
+  .status-card,
+  .hint,
+  .input-wrapper,
+  .search-bar .van-search__content,
+  .group-header
+) {
+  background: linear-gradient(180deg, rgba(16, 16, 18, 0.96), rgba(8, 8, 10, 0.98)) !important;
+  border: 1px solid var(--surface-border) !important;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+}
+
+:where(
+  .tab-item.active,
+  .category-tabs span.active,
+  .login-btn,
+  .actions .van-button--primary
+) {
+  background: linear-gradient(135deg, var(--primary-light), var(--primary-dark)) !important;
+  color: #050505 !important;
+  border: none !important;
+  box-shadow: 0 14px 30px rgba(212, 176, 106, 0.22);
+}
+
+:where(.asset-card, .total-card) {
+  position: relative;
+  overflow: hidden;
+}
+
+:where(.asset-card, .total-card)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(212, 176, 106, 0.16), transparent 52%);
+  pointer-events: none;
+}
+
+:where(.tab-item, .category-tabs span) {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+:where(.section-header .title, .name, .broker-name, .info .name, .logo-text) {
+  letter-spacing: 0.01em;
+}
+
+:where(.van-button--primary) {
+  color: #050505 !important;
+  font-weight: 700;
+}
+
+:where(.van-button--default, .van-button--plain) {
+  background: var(--bg-tertiary) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-primary) !important;
+}
+
+:where(.van-tabbar, .van-nav-bar, .van-cell, .van-cell-group, .van-dialog, .van-popup, .van-action-sheet) {
+  background: var(--bg-secondary) !important;
+}
+
+:where(.van-tabbar) {
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.45);
+}
+
+:where(.van-search__content, .van-field__control, input, textarea) {
+  color: var(--text-primary) !important;
+}
+
+:where(.van-field__control::placeholder, input::placeholder, textarea::placeholder) {
+  color: rgba(255, 255, 255, 0.32) !important;
+}
+
+:where(.van-cell-group--inset) {
+  background: var(--bg-secondary) !important;
+}
+
+:where(.van-cell::after, .van-hairline--top-bottom::after, .van-hairline-unset--top-bottom::after) {
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+:where(.van-dialog__header, .van-nav-bar__title, .van-field__label, .van-tab, .van-empty__description) {
+  color: var(--text-primary) !important;
+}
+
+:where(.van-icon, .van-tabbar-item__icon, .van-nav-bar__arrow) {
+  color: inherit;
+}
+
+:where(.status-card.success) {
+  background: rgba(52, 199, 89, 0.1) !important;
+  border-color: rgba(52, 199, 89, 0.2) !important;
+}
+
+:where(.status-card.error) {
+  background: rgba(255, 95, 87, 0.1) !important;
+  border-color: rgba(255, 95, 87, 0.2) !important;
 }
 
 /* 自定义滚动条 */

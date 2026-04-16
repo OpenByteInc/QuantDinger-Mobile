@@ -5,6 +5,8 @@ import Components from 'unplugin-vue-components/vite'
 import { VantResolver } from '@vant/auto-import-resolver'
 import { resolve } from 'path'
 
+const apiTarget = 'https://api.quantdinger.com'
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -29,7 +31,7 @@ export default defineConfig({
     // 代理后端 API（与 PC 端共用 5000 端口）
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: apiTarget,
         changeOrigin: true
       }
     }

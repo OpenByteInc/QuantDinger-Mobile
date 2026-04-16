@@ -6,46 +6,23 @@ const routes = [
     path: '/',
     redirect: '/home'
   },
-  // ========== 登录 ==========
   {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/login/index.vue'),
     meta: { title: '登录', showTabbar: false, public: true }
   },
-  
-  // ========== 首页 - 自选股 + 宏观数据 ==========
   {
     path: '/home',
     name: 'Home',
     component: () => import('@/views/home/index.vue'),
-    meta: { title: '首页', showTabbar: true }
+    meta: { title: '总览', showTabbar: true }
   },
-  {
-    path: '/home/stock/:market/:symbol',
-    name: 'StockDetail',
-    component: () => import('@/views/home/StockDetail.vue'),
-    meta: { title: '股票详情', showTabbar: false }
-  },
-  {
-    path: '/home/macro',
-    name: 'MacroData',
-    component: () => import('@/views/home/MacroData.vue'),
-    meta: { title: '宏观数据', showTabbar: false }
-  },
-  
-  // ========== 交易助手 - 策略管理 ==========
   {
     path: '/trading',
     name: 'Trading',
     component: () => import('@/views/trading/index.vue'),
-    meta: { title: '交易助手', showTabbar: true }
-  },
-  {
-    path: '/trading/create',
-    name: 'CreateStrategy',
-    component: () => import('@/views/trading/CreateStrategy.vue'),
-    meta: { title: '创建策略', showTabbar: false }
+    meta: { title: '自动化', showTabbar: true }
   },
   {
     path: '/trading/strategy/:id',
@@ -54,41 +31,11 @@ const routes = [
     meta: { title: '策略详情', showTabbar: false }
   },
   {
-    path: '/trading/records/:id',
-    name: 'TradeRecords',
-    component: () => import('@/views/trading/TradeRecords.vue'),
-    meta: { title: '交易记录', showTabbar: false }
+    path: '/quick-trade',
+    name: 'QuickTrade',
+    component: () => import('@/views/quick-trade/index.vue'),
+    meta: { title: '闪电交易', showTabbar: true }
   },
-  
-  // ========== 资产监测 ==========
-  {
-    path: '/assets',
-    name: 'Assets',
-    component: () => import('@/views/assets/index.vue'),
-    meta: { title: '资产监测', showTabbar: true }
-  },
-  {
-    path: '/assets/detail/:account',
-    name: 'AssetDetail',
-    component: () => import('@/views/assets/AssetDetail.vue'),
-    meta: { title: '账户详情', showTabbar: false }
-  },
-  
-  // ========== 指标市场 ==========
-  {
-    path: '/market',
-    name: 'IndicatorMarket',
-    component: () => import('@/views/market/index.vue'),
-    meta: { title: '指标市场', showTabbar: true }
-  },
-  {
-    path: '/market/indicator/:id',
-    name: 'IndicatorDetail',
-    component: () => import('@/views/market/IndicatorDetail.vue'),
-    meta: { title: '指标详情', showTabbar: false }
-  },
-  
-  // ========== 个人中心 ==========
   {
     path: '/profile',
     name: 'Profile',
@@ -106,6 +53,26 @@ const routes = [
     name: 'ServerConfig',
     component: () => import('@/views/profile/ServerConfig.vue'),
     meta: { title: '服务器配置', showTabbar: false }
+  },
+  {
+    path: '/profile/credentials',
+    name: 'CredentialList',
+    component: () => import('@/views/profile/Credentials.vue'),
+    meta: { title: 'API Key 管理', showTabbar: false }
+  },
+  {
+    path: '/profile/credentials/new',
+    name: 'CredentialCreate',
+    component: () => import('@/views/profile/CredentialForm.vue'),
+    meta: { title: '添加 API Key', showTabbar: false }
+  },
+  {
+    path: '/assets',
+    redirect: '/home'
+  },
+  {
+    path: '/market',
+    redirect: '/trading'
   }
 ]
 
@@ -116,7 +83,7 @@ const router = createRouter({
 
 // 路由守卫
 router.beforeEach((to, from, next) => {
-  document.title = to.meta.title ? `${to.meta.title} - QuantDinger` : 'QuantDinger'
+  document.title = to.meta.title ? `${to.meta.title} | Mobile` : 'Mobile'
   
   // 登录校验
   const userStore = useUserStore()

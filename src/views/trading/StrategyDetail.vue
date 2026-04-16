@@ -3,179 +3,102 @@
     <van-nav-bar
       :title="strategy?.name || '策略详情'"
       left-arrow
-      @click-left="$router.back()"
       :border="false"
+      @click-left="$router.back()"
     />
 
     <div v-if="strategy" class="content">
-      <!-- 状态卡片 -->
       <div class="status-card">
-        <div class="status-main">
-          <span :class="['status-badge', strategy.status]">
-            {{ getStatusText(strategy.status) }}
-          </span>
-          <span class="symbol">{{ strategy.trading_config?.symbol }}</span>
+        <div>
+          <span class="detail-name">{{ strategy.name || '未命名策略' }}</span>
+          <p class="detail-subtitle">{{ strategy.trading_config?.symbol || '-' }} · {{ strategy.trading_config?.timeframe || '-' }}</p>
         </div>
-        <div class="status-actions">
-          <van-button
-            v-if="strategy.status === 'stopped'"
-            type="success"
-            size="small"
-            :loading="actionLoading"
-            @click="startStrategy"
-          >
-            启动策略
-          </van-button>
-          <van-button
-            v-if="strategy.status === 'running'"
-            type="danger"
-            size="small"
-            :loading="actionLoading"
-            @click="stopStrategy"
-          >
-            停止策略
-          </van-button>
+        <span :class="['status-badge', strategy.status]">{{ getStatusText(strategy.status) }}</span>
+      </div>
+
+      <div class="action-row">
+        <van-button plain block @click="refreshData">刷新</van-button>
+        <van-button
+          v-if="strategy.status === 'running'"
+          block
+          type="danger"
+          :loading="actionLoading"
+          @click="stopStrategy"
+        >
+          停止策略
+        </van-button>
+        <van-button
+          v-else
+          block
+          type="primary"
+          :loading="actionLoading"
+          @click="startStrategy"
+        >
+          启动策略
+        </van-button>
+      </div>
+
+      <div class="section-card">
+        <div class="section-title">概览</div>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="label">指标</span>
+            <span class="value">{{ strategy.indicator?.name || strategy.indicator_name || '-' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">模式</span>
+            <span class="value">{{ strategy.strategy_mode || strategy.type || '-' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">总盈亏</span>
+            <span :class="['value', pnlValue >= 0 ? 'profit' : 'loss']">{{ formatSigned(pnlValue) }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">胜率</span>
+            <span class="value">{{ formatPercent(performance.win_rate) }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">交易笔数</span>
+            <span class="value">{{ performance.total_trades || 0 }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">盈亏因子</span>
+            <span class="value">{{ formatNumber(performance.profit_factor) }}</span>
+          </div>
         </div>
       </div>
 
-      <van-tabs v-model:active="activeTab" shrink animated swipeable>
-        <van-tab title="概览">
-          <div class="tab-content">
-            <div class="info-section">
-              <div class="section-title">策略配置</div>
-              <div class="info-grid">
-                <div class="info-item">
-                  <span class="label">周期</span>
-                  <span class="value">{{ strategy.trading_config?.timeframe || '-' }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">指标</span>
-                  <span class="value">{{ strategy.indicator?.name || '-' }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">券商</span>
-                  <span class="value">{{ strategy.trading_config?.broker || '-' }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">账户</span>
-                  <span class="value">{{ strategy.trading_config?.account_id || '-' }}</span>
-                </div>
-              </div>
+      <div class="section-card">
+        <div class="section-title">当前持仓</div>
+        <div v-if="positions.length" class="simple-list">
+          <div v-for="item in positions" :key="item.symbol + item.side" class="simple-row">
+            <div>
+              <span class="row-title">{{ item.symbol || '-' }}</span>
+              <p class="row-subtitle">{{ item.side || '-' }} · 数量 {{ formatNumber(item.size) }}</p>
             </div>
-
-            <div class="info-section">
-              <div class="section-title">绩效统计</div>
-              <div class="info-grid">
-                <div class="info-item">
-                  <span class="label">总盈亏</span>
-                  <span :class="['value', (strategy.performance?.total_pnl || 0) >= 0 ? 'profit' : 'loss']">
-                    {{ formatMoney(strategy.performance?.total_pnl) }}
-                  </span>
-                </div>
-                <div class="info-item">
-                  <span class="label">胜率</span>
-                  <span class="value">{{ formatPercent(strategy.performance?.win_rate) }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">总交易</span>
-                  <span class="value">{{ strategy.performance?.total_trades || 0 }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">盈亏比</span>
-                  <span class="value">{{ strategy.performance?.profit_factor?.toFixed(2) || '-' }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="info-section">
-              <div class="section-title">通知渠道</div>
-              <div class="notify-tags">
-                <van-tag
-                  v-for="channel in (strategy.notify_channels || [])"
-                  :key="channel"
-                  type="primary"
-                  plain
-                  size="medium"
-                >
-                  {{ getChannelName(channel) }}
-                </van-tag>
-                <van-tag v-if="!strategy.notify_channels?.length" type="default">
-                  未配置
-                </van-tag>
-              </div>
-            </div>
+            <span :class="['row-value', Number(item.unrealized_pnl || item.pnl || 0) >= 0 ? 'profit' : 'loss']">
+              {{ formatSigned(item.unrealized_pnl || item.pnl || 0) }}
+            </span>
           </div>
-        </van-tab>
+        </div>
+        <van-empty v-else description="暂无持仓" />
+      </div>
 
-        <van-tab title="持仓">
-          <div class="tab-content">
-            <div v-if="positions.length > 0" class="position-list">
-              <div v-for="pos in positions" :key="pos.ticket" class="position-item">
-                <div class="pos-header">
-                  <span class="symbol">{{ pos.symbol }}</span>
-                  <span :class="['direction', pos.type?.toLowerCase()]">
-                    {{ pos.type }}
-                  </span>
-                </div>
-                <div class="pos-body">
-                  <div class="pos-info">
-                    <span class="label">手数</span>
-                    <span class="value">{{ pos.volume }}</span>
-                  </div>
-                  <div class="pos-info">
-                    <span class="label">开仓价</span>
-                    <span class="value">{{ pos.price_open }}</span>
-                  </div>
-                  <div class="pos-info">
-                    <span class="label">当前价</span>
-                    <span class="value">{{ pos.price_current }}</span>
-                  </div>
-                  <div class="pos-info">
-                    <span class="label">浮盈</span>
-                    <span :class="['value', pos.profit >= 0 ? 'profit' : 'loss']">
-                      {{ formatMoney(pos.profit) }}
-                    </span>
-                  </div>
-                </div>
-              </div>
+      <div class="section-card">
+        <div class="section-title">最近成交</div>
+        <div v-if="trades.length" class="simple-list">
+          <div v-for="item in trades.slice(0, 10)" :key="item.id" class="simple-row">
+            <div>
+              <span class="row-title">{{ item.symbol || '-' }}</span>
+              <p class="row-subtitle">{{ item.side || item.type || '-' }} · {{ formatTime(item.created_at || item.time) }}</p>
             </div>
-            <van-empty v-else image="search" description="暂无持仓" />
+            <span :class="['row-value', Number(item.profit || 0) >= 0 ? 'profit' : 'loss']">
+              {{ formatSigned(item.profit || 0) }}
+            </span>
           </div>
-        </van-tab>
-
-        <van-tab title="记录">
-          <div class="tab-content">
-            <div v-if="trades.length > 0" class="trade-list">
-              <div v-for="trade in trades" :key="trade.id" class="trade-item">
-                <div class="trade-header">
-                  <span class="symbol">{{ trade.symbol }}</span>
-                  <span :class="['direction', trade.type?.toLowerCase()]">
-                    {{ trade.type }}
-                  </span>
-                  <span class="time">{{ formatTime(trade.time) }}</span>
-                </div>
-                <div class="trade-body">
-                  <div class="trade-info">
-                    <span class="label">手数</span>
-                    <span class="value">{{ trade.volume }}</span>
-                  </div>
-                  <div class="trade-info">
-                    <span class="label">价格</span>
-                    <span class="value">{{ trade.price }}</span>
-                  </div>
-                  <div class="trade-info">
-                    <span class="label">盈亏</span>
-                    <span :class="['value', (trade.profit || 0) >= 0 ? 'profit' : 'loss']">
-                      {{ formatMoney(trade.profit) }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <van-empty v-else image="search" description="暂无交易记录" />
-          </div>
-        </van-tab>
-      </van-tabs>
+        </div>
+        <van-empty v-else description="暂无成交记录" />
+      </div>
     </div>
 
     <van-loading v-if="loading" class="page-loading" vertical>加载中...</van-loading>
@@ -183,124 +106,121 @@
 </template>
 
 <script>
-import { showToast, showConfirmDialog } from 'vant'
+import { showConfirmDialog, showToast } from 'vant'
 import { strategyApi } from '@/api'
 
 export default {
   name: 'StrategyDetail',
-  
+
   data() {
     return {
-      strategyId: null,
       strategy: null,
       positions: [],
       trades: [],
-      activeTab: 0,
+      performance: {},
       loading: false,
       actionLoading: false
     }
   },
-  
+
+  computed: {
+    strategyId() {
+      return this.$route.params.id
+    },
+    pnlValue() {
+      return Number(this.performance.total_profit || this.strategy?.performance?.total_pnl || 0)
+    }
+  },
+
   mounted() {
-    this.strategyId = this.$route.params.id
     this.loadData()
   },
-  
+
   methods: {
     async loadData() {
       this.loading = true
-      
       try {
-        const [detailRes, posRes, tradesRes] = await Promise.all([
+        const [detailRes, positionsRes, tradesRes] = await Promise.all([
           strategyApi.getDetail(this.strategyId),
           strategyApi.getPositions(this.strategyId),
-          strategyApi.getTrades(this.strategyId, 50)
+          strategyApi.getTrades(this.strategyId, 20)
         ])
-        
-        if (detailRes.code === 1) {
-          this.strategy = detailRes.data
-        }
-        
-        if (posRes.code === 1) {
-          this.positions = posRes.data || []
-        }
-        
-        if (tradesRes.code === 1) {
-          this.trades = tradesRes.data || []
-        }
-      } catch (err) {
-        console.error('Load detail error:', err)
-        showToast({ message: '加载失败', type: 'fail' })
+
+        this.strategy = detailRes.data || null
+        this.positions = positionsRes.data || []
+        this.trades = tradesRes.data || []
+        this.performance = this.strategy?.performance || {}
+      } catch (error) {
+        console.error('Load strategy detail failed:', error)
+        showToast({ message: '策略详情加载失败', type: 'fail' })
       } finally {
         this.loading = false
       }
     },
-    
+
+    async refreshData() {
+      await this.loadData()
+    },
+
     getStatusText(status) {
-      const map = { running: '运行中', stopped: '已停止', error: '异常' }
-      return map[status] || status
-    },
-    
-    getChannelName(channel) {
       const map = {
-        email: '邮件',
-        telegram: 'Telegram',
-        wechat: '企业微信',
-        webhook: 'Webhook',
-        bark: 'Bark'
+        running: '运行中',
+        stopped: '已停止',
+        error: '异常',
+        starting: '启动中',
+        stopping: '停止中'
       }
-      return map[channel] || channel
+      return map[status] || '未知状态'
     },
-    
-    formatMoney(val) {
-      if (val === undefined || val === null) return '-'
-      const sign = val >= 0 ? '+' : ''
-      return `${sign}${val.toFixed(2)}`
+
+    formatSigned(value) {
+      const num = Number(value || 0)
+      const sign = num > 0 ? '+' : ''
+      return `${sign}${num.toFixed(2)}`
     },
-    
-    formatPercent(val) {
-      if (val === undefined || val === null) return '-'
-      return `${(val * 100).toFixed(1)}%`
+
+    formatNumber(value) {
+      const num = Number(value || 0)
+      return num ? num.toFixed(2) : '0.00'
     },
-    
-    formatTime(time) {
-      if (!time) return '-'
-      const d = new Date(time)
-      return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
+
+    formatPercent(value) {
+      const num = Number(value || 0)
+      return `${num.toFixed(2)}%`
     },
-    
+
+    formatTime(value) {
+      const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value)
+      if (Number.isNaN(date.getTime())) return '-'
+      return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+    },
+
     async startStrategy() {
       this.actionLoading = true
       try {
-        const res = await strategyApi.start(this.strategyId)
-        if (res.code === 1) {
-          showToast({ message: '启动成功', type: 'success' })
-          await this.loadData()
-        } else {
-          showToast({ message: res.msg || '启动失败', type: 'fail' })
-        }
-      } catch (err) {
-        showToast({ message: '启动失败', type: 'fail' })
+        await strategyApi.start(this.strategyId)
+        showToast({ message: '策略已启动', type: 'success' })
+        await this.loadData()
+      } catch (error) {
+        console.error('Start strategy failed:', error)
       } finally {
         this.actionLoading = false
       }
     },
-    
+
     async stopStrategy() {
       try {
-        await showConfirmDialog({ title: '确认停止', message: '确定要停止该策略吗？' })
-        
+        await showConfirmDialog({
+          title: '确认停止',
+          message: '确定要停止该策略吗？'
+        })
         this.actionLoading = true
-        const res = await strategyApi.stop(this.strategyId)
-        if (res.code === 1) {
-          showToast({ message: '已停止', type: 'success' })
-          await this.loadData()
-        } else {
-          showToast({ message: res.msg || '停止失败', type: 'fail' })
-        }
-      } catch (err) {
-        if (err !== 'cancel') {
-          showToast({ message: '停止失败', type: 'fail' })
+        await strategyApi.stop(this.strategyId)
+        showToast({ message: '策略已停止', type: 'success' })
+        await this.loadData()
+      } catch (error) {
+        if (error !== 'cancel') {
+          console.error('Stop strategy failed:', error)
         }
       } finally {
         this.actionLoading = false
@@ -313,7 +233,7 @@ export default {
 <style scoped>
 .detail-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+  padding-bottom: 30px;
 }
 
 .detail-page :deep(.van-nav-bar) {
@@ -326,87 +246,82 @@ export default {
 }
 
 .content {
-  padding: 16px;
+  padding: 0 16px 24px;
+}
+
+.status-card,
+.section-card {
+  margin-bottom: 16px;
+  padding: 18px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.detail-name {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.detail-subtitle {
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.48);
 }
 
 .status-card {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-.status-main {
-  display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
 }
 
 .status-badge {
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 10px;
-  background: rgba(134, 142, 150, 0.3);
-  color: #adb5bd;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .status-badge.running {
-  background: rgba(81, 207, 102, 0.2);
-  color: #51cf66;
+  color: #34c759;
+  background: rgba(52, 199, 89, 0.12);
 }
 
 .status-badge.error {
-  background: rgba(255, 107, 107, 0.2);
-  color: #ff6b6b;
+  color: #ff5f57;
+  background: rgba(255, 95, 87, 0.12);
 }
 
-.status-main .symbol {
-  font-size: 16px;
-  font-weight: 600;
-  color: #fff;
+.status-badge.stopped {
+  color: #8e8e93;
+  background: rgba(142, 142, 147, 0.14);
 }
 
-.detail-page :deep(.van-tabs__nav) {
-  background: transparent;
+.action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
-.detail-page :deep(.van-tab) {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.detail-page :deep(.van-tab--active) {
-  color: #fff;
-}
-
-.detail-page :deep(.van-tabs__line) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.tab-content {
-  padding: 16px 0;
-}
-
-.info-section {
-  background: rgba(255, 255, 255, 0.05);
+.action-row :deep(.van-button) {
   border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 12px;
 }
 
 .section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 14px;
 }
 
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 12px;
 }
 
 .info-item {
@@ -415,120 +330,58 @@ export default {
   gap: 4px;
 }
 
-.info-item .label {
+.label {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.42);
 }
 
-.info-item .value {
-  font-size: 15px;
-  color: #fff;
-}
-
-.info-item .value.profit {
-  color: #51cf66;
-}
-
-.info-item .value.loss {
-  color: #ff6b6b;
-}
-
-.notify-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.position-list,
-.trade-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.position-item,
-.trade-item {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  padding: 14px;
-}
-
-.pos-header,
-.trade-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.pos-header .symbol,
-.trade-header .symbol {
-  font-size: 15px;
-  font-weight: 600;
-  color: #fff;
-}
-
-.direction {
-  font-size: 12px;
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-.direction.buy {
-  background: rgba(81, 207, 102, 0.2);
-  color: #51cf66;
-}
-
-.direction.sell {
-  background: rgba(255, 107, 107, 0.2);
-  color: #ff6b6b;
-}
-
-.trade-header .time {
-  margin-left: auto;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.pos-body {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-}
-
-.trade-body {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-
-.pos-info,
-.trade-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.pos-info .label,
-.trade-info .label {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.pos-info .value,
-.trade-info .value {
+.value,
+.row-value {
   font-size: 14px;
   color: #fff;
 }
 
-.pos-info .value.profit,
-.trade-info .value.profit {
-  color: #51cf66;
+.value.profit,
+.row-value.profit {
+  color: #34c759;
 }
 
-.pos-info .value.loss,
-.trade-info .value.loss {
-  color: #ff6b6b;
+.value.loss,
+.row-value.loss {
+  color: #ff5f57;
+}
+
+.simple-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.simple-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.simple-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.row-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.row-subtitle {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .page-loading {

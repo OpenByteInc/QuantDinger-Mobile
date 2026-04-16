@@ -1,7 +1,7 @@
 import axios from 'axios'
-import { showToast, showLoadingToast, closeToast } from 'vant'
+import { showToast } from 'vant'
+import { DEFAULT_SERVER_URL } from '@/config'
 
-// 创建 axios 实例
 const http = axios.create({
   timeout: 30000,
   headers: {
@@ -9,52 +9,99 @@ const http = axios.create({
   }
 })
 
-// 获取基础 URL
 const getBaseUrl = () => {
-  const serverUrl = localStorage.getItem('serverUrl')
+  const serverUrl = localStorage.getItem('serverUrl')?.trim()
   if (serverUrl) {
-    return serverUrl
+    return serverUrl.replace(/\/$/, '')
   }
-  // 开发环境使用代理
-  if (import.meta.env.DEV) {
-    return ''
-  }
-  return window.location.origin
+  return DEFAULT_SERVER_URL
 }
 
-// 请求拦截器
+const ensureArray = (value) => Array.isArray(value) ? value : []
+
+const unwrapItems = (data, key = 'items') => {
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.[key])) return data[key]
+  return []
+}
+
+const normalizeStrategy = (raw = {}) => {
+  const tradingConfig = raw?.trading_config && typeof raw.trading_config === 'object' ? raw.trading_config : {}
+  const indicatorConfig = raw?.indicator_config && typeof raw.indicator_config === 'object' ? raw.indicator_config : {}
+  const exchangeConfig = raw?.exchange_config && typeof raw.exchange_config === 'object' ? raw.exchange_config : {}
+  const notificationConfig = raw?.notification_config && typeof raw.notification_config === 'object' ? raw.notification_config : {}
+
+  const name = raw.name || raw.strategy_name || raw.group_base_name || (raw.id ? `策略 #${raw.id}` : '未命名策略')
+  const indicatorName = raw.indicator_name ||
+    indicatorConfig.indicator_name ||
+    indicatorConfig.name ||
+    indicatorConfig.display_name ||
+    indicatorConfig.indicator ||
+    tradingConfig.bot_name ||
+    ''
+
+  const performance = raw.performance && typeof raw.performance === 'object'
+    ? raw.performance
+    : {
+        total_pnl: Number(raw.total_pnl || raw.total_profit || raw.pnl || 0),
+        win_rate: Number(raw.win_rate || 0),
+        total_trades: Number(raw.total_trades || 0),
+        profit_factor: Number(raw.profit_factor || 0)
+      }
+
+  return {
+    ...raw,
+    name,
+    strategy_name: raw.strategy_name || name,
+    type: raw.type || raw.strategy_type || '',
+    symbol: raw.symbol || tradingConfig.symbol || '',
+    timeframe: raw.timeframe || tradingConfig.timeframe || '',
+    indicator_name: indicatorName,
+    indicator: {
+      ...(raw.indicator || {}),
+      name: raw?.indicator?.name || indicatorName
+    },
+    trading_config: {
+      ...tradingConfig,
+      symbol: tradingConfig.symbol || raw.symbol || '',
+      timeframe: tradingConfig.timeframe || raw.timeframe || '',
+      initial_capital: tradingConfig.initial_capital || raw.initial_capital || 0,
+      leverage: tradingConfig.leverage || raw.leverage || 1,
+      market_type: tradingConfig.market_type || raw.market_type || ''
+    },
+    exchange_config: exchangeConfig,
+    notification_config: notificationConfig,
+    performance
+  }
+}
+
 http.interceptors.request.use(
   (config) => {
     config.baseURL = getBaseUrl()
-    
+
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// 响应拦截器
 http.interceptors.response.use(
   (response) => {
     const res = response.data
-    // 兼容不同的返回格式
-    if (res.code === 1 || res.code === 200 || res.success) {
+    if (res?.code === 1 || res?.code === 200 || res?.success) {
       return res
     }
-    // 有些接口直接返回数据
-    if (response.status === 200 && !res.code) {
+    if (response.status === 200 && !res?.code) {
       return { code: 1, data: res }
     }
     showToast({
-      message: res.msg || res.message || '请求失败',
+      message: res?.msg || res?.message || '请求失败',
       type: 'fail'
     })
-    return Promise.reject(new Error(res.msg || res.message || '请求失败'))
+    return Promise.reject(new Error(res?.msg || res?.message || '请求失败'))
   },
   (error) => {
     let message = '网络错误'
@@ -76,204 +123,203 @@ http.interceptors.response.use(
         default:
           message = error.response.data?.message || error.response.data?.msg || '请求失败'
       }
-    } else if (error.message.includes('timeout')) {
+    } else if (error.message?.includes('timeout')) {
       message = '请求超时'
-    } else if (error.message.includes('Network Error')) {
+    } else if (error.message?.includes('Network Error')) {
       message = '网络连接失败，请检查服务器地址'
     }
-    
+
     showToast({ message, type: 'fail' })
     return Promise.reject(error)
   }
 )
 
-// ============ 认证相关 API ============
 export const authApi = {
-  // 登录
   login: (data) => http.post('/api/auth/login', data),
-  
-  // 获取用户信息
+  getSecurityConfig: () => http.get('/api/auth/security-config'),
   getInfo: () => http.get('/api/auth/info'),
-  
-  // 登出
   logout: () => http.post('/api/auth/logout')
 }
 
-// ============ 自选股/市场相关 API ============
-export const marketApi = {
-  // 获取自选列表
-  getWatchlist: () => http.get('/api/market/watchlist/get'),
-  
-  // 获取自选股实时价格
-  getWatchlistPrices: (symbols) => http.get('/api/market/watchlist/prices', {
-    params: { symbols: symbols.join(',') }
-  }),
-  
-  // 添加自选
-  addWatchlist: (data) => http.post('/api/market/watchlist/add', data),
-  
-  // 移除自选
-  removeWatchlist: (data) => http.post('/api/market/watchlist/remove', data),
-  
-  // 搜索股票
-  searchSymbols: (keyword, market) => http.get('/api/market/symbols/search', {
-    params: { keyword, market }
-  }),
-  
-  // 获取热门股票
-  getHotSymbols: (market) => http.get('/api/market/symbols/hot', {
-    params: { market }
-  }),
-  
-  // 获取单个价格
-  getPrice: (symbol, market) => http.get('/api/market/price', {
-    params: { symbol, market }
-  }),
-  
-  // 获取股票名称
-  getStockName: (symbols) => http.post('/api/market/stock/name', { symbols })
-}
-
-// ============ K线数据 API ============
-export const klineApi = {
-  // 获取 K 线数据
-  getKline: (params) => http.get('/api/kline/kline', { params }),
-  
-  // 获取实时行情
-  getTicker: (symbol, market) => http.get('/api/kline/ticker', {
-    params: { symbol, market }
-  })
-}
-
-// ============ 策略相关 API ============
-export const strategyApi = {
-  // 获取策略列表
-  getList: () => http.get('/api/strategy/strategies'),
-  
-  // 获取策略详情
-  getDetail: (id) => http.get('/api/strategy/strategies/detail', {
-    params: { strategy_id: id }
-  }),
-  
-  // 创建策略
-  create: (data) => http.post('/api/strategy/strategies/create', data),
-  
-  // 更新策略
-  update: (data) => http.put('/api/strategy/strategies/update', data),
-  
-  // 删除策略
-  delete: (id) => http.delete('/api/strategy/strategies/delete', {
-    params: { strategy_id: id }
-  }),
-  
-  // 启动策略
-  start: (id) => http.post('/api/strategy/strategies/start', { strategy_id: id }),
-  
-  // 停止策略
-  stop: (id) => http.post('/api/strategy/strategies/stop', { strategy_id: id }),
-  
-  // 获取交易记录
-  getTrades: (strategyId, limit = 50) => http.get('/api/strategy/strategies/trades', {
-    params: { strategy_id: strategyId, limit }
-  }),
-  
-  // 获取持仓
-  getPositions: (strategyId) => http.get('/api/strategy/strategies/positions', {
-    params: { strategy_id: strategyId }
-  }),
-  
-  // 获取净值曲线
-  getEquityCurve: (strategyId) => http.get('/api/strategy/strategies/equityCurve', {
-    params: { strategy_id: strategyId }
-  }),
-  
-  // 测试连接
-  testConnection: (data) => http.post('/api/strategy/strategies/test-connection', data)
-}
-
-// ============ 指标相关 API ============
-export const indicatorApi = {
-  // 获取指标列表（我的指标）
-  getIndicators: () => http.get('/api/indicator/getIndicators'),
-  
-  // 获取指标参数
-  getParams: (indicatorId) => http.get('/api/indicator/getIndicatorParams', {
-    params: { indicator_id: indicatorId }
-  }),
-  
-  // 保存指标
-  save: (data) => http.post('/api/indicator/saveIndicator', data),
-  
-  // 删除指标
-  delete: (id) => http.post('/api/indicator/deleteIndicator', { indicator_id: id })
-}
-
-// ============ 指标市场/社区 API ============
-export const communityApi = {
-  // 获取市场指标列表
-  getIndicators: (params) => http.get('/api/community/indicators', { params }),
-  
-  // 获取指标详情
-  getDetail: (id) => http.get(`/api/community/indicators/${id}`),
-  
-  // 购买指标
-  purchase: (id) => http.post(`/api/community/indicators/${id}/purchase`),
-  
-  // 获取我购买的指标
-  getMyPurchases: () => http.get('/api/community/my-purchases'),
-  
-  // 获取评论
-  getComments: (indicatorId) => http.get(`/api/community/indicators/${indicatorId}/comments`),
-  
-  // 添加评论
-  addComment: (indicatorId, data) => http.post(`/api/community/indicators/${indicatorId}/comments`, data)
-}
-
-// ============ 仪表盘/资产 API ============
 export const dashboardApi = {
-  // 获取仪表盘摘要（包含资产信息）
-  getSummary: () => http.get('/api/dashboard/summary'),
-  
-  // 获取挂单
-  getPendingOrders: () => http.get('/api/dashboard/pendingOrders')
+  getSummary: async () => {
+    const res = await http.get('/api/dashboard/summary')
+    return {
+      ...res,
+      data: res.data || {}
+    }
+  },
+  getPendingOrders: async (params = {}) => {
+    const res = await http.get('/api/dashboard/pendingOrders', { params })
+    return {
+      ...res,
+      data: res.data || { items: [], total: 0 }
+    }
+  }
 }
 
-// ============ 全球市场 API ============
-export const globalMarketApi = {
-  // 获取市场概览
-  getOverview: () => http.get('/api/global-market/overview'),
-  
-  // 获取市场新闻
-  getNews: (params) => http.get('/api/global-market/news', { params }),
-  
-  // 获取经济日历
-  getCalendar: (params) => http.get('/api/global-market/calendar', { params }),
-  
-  // 获取市场情绪
-  getSentiment: () => http.get('/api/global-market/sentiment')
+export const credentialsApi = {
+  list: async () => {
+    const res = await http.get('/api/credentials/list')
+    return {
+      ...res,
+      data: unwrapItems(res.data)
+    }
+  },
+  get: async (id) => {
+    const res = await http.get('/api/credentials/get', {
+      params: { id }
+    })
+    return {
+      ...res,
+      data: res.data || null
+    }
+  },
+  create: (data) => http.post('/api/credentials/create', data),
+  delete: (id) => http.delete('/api/credentials/delete', {
+    params: { id }
+  }),
+  getEgressIp: async () => {
+    const res = await http.get('/api/credentials/egress-ip')
+    return {
+      ...res,
+      data: res.data || {}
+    }
+  }
 }
 
-// ============ AI 分析 API ============
-export const aiApi = {
-  // 快速分析
-  analyze: (data) => http.post('/api/fast-analysis/analyze', data),
-  
-  // 获取分析历史
-  getHistory: (symbol, market) => http.get('/api/fast-analysis/history', {
-    params: { symbol, market }
-  })
+export const strategyApi = {
+  getList: async () => {
+    const res = await http.get('/api/strategies')
+    return {
+      ...res,
+      data: ensureArray(res.data?.strategies).map(normalizeStrategy)
+    }
+  },
+  getDetail: async (id) => {
+    const res = await http.get('/api/strategies/detail', {
+      params: { id }
+    })
+    return {
+      ...res,
+      data: res.data ? normalizeStrategy(res.data) : null
+    }
+  },
+  start: (id) => http.post('/api/strategies/start', null, {
+    params: { id }
+  }),
+  stop: (id) => http.post('/api/strategies/stop', null, {
+    params: { id }
+  }),
+  getTrades: async (id, limit = 50) => {
+    const res = await http.get('/api/strategies/trades', {
+      params: { id, limit }
+    })
+    return {
+      ...res,
+      data: unwrapItems(res.data, 'trades')
+    }
+  },
+  getPositions: async (id) => {
+    const res = await http.get('/api/strategies/positions', {
+      params: { id }
+    })
+    return {
+      ...res,
+      data: unwrapItems(res.data, 'positions')
+    }
+  },
+  getEquityCurve: async (id) => {
+    const res = await http.get('/api/strategies/equityCurve', {
+      params: { id }
+    })
+    return {
+      ...res,
+      data: ensureArray(res.data)
+    }
+  },
+  getPerformance: async (id) => {
+    const res = await http.get('/api/strategies/performance', {
+      params: { id }
+    })
+    return {
+      ...res,
+      data: res.data || {}
+    }
+  },
+  getLogs: async (id, limit = 100) => {
+    const res = await http.get('/api/strategies/logs', {
+      params: { id, limit }
+    })
+    return {
+      ...res,
+      data: unwrapItems(res.data, 'logs')
+    }
+  },
+  testConnection: (data) => http.post('/api/strategies/test-connection', data),
+  getNotifications: async (params = {}) => {
+    const res = await http.get('/api/strategies/notifications', { params })
+    return {
+      ...res,
+      data: unwrapItems(res.data)
+    }
+  },
+  getUnreadNotificationCount: async () => {
+    const res = await http.get('/api/strategies/notifications/unread-count')
+    return {
+      ...res,
+      data: res.data?.unread || 0
+    }
+  },
+  markNotificationRead: (id) => http.post('/api/strategies/notifications/read', { id }),
+  markAllNotificationsRead: () => http.post('/api/strategies/notifications/read-all'),
+  clearNotifications: () => http.delete('/api/strategies/notifications/clear')
 }
 
-// ============ 用户相关 API ============
+export const quickTradeApi = {
+  getBalance: async (credentialId, marketType = 'spot') => {
+    const res = await http.get('/api/quick-trade/balance', {
+      params: {
+        credential_id: credentialId,
+        market_type: marketType
+      }
+    })
+    return {
+      ...res,
+      data: res.data || { available: 0, total: 0, currency: 'USDT' }
+    }
+  },
+  getPosition: async ({ credentialId, symbol, marketType = 'spot' }) => {
+    const res = await http.get('/api/quick-trade/position', {
+      params: {
+        credential_id: credentialId,
+        symbol,
+        market_type: marketType
+      }
+    })
+    return {
+      ...res,
+      data: unwrapItems(res.data, 'positions')
+    }
+  },
+  placeOrder: (payload) => http.post('/api/quick-trade/place-order', payload),
+  closePosition: (payload) => http.post('/api/quick-trade/close-position', payload),
+  getHistory: async (params = {}) => {
+    const res = await http.get('/api/quick-trade/history', { params })
+    return {
+      ...res,
+      data: unwrapItems(res.data, 'trades')
+    }
+  }
+}
+
 export const userApi = {
-  // 获取用户信息
-  getInfo: () => http.get('/api/auth/info'),
-  
-  // 获取通知设置
-  getNotificationSettings: () => http.get('/api/user/notification-settings'),
-  
-  // 更新通知设置
-  updateNotificationSettings: (data) => http.post('/api/user/notification-settings', data)
+  getProfile: () => http.get('/api/users/profile'),
+  updateProfile: (data) => http.put('/api/users/profile/update', data),
+  getNotificationSettings: () => http.get('/api/users/notification-settings'),
+  updateNotificationSettings: (data) => http.put('/api/users/notification-settings', data),
+  testNotificationSettings: () => http.post('/api/users/notification-settings/test'),
+  changePassword: (data) => http.post('/api/users/change-password', data)
 }
 
 export default http

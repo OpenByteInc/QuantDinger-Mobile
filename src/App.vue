@@ -1,13 +1,11 @@
 <template>
   <div class="app-container">
-    <!-- 页面内容 -->
     <router-view v-slot="{ Component }">
-      <keep-alive :include="['Home', 'Trading', 'Assets', 'IndicatorMarket', 'Profile']">
+      <keep-alive :include="['Home', 'Trading', 'QuickTrade', 'Profile']">
         <component :is="Component" />
       </keep-alive>
     </router-view>
     
-    <!-- 底部导航栏 -->
     <van-tabbar 
       v-if="showTabbar" 
       v-model="activeTab" 
@@ -15,20 +13,18 @@
       :safe-area-inset-bottom="true"
       :border="false"
     >
-      <van-tabbar-item name="home" icon="wap-home-o">
-        首页
-      </van-tabbar-item>
-      <van-tabbar-item name="trading" icon="apps-o">
-        交易助手
-      </van-tabbar-item>
-      <van-tabbar-item name="assets" icon="balance-list-o">
-        资产
-      </van-tabbar-item>
-      <van-tabbar-item name="market" icon="shop-o">
-        指标市场
-      </van-tabbar-item>
-      <van-tabbar-item name="profile" icon="user-o" :badge="unreadCount > 0 ? unreadCount : ''">
-        我的
+      <van-tabbar-item
+        v-for="tab in tabs"
+        :key="tab.name"
+        :name="tab.name"
+        :badge="tab.name === 'profile' && unreadCount > 0 ? unreadCount : ''"
+      >
+        <template #icon>
+          <div class="tab-icon-shell">
+            <van-icon :name="tab.icon" />
+          </div>
+        </template>
+        {{ tab.label }}
       </van-tabbar-item>
     </van-tabbar>
   </div>
@@ -52,12 +48,18 @@ const unreadCount = computed(() => notificationStore.unreadCount)
 // 是否显示底部导航
 const showTabbar = computed(() => route.meta.showTabbar !== false)
 
+const tabs = [
+  { name: 'home', label: '总览', icon: 'home-o' },
+  { name: 'trading', label: '自动化', icon: 'apps-o' },
+  { name: 'quick-trade', label: '闪电交易', icon: 'exchange' },
+  { name: 'profile', label: '我的', icon: 'contact-o' }
+]
+
 // Tab 与路由的映射
 const tabRouteMap = {
   home: '/home',
   trading: '/trading',
-  assets: '/assets',
-  market: '/market',
+  'quick-trade': '/quick-trade',
   profile: '/profile'
 }
 
@@ -94,24 +96,57 @@ watch(
 }
 
 :deep(.van-tabbar) {
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--bg-tertiary);
+  height: calc(62px + var(--safe-area-bottom));
+  padding: 8px 10px calc(8px + var(--safe-area-bottom));
+  background: rgba(10, 10, 12, 0.94);
+  backdrop-filter: blur(22px);
 }
 
 :deep(.van-tabbar-item) {
   color: var(--text-muted);
+  transition: transform 0.2s ease, color 0.2s ease;
 }
 
 :deep(.van-tabbar-item--active) {
   color: var(--primary-color);
 }
 
+:deep(.van-tabbar-item--active .tab-icon-shell) {
+  background: linear-gradient(180deg, rgba(212, 176, 106, 0.22), rgba(212, 176, 106, 0.08));
+  border-color: rgba(212, 176, 106, 0.28);
+  color: var(--primary-light);
+  box-shadow: 0 10px 24px rgba(212, 176, 106, 0.14);
+}
+
+:deep(.van-tabbar-item--active) {
+  transform: translateY(-1px);
+}
+
 :deep(.van-tabbar-item__icon) {
-  font-size: 22px;
+  margin-bottom: 4px;
 }
 
 :deep(.van-tabbar-item__text) {
-  font-size: 10px;
-  margin-top: 2px;
+  font-size: 11px;
+  margin-top: 0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+:deep(.van-tabbar-item__icon) {
+  font-size: 20px;
+}
+
+.tab-icon-shell {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  color: currentColor;
+  transition: all 0.2s ease;
 }
 </style>

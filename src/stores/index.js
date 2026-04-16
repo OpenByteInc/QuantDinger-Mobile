@@ -1,15 +1,15 @@
 import { createPinia, defineStore } from 'pinia'
+import { DEFAULT_SERVER_URL, DEFAULT_THEME } from '@/config'
 
 export const pinia = createPinia()
 
-// 用户状态
 export const useUserStore = defineStore('user', {
   state: () => ({
     token: localStorage.getItem('token') || '',
     userInfo: null,
     isLoggedIn: !!localStorage.getItem('token')
   }),
-  
+
   actions: {
     setToken(token) {
       this.token = token
@@ -20,11 +20,11 @@ export const useUserStore = defineStore('user', {
         localStorage.removeItem('token')
       }
     },
-    
+
     setUserInfo(info) {
       this.userInfo = info
     },
-    
+
     logout() {
       this.token = ''
       this.userInfo = null
@@ -34,106 +34,102 @@ export const useUserStore = defineStore('user', {
   }
 })
 
-// 策略状态
 export const useStrategyStore = defineStore('strategy', {
   state: () => ({
     strategies: [],
     loading: false
   }),
-  
+
   getters: {
-    // 按状态统计
     statusCounts: (state) => {
       const counts = { running: 0, stopped: 0, error: 0, total: state.strategies.length }
-      state.strategies.forEach(s => {
-        if (s.status === 'running') counts.running++
-        else if (s.status === 'stopped') counts.stopped++
-        else if (s.status === 'error') counts.error++
+      state.strategies.forEach((item) => {
+        if (item.status === 'running') counts.running++
+        else if (item.status === 'stopped') counts.stopped++
+        else if (item.status === 'error') counts.error++
       })
       return counts
     },
-    
-    // 按标的分组
-    groupedBySymbol: (state) => {
-      const groups = {}
-      state.strategies.forEach(strategy => {
-        const symbol = strategy.trading_config?.symbol || 'Unknown'
-        if (!groups[symbol]) {
-          groups[symbol] = []
-        }
-        groups[symbol].push(strategy)
-      })
-      return groups
-    }
+    runningStrategies: (state) => state.strategies.filter((item) => item.status === 'running'),
+    alertStrategies: (state) => state.strategies.filter((item) => item.status === 'error'),
+    stoppedStrategies: (state) => state.strategies.filter((item) => item.status === 'stopped')
   },
-  
+
   actions: {
     setStrategies(list) {
-      this.strategies = list
+      this.strategies = Array.isArray(list) ? list : []
     },
-    
+
+    updateStrategy(id, patch) {
+      const target = this.strategies.find((item) => item.id === id)
+      if (target) {
+        Object.assign(target, patch)
+      }
+    },
+
     setLoading(val) {
       this.loading = val
     }
   }
 })
 
-// 市场/自选状态
-export const useMarketStore = defineStore('market', {
+export const useCredentialsStore = defineStore('credentials', {
   state: () => ({
-    watchlist: [],
-    prices: {},
+    items: [],
+    egressIp: null,
     loading: false
   }),
-  
+
+  getters: {
+    hasCredentials: (state) => state.items.length > 0,
+    cryptoItems: (state) => state.items.filter((item) => !['ibkr', 'mt5'].includes(item.exchange_id))
+  },
+
   actions: {
-    setWatchlist(list) {
-      this.watchlist = list
+    setItems(list) {
+      this.items = Array.isArray(list) ? list : []
     },
-    
-    setPrices(priceMap) {
-      this.prices = { ...this.prices, ...priceMap }
+
+    setEgressIp(data) {
+      this.egressIp = data || null
     },
-    
+
     setLoading(val) {
       this.loading = val
     }
   }
 })
 
-// 仪表盘/资产状态
 export const useDashboardStore = defineStore('dashboard', {
   state: () => ({
     summary: null,
     loading: false
   }),
-  
+
   getters: {
-    // 总资产
-    totalAssets: (state) => {
-      if (!state.summary?.brokers) return 0
-      return state.summary.brokers.reduce((sum, b) => sum + (b.total_value || 0), 0)
-    }
+    totalAssets: (state) => Number(state.summary?.total_equity || 0),
+    totalPnl: (state) => Number(state.summary?.total_pnl || 0),
+    positions: (state) => Array.isArray(state.summary?.current_positions) ? state.summary.current_positions : [],
+    recentTrades: (state) => Array.isArray(state.summary?.recent_trades) ? state.summary.recent_trades : []
   },
-  
+
   actions: {
     setSummary(data) {
       this.summary = data
     },
-    
+
     setLoading(val) {
       this.loading = val
     }
   }
 })
 
-// 设置状态
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
-    serverUrl: localStorage.getItem('serverUrl') || '',
-    theme: localStorage.getItem('theme') || 'light'
+    serverUrl: localStorage.getItem('serverUrl') || DEFAULT_SERVER_URL,
+    theme: localStorage.getItem('theme') || DEFAULT_THEME
   }),
-  
+
   actions: {
     setServerUrl(url) {
       this.serverUrl = url
@@ -143,7 +139,7 @@ export const useSettingsStore = defineStore('settings', {
         localStorage.removeItem('serverUrl')
       }
     },
-    
+
     setTheme(theme) {
       this.theme = theme
       localStorage.setItem('theme', theme)
@@ -152,30 +148,74 @@ export const useSettingsStore = defineStore('settings', {
   }
 })
 
-// 通知状态
 export const useNotificationStore = defineStore('notification', {
   state: () => ({
     notifications: [],
     unreadCount: 0
   }),
-  
+
   actions: {
     setNotifications(list) {
-      this.notifications = list
-      this.unreadCount = list.filter(n => !n.read).length
+      this.notifications = Array.isArray(list) ? list : []
+      this.unreadCount = this.notifications.filter((item) => !item.is_read && !item.read).length
     },
-    
+
+    setUnreadCount(count) {
+      this.unreadCount = Number(count || 0)
+    },
+
     markAsRead(id) {
-      const notification = this.notifications.find(n => n.id === id)
-      if (notification && !notification.read) {
+      const notification = this.notifications.find((item) => item.id === id)
+      if (notification && !notification.is_read && !notification.read) {
+        notification.is_read = 1
         notification.read = true
         this.unreadCount = Math.max(0, this.unreadCount - 1)
       }
     },
-    
+
     markAllAsRead() {
-      this.notifications.forEach(n => n.read = true)
+      this.notifications.forEach((item) => {
+        item.is_read = 1
+        item.read = true
+      })
       this.unreadCount = 0
+    }
+  }
+})
+
+export const useQuickTradeStore = defineStore('quickTrade', {
+  state: () => ({
+    selectedCredentialId: null,
+    marketType: 'spot',
+    balance: null,
+    positions: [],
+    history: [],
+    loading: false
+  }),
+
+  actions: {
+    setSelectedCredential(id) {
+      this.selectedCredentialId = id || null
+    },
+
+    setMarketType(type) {
+      this.marketType = type || 'spot'
+    },
+
+    setBalance(data) {
+      this.balance = data || null
+    },
+
+    setPositions(list) {
+      this.positions = Array.isArray(list) ? list : []
+    },
+
+    setHistory(list) {
+      this.history = Array.isArray(list) ? list : []
+    },
+
+    setLoading(val) {
+      this.loading = val
     }
   }
 })

@@ -1,123 +1,192 @@
 <template>
   <div class="home-page">
-    <!-- 顶部问候 -->
     <div class="header">
-      <div class="greeting">
-        <span class="time-icon">{{ timeIcon }}</span>
-        <span class="text">{{ greetingText }}</span>
+      <div class="brand-block" @click="refreshData">
+        <img :src="logoUrl" alt="Logo" class="brand-logo" />
+        <div class="session-meta">
+          <span class="session-chip">{{ greetingText }}</span>
+          <span class="refresh-text">傻瓜式量化操作入口</span>
+        </div>
       </div>
       <div class="user" @click="$router.push('/profile')">
-        <van-icon name="setting-o" size="24" />
+        <van-icon name="setting-o" size="22" />
       </div>
     </div>
 
-    <!-- 资产概览卡片 -->
     <div class="asset-card" @click="refreshData">
       <div class="asset-header">
-        <span class="label">总资产 (USD)</span>
+        <div>
+          <div class="title-row">
+            <span class="label">总资产</span>
+            <span class="currency">USD</span>
+          </div>
+          <p class="asset-note">同步本地策略统计与账户摘要</p>
+        </div>
         <van-icon :name="showAsset ? 'eye-o' : 'closed-eye'" @click.stop="showAsset = !showAsset" />
       </div>
-      <div class="asset-value">
-        <span v-if="showAsset">{{ formatMoney(totalAssets) }}</span>
-        <span v-else>******</span>
-      </div>
-      <div class="asset-change" :class="{ profit: todayProfit >= 0 }">
-        <span>今日盈亏：</span>
-        <span v-if="showAsset">{{ todayProfit >= 0 ? '+' : '' }}{{ formatMoney(todayProfit) }}</span>
-        <span v-else>****</span>
+      <div class="asset-value">{{ showAsset ? formatMoney(totalAssets) : '******' }}</div>
+      <div class="asset-insights">
+        <div class="insight-block">
+          <span class="caption">累计盈亏</span>
+          <span :class="['insight-value', totalPnl >= 0 ? 'profit' : 'loss']">
+            {{ showAsset ? formatSignedMoney(totalPnl) : '****' }}
+          </span>
+        </div>
+        <div class="insight-block">
+          <span class="caption">未读通知</span>
+          <span class="insight-value neutral">{{ unreadCount }}</span>
+        </div>
       </div>
     </div>
 
-    <!-- 策略统计 -->
+    <div v-if="!hasCredentials" class="setup-card">
+      <div>
+        <span class="setup-title">先完成交易所 API Key 配置</span>
+        <p class="setup-desc">添加 Binance、OKX、Bybit 等加密交易所凭证后，才能在手机端进行闪电交易和查看账户余额。</p>
+      </div>
+      <van-button type="primary" size="small" @click="$router.push('/profile/credentials/new')">
+        立即添加
+      </van-button>
+    </div>
+
     <div class="section">
       <div class="section-header">
-        <span class="title">策略概览</span>
-        <span class="more" @click="$router.push('/trading')">查看全部 ›</span>
+        <div>
+          <span class="title">一键操作</span>
+          <p class="section-note">围绕手机端最常见的三件事设计</p>
+        </div>
+      </div>
+      <div class="quick-actions">
+        <div class="action-item" @click="$router.push('/profile/credentials')">
+          <div class="icon">
+            <van-icon name="shield-o" />
+          </div>
+          <div class="action-copy">
+            <span>API Key 管理</span>
+            <small>{{ hasCredentials ? `已配置 ${credentialCount} 个` : '尚未配置' }}</small>
+          </div>
+        </div>
+        <div class="action-item" @click="$router.push('/trading')">
+          <div class="icon">
+            <van-icon name="apps-o" />
+          </div>
+          <div class="action-copy">
+            <span>自动化策略</span>
+            <small>查看并启动现有策略</small>
+          </div>
+        </div>
+        <div class="action-item" @click="$router.push('/quick-trade')">
+          <div class="icon">
+            <van-icon name="exchange" />
+          </div>
+          <div class="action-copy">
+            <span>闪电交易</span>
+            <small>手动快下单与平仓</small>
+          </div>
+        </div>
+        <div class="action-item" @click="$router.push('/profile/notifications')">
+          <div class="icon">
+            <van-icon name="bell" />
+          </div>
+          <div class="action-copy">
+            <span>消息中心</span>
+            <small>{{ unreadCount > 0 ? `${unreadCount} 条未读` : '暂无未读消息' }}</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div>
+          <span class="title">策略状态</span>
+          <p class="section-note">快速判断哪些策略在跑、哪些需要处理</p>
+        </div>
+        <span class="more" @click="$router.push('/trading')">查看全部</span>
       </div>
       <div class="strategy-stats">
         <div class="stat-item" @click="goToTrading('all')">
           <span class="value">{{ strategyCounts.total }}</span>
-          <span class="label">总策略</span>
+          <span class="label">全部</span>
         </div>
         <div class="stat-item running" @click="goToTrading('running')">
           <span class="value">{{ strategyCounts.running }}</span>
           <span class="label">运行中</span>
         </div>
-        <div class="stat-item stopped" @click="goToTrading('stopped')">
-          <span class="value">{{ strategyCounts.stopped }}</span>
-          <span class="label">已停止</span>
-        </div>
         <div class="stat-item error" @click="goToTrading('error')">
           <span class="value">{{ strategyCounts.error }}</span>
           <span class="label">异常</span>
         </div>
+        <div class="stat-item stopped" @click="goToTrading('stopped')">
+          <span class="value">{{ strategyCounts.stopped }}</span>
+          <span class="label">已停止</span>
+        </div>
       </div>
     </div>
 
-    <!-- 账户列表 -->
-    <div class="section" v-if="brokers.length > 0">
+    <div v-if="alertStrategies.length" class="section">
       <div class="section-header">
-        <span class="title">账户</span>
-        <span class="more" @click="$router.push('/assets')">详情 ›</span>
+        <div>
+          <span class="title">待处理异常</span>
+          <p class="section-note">建议优先检查这些策略</p>
+        </div>
       </div>
-      <div class="broker-list">
-        <div class="broker-item" v-for="broker in brokers" :key="broker.broker">
-          <div class="broker-info">
-            <span class="broker-icon">{{ getBrokerIcon(broker.broker) }}</span>
-            <span class="broker-name">{{ broker.broker }}</span>
+      <div class="list-card">
+        <div v-for="item in alertStrategies.slice(0, 3)" :key="item.id" class="list-row" @click="openStrategy(item.id)">
+          <div>
+            <span class="row-title">{{ item.name }}</span>
+            <p class="row-subtitle">{{ item.trading_config?.symbol || '-' }} · {{ item.trading_config?.timeframe || '-' }}</p>
           </div>
-          <div class="broker-value">
-            <span v-if="showAsset">{{ formatMoney(broker.total_value) }}</span>
-            <span v-else>****</span>
-          </div>
+          <van-tag type="danger" plain>异常</van-tag>
         </div>
       </div>
     </div>
 
-    <!-- 快捷入口 -->
-    <div class="section">
+    <div v-if="recentTrades.length" class="section">
       <div class="section-header">
-        <span class="title">快捷入口</span>
+        <div>
+          <span class="title">最近成交</span>
+          <p class="section-note">来自仪表盘的最新交易记录</p>
+        </div>
       </div>
-      <div class="quick-actions">
-        <div class="action-item" @click="$router.push('/market')">
-          <div class="icon market">📈</div>
-          <span>指标市场</span>
-        </div>
-        <div class="action-item" @click="$router.push('/trading')">
-          <div class="icon strategy">🤖</div>
-          <span>交易助手</span>
-        </div>
-        <div class="action-item" @click="$router.push('/profile/notifications')">
-          <div class="icon notify">🔔</div>
-          <span>消息</span>
-        </div>
-        <div class="action-item" @click="$router.push('/home/macro')">
-          <div class="icon macro">🌍</div>
-          <span>宏观数据</span>
+      <div class="list-card">
+        <div v-for="trade in recentTrades.slice(0, 4)" :key="trade.id || trade.created_at" class="list-row">
+          <div>
+            <span class="row-title">{{ trade.symbol || trade.instrument || '未知标的' }}</span>
+            <p class="row-subtitle">{{ formatTradeMeta(trade) }}</p>
+          </div>
+          <span :class="['pnl', Number(trade.profit || 0) >= 0 ? 'profit' : 'loss']">
+            {{ formatSignedMoney(trade.profit || 0) }}
+          </span>
         </div>
       </div>
     </div>
 
-    <!-- 加载状态 -->
     <van-loading v-if="loading" class="page-loading" vertical>加载中...</van-loading>
   </div>
 </template>
 
 <script>
-import { dashboardApi, strategyApi } from '@/api'
-import { useDashboardStore, useStrategyStore } from '@/stores'
+import { credentialsApi, dashboardApi, strategyApi } from '@/api'
+import {
+  useCredentialsStore,
+  useDashboardStore,
+  useNotificationStore,
+  useStrategyStore
+} from '@/stores'
+import logoUrl from '@/assets/logo.png'
 
 export default {
   name: 'Home',
-  
+
   data() {
     return {
+      logoUrl,
       showAsset: true,
       loading: false
     }
   },
-  
+
   computed: {
     dashboardStore() {
       return useDashboardStore()
@@ -125,97 +194,108 @@ export default {
     strategyStore() {
       return useStrategyStore()
     },
-    
+    credentialsStore() {
+      return useCredentialsStore()
+    },
+    notificationStore() {
+      return useNotificationStore()
+    },
     greetingText() {
       const hour = new Date().getHours()
-      if (hour < 6) return '夜深了'
-      if (hour < 9) return '早上好'
-      if (hour < 12) return '上午好'
-      if (hour < 14) return '中午好'
-      if (hour < 18) return '下午好'
-      if (hour < 22) return '晚上好'
-      return '夜深了'
+      if (hour < 6) return '夜间巡航'
+      if (hour < 12) return '早盘检查'
+      if (hour < 18) return '盘中跟踪'
+      return '收盘复核'
     },
-    
-    timeIcon() {
-      const hour = new Date().getHours()
-      if (hour < 6 || hour >= 22) return '🌙'
-      if (hour < 12) return '🌅'
-      if (hour < 18) return '☀️'
-      return '🌆'
-    },
-    
     totalAssets() {
       return this.dashboardStore.totalAssets
     },
-    
-    todayProfit() {
-      const summary = this.dashboardStore.summary
-      if (!summary?.brokers) return 0
-      return summary.brokers.reduce((sum, b) => sum + (b.today_pnl || 0), 0)
+    totalPnl() {
+      return this.dashboardStore.totalPnl
     },
-    
-    brokers() {
-      return this.dashboardStore.summary?.brokers || []
-    },
-    
     strategyCounts() {
       return this.strategyStore.statusCounts
+    },
+    alertStrategies() {
+      return this.strategyStore.alertStrategies
+    },
+    recentTrades() {
+      return this.dashboardStore.recentTrades
+    },
+    hasCredentials() {
+      return this.credentialsStore.hasCredentials
+    },
+    credentialCount() {
+      return this.credentialsStore.cryptoItems.length
+    },
+    unreadCount() {
+      return this.notificationStore.unreadCount
     }
   },
-  
+
   mounted() {
     this.loadData()
   },
-  
+
   methods: {
     async loadData() {
       this.loading = true
-      
       try {
-        const [dashRes, strategyRes] = await Promise.all([
+        const [summaryRes, strategyRes, credentialsRes, unreadRes] = await Promise.allSettled([
           dashboardApi.getSummary(),
-          strategyApi.getList()
+          strategyApi.getList(),
+          credentialsApi.list(),
+          strategyApi.getUnreadNotificationCount()
         ])
-        
-        if (dashRes.code === 1 && dashRes.data) {
-          this.dashboardStore.setSummary(dashRes.data)
-        }
-        
-        if (strategyRes.code === 1 && strategyRes.data) {
-          this.strategyStore.setStrategies(strategyRes.data)
-        }
-      } catch (err) {
-        console.error('Load data error:', err)
+        this.dashboardStore.setSummary(summaryRes.status === 'fulfilled' ? (summaryRes.value.data || {}) : {})
+        this.strategyStore.setStrategies(strategyRes.status === 'fulfilled' ? (strategyRes.value.data || []) : [])
+        this.credentialsStore.setItems(credentialsRes.status === 'fulfilled' ? (credentialsRes.value.data || []) : [])
+        this.notificationStore.setUnreadCount(unreadRes.status === 'fulfilled' ? (unreadRes.value.data || 0) : 0)
+      } catch (error) {
+        console.error('Load mobile overview failed:', error)
       } finally {
         this.loading = false
       }
     },
-    
+
     async refreshData() {
       await this.loadData()
     },
-    
+
     formatMoney(value) {
-      if (value === undefined || value === null) return '0.00'
+      const num = Number(value || 0)
       return new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
-      }).format(value)
+      }).format(num)
     },
-    
-    getBrokerIcon(broker) {
-      const icons = {
-        'MT5': '📊',
-        'IBKR': '🏦',
-        'Binance': '₿',
-        'OKX': '🔶'
-      }
-      return icons[broker] || '💹'
+
+    formatSignedMoney(value) {
+      const num = Number(value || 0)
+      const sign = num > 0 ? '+' : ''
+      return `${sign}${this.formatMoney(num)}`
     },
-    
+
+    formatTradeMeta(trade) {
+      const parts = [
+        trade.side || trade.type || '-',
+        trade.created_at ? this.formatTime(trade.created_at) : null
+      ].filter(Boolean)
+      return parts.join(' · ')
+    },
+
+    formatTime(value) {
+      const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value)
+      if (Number.isNaN(date.getTime())) return '刚刚'
+      return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+    },
+
     goToTrading(status) {
       this.$router.push({ path: '/trading', query: { status } })
+    },
+
+    openStrategy(id) {
+      this.$router.push(`/trading/strategy/${id}`)
     }
   }
 }
@@ -223,117 +303,261 @@ export default {
 
 <style scoped>
 .home-page {
-  padding: 16px;
-  padding-bottom: 100px;
   min-height: 100vh;
-  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+  padding: 18px 16px 110px;
 }
 
 .header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  justify-content: space-between;
+  margin-bottom: 18px;
 }
 
-.greeting {
+.brand-block {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
 }
 
-.time-icon {
-  font-size: 24px;
+.brand-logo {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
 }
 
-.greeting .text {
-  font-size: 18px;
-  font-weight: 600;
-  color: #fff;
+.session-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.session-chip {
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(212, 176, 106, 0.1);
+  color: rgba(212, 176, 106, 0.92);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.refresh-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .user {
-  color: rgba(255, 255, 255, 0.7);
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.78);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* 资产卡片 */
 .asset-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 16px;
-  padding: 20px;
   margin-bottom: 24px;
-  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+  padding: 22px 20px;
+  border-radius: 22px;
 }
 
 .asset-header {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.title-row {
+  display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  gap: 8px;
 }
 
-.asset-header .label {
-  color: rgba(255, 255, 255, 0.8);
+.label {
   font-size: 14px;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.asset-header .van-icon {
-  color: rgba(255, 255, 255, 0.8);
+.currency {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.asset-note {
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.42);
 }
 
 .asset-value {
-  font-size: 32px;
+  font-size: 34px;
   font-weight: 700;
   color: #fff;
-  margin-bottom: 12px;
-  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1;
+  margin-bottom: 16px;
 }
 
-.asset-change {
-  font-size: 14px;
-  color: #ff6b6b;
+.asset-insights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.asset-change.profit {
-  color: #51cf66;
+.insight-block {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
 }
 
-/* 板块 */
-.section {
+.caption {
+  display: block;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 6px;
+}
+
+.insight-value {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.insight-value.profit,
+.pnl.profit {
+  color: #34c759;
+}
+
+.insight-value.loss,
+.pnl.loss {
+  color: #ff5f57;
+}
+
+.insight-value.neutral {
+  color: #fff;
+}
+
+.setup-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 16px;
   margin-bottom: 24px;
+  border-radius: 20px;
+  background: rgba(212, 176, 106, 0.08);
+  border: 1px solid rgba(212, 176, 106, 0.18);
+}
+
+.setup-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 6px;
+}
+
+.setup-desc {
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.section {
+  margin-bottom: 26px;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
+  align-items: flex-end;
+  margin-bottom: 14px;
 }
 
-.section-header .title {
+.title {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   color: #fff;
 }
 
-.section-header .more {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
+.section-note {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.42);
 }
 
-/* 策略统计 */
-.strategy-stats {
+.more {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.quick-actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.icon {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--primary-color);
+  background: rgba(212, 176, 106, 0.1);
+}
+
+.action-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.action-copy span {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.action-copy small {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.46);
+}
+
+.strategy-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .stat-item {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 16px 8px;
+  padding: 18px 10px 16px;
+  border-radius: 16px;
   text-align: center;
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .stat-item .value {
@@ -341,7 +565,7 @@ export default {
   font-size: 24px;
   font-weight: 700;
   color: #fff;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .stat-item .label {
@@ -350,90 +574,55 @@ export default {
 }
 
 .stat-item.running .value {
-  color: #51cf66;
-}
-
-.stat-item.stopped .value {
-  color: #868e96;
+  color: #34c759;
 }
 
 .stat-item.error .value {
-  color: #ff6b6b;
+  color: #ff5f57;
 }
 
-/* 账户列表 */
-.broker-list {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+.stat-item.stopped .value {
+  color: #8e8e93;
+}
+
+.list-card {
+  border-radius: 18px;
   overflow: hidden;
 }
 
-.broker-item {
+.list-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 14px 16px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.broker-item:last-child {
+.list-row:last-child {
   border-bottom: none;
 }
 
-.broker-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.broker-icon {
-  font-size: 20px;
-}
-
-.broker-name {
+.row-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
   color: #fff;
-  font-size: 15px;
 }
 
-.broker-value {
-  color: #51cf66;
-  font-weight: 600;
-  font-size: 15px;
-}
-
-/* 快捷入口 */
-.quick-actions {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-
-.action-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-}
-
-.action-item .icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-}
-
-.action-item span {
+.row-subtitle {
+  margin-top: 4px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.45);
 }
 
-/* 加载状态 */
+.pnl {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .page-loading {
   position: fixed;
   top: 50%;

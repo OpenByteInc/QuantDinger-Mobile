@@ -12,15 +12,15 @@
         <van-field
           v-model="serverUrl"
           label="服务器地址"
-          placeholder="http://localhost:5000"
+          :placeholder="defaultServerUrl"
           clearable
         />
       </van-cell-group>
       
       <div class="hint">
-        <p>• 本地运行可填写 http://localhost:5000</p>
-        <p>• 局域网访问请填写电脑 IP 地址</p>
-        <p>• 云服务器请填写公网地址</p>
+        <p>• 官方后端默认地址：{{ defaultServerUrl }}</p>
+        <p>• 如需切换测试环境，可改成你自己的 API 地址</p>
+        <p>• 保存后登录、行情和策略请求都会走这里</p>
       </div>
       
       <div class="actions">
@@ -45,13 +45,15 @@
 import { showToast } from 'vant'
 import { useSettingsStore } from '@/stores'
 import axios from 'axios'
+import { DEFAULT_SERVER_URL } from '@/config'
 
 export default {
   name: 'ServerConfig',
   
   data() {
     return {
-      serverUrl: '',
+      serverUrl: DEFAULT_SERVER_URL,
+      defaultServerUrl: DEFAULT_SERVER_URL,
       testing: false,
       connectionStatus: null
     }
@@ -64,7 +66,7 @@ export default {
   },
   
   mounted() {
-    this.serverUrl = this.settingsStore.serverUrl
+    this.serverUrl = this.settingsStore.serverUrl || DEFAULT_SERVER_URL
   },
   
   methods: {

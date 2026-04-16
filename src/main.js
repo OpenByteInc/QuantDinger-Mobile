@@ -1,7 +1,7 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
-import { pinia } from './stores'
+import { pinia, useSettingsStore } from './stores'
 
 // Vant 样式
 import 'vant/lib/index.css'
@@ -20,13 +20,16 @@ const app = createApp(App)
 app.use(pinia)
 app.use(router)
 
+const settingsStore = useSettingsStore()
+document.documentElement.setAttribute('data-theme', settingsStore.theme)
+
 // 初始化 Capacitor
 const initCapacitor = async () => {
   if (Capacitor.isNativePlatform()) {
     // 设置状态栏样式
     try {
-      await StatusBar.setStyle({ style: Style.Dark })
-      await StatusBar.setBackgroundColor({ color: '#1a1a2e' })
+      await StatusBar.setStyle({ style: Style.Light })
+      await StatusBar.setBackgroundColor({ color: '#000000' })
     } catch (e) {
       console.warn('StatusBar not available:', e)
     }
