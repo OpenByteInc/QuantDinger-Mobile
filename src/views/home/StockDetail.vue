@@ -96,25 +96,20 @@ export default {
 <style scoped>
 .stock-detail-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-}
-
-.stock-detail-page :deep(.van-nav-bar) {
   background: transparent;
 }
 
+.stock-detail-page :deep(.van-nav-bar) { background: transparent; }
 .stock-detail-page :deep(.van-nav-bar__title),
-.stock-detail-page :deep(.van-nav-bar__arrow) {
-  color: #fff;
-}
+.stock-detail-page :deep(.van-nav-bar__arrow),
+.stock-detail-page :deep(.van-nav-bar .van-icon) { color: var(--text); }
 
-.content {
-  padding: 16px;
-}
+.content { padding: 16px; }
 
 .price-card {
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   padding: 20px;
   margin-bottom: 16px;
 }
@@ -129,29 +124,21 @@ export default {
 .price-main .price {
   font-size: 32px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text);
 }
 
-.price-main .change {
-  font-size: 14px;
-}
-
-.price-main .change.up {
-  color: #51cf66;
-}
-
-.price-main .change.down {
-  color: #ff6b6b;
-}
+.price-main .change { font-size: 14px; }
+.price-main .change.up   { color: var(--up); }
+.price-main .change.down { color: var(--down); }
 
 .price-time {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-3);
 }
 
 .chart-placeholder {
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
+  background: var(--surface-raised);
+  border-radius: var(--radius-sm);
   height: 200px;
   display: flex;
   align-items: center;
@@ -160,12 +147,13 @@ export default {
 }
 
 .chart-placeholder p {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-3);
 }
 
 .info-card {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   padding: 16px;
 }
 
@@ -173,20 +161,18 @@ export default {
   display: flex;
   justify-content: space-between;
   padding: 10px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--hairline);
 }
 
-.info-row:last-child {
-  border-bottom: none;
-}
+.info-row:last-child { border-bottom: none; }
 
 .info-row .label {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-2);
   font-size: 14px;
 }
 
 .info-row .value {
-  color: #fff;
+  color: var(--text);
   font-size: 14px;
 }
 </style>

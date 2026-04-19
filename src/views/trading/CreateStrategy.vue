@@ -199,59 +199,42 @@ export default {
 <style scoped>
 .create-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-}
-
-.create-page :deep(.van-nav-bar) {
   background: transparent;
 }
 
+.create-page :deep(.van-nav-bar) { background: transparent; }
 .create-page :deep(.van-nav-bar__title),
-.create-page :deep(.van-nav-bar__arrow) {
-  color: #fff;
-}
+.create-page :deep(.van-nav-bar__arrow),
+.create-page :deep(.van-nav-bar .van-icon) { color: var(--text); }
 
-.content {
-  padding: 16px;
-}
+.content { padding: 16px; }
 
 .section-title {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-2);
   margin: 16px 0 8px 4px;
 }
 
 .create-page :deep(.van-cell-group--inset) {
   margin: 0;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
 }
 
-.create-page :deep(.van-cell) {
-  background: transparent;
-}
+.create-page :deep(.van-cell) { background: transparent; }
+.create-page :deep(.van-field__label) { color: var(--text-2); }
+.create-page :deep(.van-field__control) { color: var(--text); }
+.create-page :deep(.van-field__control::placeholder) { color: var(--text-3); }
 
-.create-page :deep(.van-field__label) {
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.create-page :deep(.van-field__control) {
-  color: #fff;
-}
-
-.create-page :deep(.van-field__control::placeholder) {
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.submit-btn {
-  margin-top: 32px;
-}
+.submit-btn { margin-top: 32px; }
 
 .submit-btn :deep(.van-button) {
   height: 48px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--accent);
+  color: var(--text-on-accent);
   border: none;
 }
 </style>

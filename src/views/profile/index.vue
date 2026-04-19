@@ -1,64 +1,163 @@
 <template>
   <div class="profile-page">
-    <div class="user-card">
-      <div class="avatar">
-        <img :src="logoUrl" alt="Logo" class="avatar-logo" />
-      </div>
-      <div class="info">
-        <span class="name">{{ userInfo?.username || '交易账户' }}</span>
-        <span class="email">{{ userInfo?.email || 'Mobile trading frontend' }}</span>
-      </div>
-    </div>
-
-    <div class="menu-group">
-      <div class="menu-item" @click="$router.push('/profile/credentials')">
-        <van-icon name="shield-o" class="icon" />
-        <span class="label">API Key 管理</span>
-        <span class="value">{{ credentialCount }} 个</span>
-        <van-icon name="arrow" class="arrow" />
-      </div>
-      <div class="menu-item" @click="$router.push('/profile/notifications')">
-        <van-icon name="bell" class="icon" />
-        <span class="label">消息通知</span>
-        <span class="value">{{ unreadCount }} 条未读</span>
-        <van-icon name="arrow" class="arrow" />
-      </div>
-      <div class="menu-item" @click="$router.push('/profile/server')">
-        <van-icon name="cluster-o" class="icon" />
-        <span class="label">服务器配置</span>
-        <span class="value">已接入</span>
-        <van-icon name="arrow" class="arrow" />
+    <!-- User hero -->
+    <div class="user-hero">
+      <div class="hero-glow"></div>
+      <div class="hero-main">
+        <div class="avatar">
+          <img
+            :src="avatarUrl"
+            alt="Avatar"
+            class="avatar-logo"
+            referrerpolicy="no-referrer"
+            @error="onAvatarError"
+          />
+          <span v-if="isVip" class="vip-crown"><van-icon name="medal-o" /></span>
+        </div>
+        <div class="info">
+          <span class="name">{{ displayName }}</span>
+          <span class="email">{{ userInfo?.email || $t('profile.account_subtitle') }}</span>
+          <div class="tag-row">
+            <span class="role-tag">{{ roleLabel }}</span>
+            <span v-if="isVip" class="vip-tag">
+              <van-icon name="medal-o" /> VIP
+            </span>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="settings-card">
-      <span class="card-title">通知渠道</span>
-      <p class="card-desc">这里只保留必要设置，策略消息列表请在消息中心查看。</p>
-      <van-checkbox-group v-model="notificationChannels" class="channel-list">
-        <van-checkbox v-for="item in channelOptions" :key="item.value" :name="item.value">
-          {{ item.label }}
-        </van-checkbox>
-      </van-checkbox-group>
-      <van-field v-model="notificationForm.email" label="邮箱" placeholder="可选，用于接收通知邮件" />
-      <van-field v-model="notificationForm.telegram_chat_id" label="Telegram Chat ID" placeholder="可选" />
-      <div class="actions">
-        <van-button plain @click="saveNotificationSettings">保存设置</van-button>
-        <van-button type="primary" plain @click="sendNotificationTest">发送测试</van-button>
+    <!-- Dual glass cards: Credits + Invite -->
+    <div class="double-card">
+      <div class="wallet-card" @click="$router.push('/profile/credits')">
+        <div class="wallet-shine"></div>
+        <div class="wallet-head">
+          <van-icon name="gold-coin-o" />
+          <span>{{ $t('profile.credits') }}</span>
+        </div>
+        <div class="wallet-value">{{ formatCredits(billing.credits) }}</div>
+        <div class="wallet-sub">
+          <span v-if="billing.is_vip && billing.vip_expires_at">
+            {{ $t('profile.vip_active', { date: formatDate(billing.vip_expires_at) }) }}
+          </span>
+          <span v-else>{{ $t('profile.vip_none') }}</span>
+        </div>
+        <div class="wallet-cta">
+          <span>{{ $t('profile.credits_recharge') }}</span>
+          <van-icon name="arrow" />
+        </div>
+      </div>
+
+      <div class="invite-card" @click="$router.push('/profile/referral')">
+        <div class="wallet-shine invite"></div>
+        <div class="invite-head">
+          <van-icon name="friends-o" />
+          <span>{{ $t('profile.referral') }}</span>
+        </div>
+        <div class="invite-stats">
+          <div class="stat">
+            <span class="val">{{ referralData.total || 0 }}</span>
+            <span class="lab">{{ $t('profile.referral_total') }}</span>
+          </div>
+          <div class="stat" v-if="referralData.referral_bonus > 0">
+            <span class="val">+{{ referralData.referral_bonus }}</span>
+            <span class="lab">{{ $t('profile.referral_bonus') }}</span>
+          </div>
+        </div>
+        <div class="invite-sub">{{ $t('profile.referral_desc') }}</div>
+      </div>
+    </div>
+
+    <!-- Trading -->
+    <div class="menu-section">
+      <span class="menu-section-title">{{ $t('profile.section_trading') }}</span>
+      <div class="menu-group">
+        <div class="menu-item" @click="$router.push('/profile/credentials')">
+          <div class="menu-icon c-blue"><van-icon name="shield-o" /></div>
+          <span class="label">{{ $t('profile.credentials') }}</span>
+          <span class="value">{{ credentialCount }}</span>
+          <van-icon name="arrow" class="arrow" />
+        </div>
+        <div class="menu-item" @click="$router.push('/market/my-purchases')">
+          <div class="menu-icon c-teal"><van-icon name="bag-o" /></div>
+          <span class="label">{{ $t('market.my_purchases') }}</span>
+          <van-icon name="arrow" class="arrow" />
+        </div>
+        <div class="menu-item" @click="$router.push('/ai-analysis/history')">
+          <div class="menu-icon c-red"><van-icon name="fire-o" /></div>
+          <span class="label">{{ $t('ai_analysis.history_title') }}</span>
+          <van-icon name="arrow" class="arrow" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Account -->
+    <div class="menu-section">
+      <span class="menu-section-title">{{ $t('profile.section_account') }}</span>
+      <div class="menu-group">
+        <div class="menu-item" @click="$router.push('/profile/credits')">
+          <div class="menu-icon c-amber"><van-icon name="gold-coin-o" /></div>
+          <span class="label">{{ $t('profile.credits_recharge') }}</span>
+          <span class="value">{{ formatCredits(billing.credits) }}</span>
+          <van-icon name="arrow" class="arrow" />
+        </div>
+        <div class="menu-item" @click="$router.push('/profile/referral')">
+          <div class="menu-icon c-green"><van-icon name="friends-o" /></div>
+          <span class="label">{{ $t('profile.referral') }}</span>
+          <van-icon name="arrow" class="arrow" />
+        </div>
+        <div class="menu-item" @click="$router.push('/profile/security')">
+          <div class="menu-icon c-indigo"><van-icon name="lock" /></div>
+          <span class="label">{{ $t('profile.change_password') }}</span>
+          <van-icon name="arrow" class="arrow" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Preferences -->
+    <div class="menu-section">
+      <span class="menu-section-title">{{ $t('profile.section_preferences') }}</span>
+      <div class="menu-group">
+        <div class="menu-item" @click="$router.push('/profile/notifications')">
+          <div class="menu-icon c-red"><van-icon name="bell" /></div>
+          <span class="label">{{ $t('profile.notifications') }}</span>
+          <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+          <van-icon name="arrow" class="arrow" />
+        </div>
+        <div class="menu-item" @click="$router.push('/profile/notification-settings')">
+          <div class="menu-icon c-slate"><van-icon name="setting-o" /></div>
+          <span class="label">{{ $t('profile.notif_settings') }}</span>
+          <van-icon name="arrow" class="arrow" />
+        </div>
+        <div class="menu-item" @click="$router.push('/profile/language')">
+          <div class="menu-icon c-teal"><van-icon name="font-o" /></div>
+          <span class="label">{{ $t('profile.language') }}</span>
+          <span class="value">{{ localeLabel }}</span>
+          <van-icon name="arrow" class="arrow" />
+        </div>
+        <div class="menu-item" @click="toggleTheme">
+          <div class="menu-icon c-orange">
+            <van-icon name="bulb-o" />
+          </div>
+          <span class="label">{{ $t('profile.appearance') }}</span>
+          <span class="value">{{ isLightTheme ? $t('profile.theme_light') : $t('profile.theme_dark') }}</span>
+          <van-icon name="arrow" class="arrow" />
+        </div>
       </div>
     </div>
 
     <div class="logout-section">
       <van-button block plain type="danger" @click="handleLogout">
-        退出登录
+        {{ $t('profile.logout') }}
       </van-button>
     </div>
   </div>
 </template>
 
 <script>
-import { showConfirmDialog, showToast } from 'vant'
-import { authApi, credentialsApi, strategyApi, userApi } from '@/api'
-import { useCredentialsStore, useNotificationStore, useUserStore } from '@/stores'
+import { showConfirmDialog } from 'vant'
+import { authApi, credentialsApi, getBaseUrl, strategyApi, userApi } from '@/api'
+import { useCredentialsStore, useNotificationStore, useSettingsStore, useUserStore } from '@/stores'
 import logoUrl from '@/assets/logo.png'
 
 export default {
@@ -67,16 +166,17 @@ export default {
   data() {
     return {
       logoUrl,
-      channelOptions: [
-        { label: '浏览器', value: 'browser' },
-        { label: '邮箱', value: 'email' },
-        { label: 'Telegram', value: 'telegram' },
-        { label: 'Discord', value: 'discord' }
-      ],
-      notificationChannels: ['browser'],
-      notificationForm: {
-        email: '',
-        telegram_chat_id: ''
+      billing: {
+        credits: 0,
+        is_vip: false,
+        vip_expires_at: null,
+        billing_enabled: false
+      },
+      referralData: {
+        total: 0,
+        referral_bonus: 0,
+        register_bonus: 0,
+        referral_code: ''
       }
     }
   },
@@ -91,6 +191,9 @@ export default {
     notificationStore() {
       return useNotificationStore()
     },
+    settingsStore() {
+      return useSettingsStore()
+    },
     userInfo() {
       return this.userStore.userInfo
     },
@@ -99,6 +202,38 @@ export default {
     },
     unreadCount() {
       return this.notificationStore.unreadCount
+    },
+    avatarUrl() {
+      const raw = (this.userInfo?.avatar || '').trim()
+      if (!raw) return this.logoUrl
+      if (/^(https?:|data:|blob:)/i.test(raw)) return raw
+      const base = getBaseUrl().replace(/\/$/, '')
+      if (raw.startsWith('/')) return `${base}${raw}`
+      return `${base}/${raw}`
+    },
+    displayName() {
+      return this.userInfo?.nickname || this.userInfo?.username || this.$t('profile.title')
+    },
+    isVip() {
+      if (!this.billing.vip_expires_at) return !!this.billing.is_vip
+      const ts = new Date(this.billing.vip_expires_at).getTime()
+      return !Number.isNaN(ts) && ts > Date.now()
+    },
+    roleLabel() {
+      const role = this.userInfo?.role
+      if (role === 'admin') return this.$t('profile.role_admin')
+      return this.$t('profile.role_user')
+    },
+    localeLabel() {
+      const map = {
+        'zh-CN': this.$t('language.zh_cn'),
+        'zh-TW': this.$t('language.zh_tw'),
+        'en-US': this.$t('language.en_us')
+      }
+      return map[this.settingsStore.locale] || this.settingsStore.locale
+    },
+    isLightTheme() {
+      return this.settingsStore.theme === 'light'
     }
   },
 
@@ -109,54 +244,63 @@ export default {
   methods: {
     async loadData() {
       try {
-        const [userRes, credentialsRes, unreadRes, settingsRes] = await Promise.allSettled([
-          this.userInfo ? Promise.resolve({ data: this.userInfo }) : authApi.getInfo(),
+        const [profileRes, credentialsRes, unreadRes, referralRes] = await Promise.allSettled([
+          userApi.getProfile(),
           credentialsApi.list(),
           strategyApi.getUnreadNotificationCount(),
-          userApi.getNotificationSettings()
+          userApi.getMyReferrals({ page: 1, page_size: 1 })
         ])
-        if (userRes.status === 'fulfilled' && !this.userInfo && userRes.value?.data) {
-          this.userStore.setUserInfo(userRes.value.data)
+        if (profileRes.status === 'fulfilled' && profileRes.value?.data) {
+          const profile = profileRes.value.data
+          this.userStore.setUserInfo(profile)
+          if (profile.billing) {
+            this.billing = { ...this.billing, ...profile.billing }
+          }
         }
         this.credentialsStore.setItems(credentialsRes.status === 'fulfilled' ? (credentialsRes.value.data || []) : [])
         this.notificationStore.setUnreadCount(unreadRes.status === 'fulfilled' ? (unreadRes.value.data || 0) : 0)
-        if (settingsRes.status === 'fulfilled') {
-          this.notificationChannels = settingsRes.value.data?.default_channels || ['browser']
-          this.notificationForm.email = settingsRes.value.data?.email || ''
-          this.notificationForm.telegram_chat_id = settingsRes.value.data?.telegram_chat_id || ''
+        if (referralRes.status === 'fulfilled' && referralRes.value?.data) {
+          this.referralData = {
+            total: referralRes.value.data.total || 0,
+            referral_bonus: referralRes.value.data.referral_bonus || 0,
+            register_bonus: referralRes.value.data.register_bonus || 0,
+            referral_code: referralRes.value.data.referral_code || ''
+          }
         }
       } catch (error) {
         console.error('Load profile data failed:', error)
       }
     },
 
-    async saveNotificationSettings() {
-      try {
-        await userApi.updateNotificationSettings({
-          default_channels: this.notificationChannels,
-          email: this.notificationForm.email,
-          telegram_chat_id: this.notificationForm.telegram_chat_id
-        })
-        showToast({ message: '通知设置已保存', type: 'success' })
-      } catch (error) {
-        console.error('Save notification settings failed:', error)
+    formatCredits(value) {
+      const num = Number(value || 0)
+      return new Intl.NumberFormat('en-US').format(num)
+    },
+
+    onAvatarError(event) {
+      const img = event?.target
+      if (img && img.src !== this.logoUrl) {
+        img.src = this.logoUrl
       }
     },
 
-    async sendNotificationTest() {
-      try {
-        await userApi.testNotificationSettings()
-        showToast({ message: '测试通知已发送', type: 'success' })
-      } catch (error) {
-        console.error('Send notification test failed:', error)
-      }
+    formatDate(value) {
+      if (!value) return '-'
+      const d = new Date(value)
+      if (Number.isNaN(d.getTime())) return '-'
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    },
+
+    toggleTheme() {
+      const next = this.settingsStore.theme === 'light' ? 'dark' : 'light'
+      this.settingsStore.setTheme(next)
     },
 
     async handleLogout() {
       try {
         await showConfirmDialog({
-          title: '确认退出',
-          message: '确定要退出当前账号吗？'
+          title: this.$t('profile.logout'),
+          message: this.$t('profile.logout_confirm')
         })
         try {
           await authApi.logout()
@@ -178,129 +322,337 @@ export default {
 <style scoped>
 .profile-page {
   min-height: 100vh;
-  padding: 16px 16px 110px;
+  padding: calc(16px + var(--safe-area-top, 0px)) 16px calc(40px + var(--safe-area-bottom, 0px));
+  background: var(--bg);
+  color: var(--text);
 }
 
-.user-card,
-.menu-group,
-.settings-card {
+/* ===== Hero (flat panel with top glow) ===== */
+.user-hero {
+  position: relative;
   margin-bottom: 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 22px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
 }
-
-.user-card {
+.hero-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(320px 220px at 100% 0%, var(--accent-crimson-soft), transparent 60%);
+}
+.hero-main {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 20px 18px;
 }
 
 .avatar {
-  width: 60px;
-  height: 60px;
-  border-radius: 18px;
+  position: relative;
+  width: 68px;
+  height: 68px;
+  border-radius: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(212, 176, 106, 0.08);
-  border: 1px solid rgba(212, 176, 106, 0.2);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  overflow: visible;
+  flex-shrink: 0;
 }
 
 .avatar-logo {
-  width: 40px;
-  height: 40px;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 18px;
+}
+
+.vip-crown {
+  position: absolute;
+  bottom: -4px; right: -4px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-gold);
+  color: #0a0a0d;
+  font-size: 13px;
+  border: 2px solid var(--bg-elevated);
 }
 
 .info {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .name {
-  font-size: 18px;
-  font-weight: 700;
-  color: #fff;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.025em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .email {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.role-tag,
+.vip-tag {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.role-tag {
+  background: var(--surface-raised);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+
+.vip-tag {
+  background: var(--accent-gold);
+  color: #0a0a0d;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ===== Double card ===== */
+.double-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.wallet-card,
+.invite-card {
+  position: relative;
+  padding: 16px 14px;
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+  overflow: hidden;
+  transition: transform 0.15s;
+}
+.wallet-card:active,
+.invite-card:active { transform: scale(0.98); }
+
+.wallet-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(220px 160px at 100% 0%, var(--accent-gold-soft), transparent 62%);
+}
+.invite-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(220px 160px at 100% 0%, var(--c-green-soft), transparent 62%);
+}
+
+.wallet-shine { display: none; }
+
+.wallet-head,
+.invite-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-3);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.wallet-head .van-icon { font-size: 15px; color: var(--c-amber); }
+.invite-head .van-icon { font-size: 15px; color: var(--c-green); }
+
+.wallet-value {
+  position: relative;
+  margin-top: 6px;
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--c-amber);
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+
+.wallet-sub {
+  position: relative;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.wallet-cta {
+  position: relative;
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--c-amber-soft);
+  color: var(--c-amber);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.invite-stats {
+  position: relative;
+  margin-top: 8px;
+  display: flex;
+  gap: 14px;
+}
+.invite-stats .stat { display: flex; flex-direction: column; }
+.invite-stats .val {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.invite-stats .lab {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.invite-sub {
+  position: relative;
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-3);
+}
+
+/* ===== Menu sections ===== */
+.menu-section { margin-bottom: 20px; }
+.menu-section-title {
+  display: block;
+  padding: 0 4px;
+  margin-bottom: 10px;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.menu-group {
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  overflow: hidden;
 }
 
 .menu-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 11px 14px;
+  position: relative;
+  transition: background 0.15s;
+}
+.menu-item:active { background: var(--surface-raised); }
+.menu-item + .menu-item::before {
+  content: '';
+  position: absolute;
+  left: 58px; right: 0; top: 0;
+  height: 1px;
+  background: var(--hairline);
 }
 
-.menu-item:last-child {
-  border-bottom: none;
+/* iOS-style: solid color tile per row for a cheerful, organized look */
+.menu-icon {
+  width: 30px; height: 30px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--c-slate);
+  color: #ffffff;
+  font-size: 16px;
 }
-
-.icon {
-  font-size: 20px;
-  color: var(--primary-color);
-}
+.menu-icon.c-red    { background: var(--c-red); }
+.menu-icon.c-orange { background: var(--c-orange); }
+.menu-icon.c-amber  { background: var(--c-amber); color: #0a0a0d; }
+.menu-icon.c-green  { background: var(--c-green); }
+.menu-icon.c-teal   { background: var(--c-teal); }
+.menu-icon.c-blue   { background: var(--c-blue); }
+.menu-icon.c-indigo { background: var(--c-indigo); }
+.menu-icon.c-violet { background: var(--c-violet); }
+.menu-icon.c-pink   { background: var(--c-pink); }
+.menu-icon.c-slate  { background: var(--c-slate); }
 
 .label {
   flex: 1;
-  color: #fff;
+  color: var(--text);
   font-size: 15px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .value {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--down);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .arrow {
-  color: rgba(255, 255, 255, 0.32);
-}
-
-.settings-card {
-  padding: 18px 16px;
-}
-
-.card-title {
-  display: block;
-  font-size: 15px;
-  font-weight: 700;
-  color: #fff;
-}
-
-.card-desc {
-  margin-top: 6px;
-  font-size: 12px;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.48);
-}
-
-.channel-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 8px;
-  margin: 16px 0;
-}
-
-.actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 16px;
+  color: var(--text-4);
+  font-size: 13px;
 }
 
 .logout-section {
-  margin-top: 28px;
+  margin-top: 24px;
 }
 
-.logout-section :deep(.van-button),
-.actions :deep(.van-button) {
-  border-radius: 12px;
+.logout-section :deep(.van-button) {
+  border-radius: 13px;
+  height: 46px;
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--down);
 }
 </style>

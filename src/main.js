@@ -2,14 +2,11 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import { pinia, useSettingsStore } from './stores'
+import i18n from './locales'
 
-// Vant 样式
 import 'vant/lib/index.css'
-
-// 全局样式
 import './styles/index.css'
 
-// Capacitor 插件
 import { Capacitor } from '@capacitor/core'
 import { App as CapApp } from '@capacitor/app'
 import { StatusBar, Style } from '@capacitor/status-bar'
@@ -18,47 +15,61 @@ import { SplashScreen } from '@capacitor/splash-screen'
 const app = createApp(App)
 
 app.use(pinia)
+app.use(i18n)
 app.use(router)
 
 const settingsStore = useSettingsStore()
-document.documentElement.setAttribute('data-theme', settingsStore.theme)
 
-// 初始化 Capacitor
-const initCapacitor = async () => {
-  if (Capacitor.isNativePlatform()) {
-    // 设置状态栏样式
-    try {
+const applyThemeAttr = (theme) => {
+  document.documentElement.setAttribute('data-theme', theme || 'dark')
+}
+
+const syncStatusBar = async (theme) => {
+  if (!Capacitor.isNativePlatform()) return
+  try {
+    if (theme === 'light') {
+      await StatusBar.setStyle({ style: Style.Dark })
+      await StatusBar.setBackgroundColor({ color: '#f7f7f9' })
+    } else {
       await StatusBar.setStyle({ style: Style.Light })
-      await StatusBar.setBackgroundColor({ color: '#000000' })
-    } catch (e) {
-      console.warn('StatusBar not available:', e)
+      await StatusBar.setBackgroundColor({ color: '#0a0a0d' })
     }
-    
-    // 隐藏启动画面
-    try {
-      await SplashScreen.hide()
-    } catch (e) {
-      console.warn('SplashScreen not available:', e)
-    }
-    
-    // 监听返回按钮（Android）
-    CapApp.addListener('backButton', ({ canGoBack }) => {
-      if (canGoBack) {
-        router.back()
-      } else {
-        CapApp.exitApp()
-      }
-    })
+  } catch (e) {
+    console.warn('StatusBar not available:', e)
   }
 }
 
-// 挂载应用
+applyThemeAttr(settingsStore.theme)
+
+settingsStore.$subscribe((_mutation, state) => {
+  applyThemeAttr(state.theme)
+  syncStatusBar(state.theme)
+})
+
+const initCapacitor = async () => {
+  if (!Capacitor.isNativePlatform()) return
+
+  await syncStatusBar(settingsStore.theme)
+
+  try {
+    await SplashScreen.hide()
+  } catch (e) {
+    console.warn('SplashScreen not available:', e)
+  }
+
+  CapApp.addListener('backButton', ({ canGoBack }) => {
+    if (canGoBack) {
+      router.back()
+    } else {
+      CapApp.exitApp()
+    }
+  })
+}
+
 app.mount('#app')
 
-// 初始化原生功能
 initCapacitor()
 
-// 全局错误处理
 app.config.errorHandler = (err, vm, info) => {
   console.error('Global error:', err, info)
 }

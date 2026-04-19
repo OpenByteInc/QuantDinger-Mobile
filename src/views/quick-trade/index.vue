@@ -1,20 +1,37 @@
 <template>
   <div class="quick-trade-page">
-    <div class="hero-card">
-      <div>
-        <span class="hero-title">闪电交易</span>
-        <p class="hero-desc">选凭证、输币对、填金额，直接完成手机端手动快下单。</p>
+    <div class="watchlist-bar">
+      <div class="watchlist-scroll">
+        <div
+          v-for="item in watchlistCrypto"
+          :key="item.symbol"
+          :class="['wl-chip', { active: form.symbol === item.symbol }]"
+          @click="selectWatchlist(item)"
+        >{{ shortSymbol(item.symbol) }}</div>
+        <div class="wl-chip add" @click="openSymbolPicker">
+          <van-icon name="plus" />
+        </div>
       </div>
-      <van-button size="small" type="primary" plain @click="$router.push('/profile/credentials')">
-        管理 API Key
-      </van-button>
+    </div>
+
+    <div class="chart-wrap">
+      <KlineChart
+        v-if="form.symbol"
+        :market="'Crypto'"
+        :symbol="form.symbol"
+        :height="170"
+      />
+      <div v-else class="chart-placeholder" @click="openSymbolPicker">
+        <van-icon name="chart-trending-o" />
+        <span>{{ $t('watchlist.tap_to_select') }}</span>
+      </div>
     </div>
 
     <div class="panel-card">
-      <div class="panel-title">交易账户</div>
+      <div class="panel-title">{{ $t('quick_trade.account') }}</div>
       <van-cell
-        title="交易所"
-        :value="selectedCredentialLabel || '请选择已保存的 API Key'"
+        :title="$t('quick_trade.account')"
+        :value="selectedCredentialLabel || $t('quick_trade.pick_credential')"
         is-link
         @click="openCredentialPicker"
       />
@@ -30,34 +47,44 @@
       </div>
       <div class="balance-card">
         <div>
-          <span class="balance-label">可用余额</span>
+          <span class="balance-label">{{ $t('quick_trade.available') }}</span>
           <p class="balance-value">{{ formatNumber(balance?.available) }} {{ balance?.currency || 'USDT' }}</p>
         </div>
         <div class="balance-side">
-          <span class="balance-label">总额</span>
+          <span class="balance-label">{{ $t('quick_trade.total') }}</span>
           <p class="balance-sub">{{ formatNumber(balance?.total) }}</p>
         </div>
       </div>
-      <van-button block plain @click="refreshTradeData">刷新余额与持仓</van-button>
+      <van-button block plain @click="refreshTradeData">{{ $t('quick_trade.refresh_balance') }}</van-button>
     </div>
 
     <div class="panel-card">
-      <div class="panel-title">下单参数</div>
-      <van-field v-model="form.symbol" label="交易对" placeholder="例如 BTC/USDT" />
-      <van-field v-model="form.amount" label="金额(USDT)" type="number" placeholder="例如 100" />
+      <div class="panel-title">{{ $t('quick_trade.order_params') }}</div>
+      <van-cell
+        :title="$t('quick_trade.symbol')"
+        :value="form.symbol || $t('watchlist.tap_to_select')"
+        is-link
+        @click="openSymbolPicker"
+      />
+      <van-field
+        v-model="form.amount"
+        :label="$t('quick_trade.amount')"
+        type="number"
+        :placeholder="$t('quick_trade.amount_placeholder')"
+      />
       <van-field
         v-if="form.order_type === 'limit'"
         v-model="form.price"
-        label="限价"
+        :label="$t('quick_trade.price')"
         type="number"
-        placeholder="请输入限价"
+        :placeholder="$t('quick_trade.price_placeholder')"
       />
       <van-field
         v-if="marketType === 'swap'"
         v-model="form.leverage"
-        label="杠杆"
+        :label="$t('quick_trade.leverage')"
         type="number"
-        placeholder="例如 5"
+        :placeholder="$t('quick_trade.leverage_placeholder')"
       />
       <div class="market-toggle compact">
         <span
@@ -71,42 +98,42 @@
       </div>
       <div class="action-row">
         <van-button type="success" block :loading="submitting" @click="submitOrder('buy')">
-          买入
+          {{ $t('quick_trade.buy') }}
         </van-button>
         <van-button type="danger" block :loading="submitting" @click="submitOrder('sell')">
-          卖出
+          {{ $t('quick_trade.sell') }}
         </van-button>
       </div>
     </div>
 
     <div class="panel-card">
       <div class="section-head">
-        <span class="panel-title">当前持仓</span>
-        <span class="helper-text">按当前交易对查询</span>
+        <span class="panel-title">{{ $t('quick_trade.positions') }}</span>
+        <span class="helper-text">{{ $t('quick_trade.positions_tip') }}</span>
       </div>
       <div v-if="positions.length" class="list-wrap">
         <div v-for="position in positions" :key="position.symbol + position.side" class="list-row">
           <div>
             <span class="row-title">{{ position.symbol || '-' }}</span>
-            <p class="row-subtitle">{{ getSideText(position.side) }} · 数量 {{ formatNumber(position.size) }}</p>
+            <p class="row-subtitle">{{ getSideText(position.side) }} · {{ formatNumber(position.size) }}</p>
           </div>
           <div class="row-actions">
             <span :class="['row-value', Number(position.unrealized_pnl || position.pnl || 0) >= 0 ? 'profit' : 'loss']">
               {{ formatSigned(position.unrealized_pnl || position.pnl || 0) }}
             </span>
             <van-button size="mini" plain type="danger" @click="closePosition(position)">
-              平仓
+              {{ $t('quick_trade.close') }}
             </van-button>
           </div>
         </div>
       </div>
-      <van-empty v-else description="暂无持仓" />
+      <van-empty v-else :description="$t('quick_trade.positions_empty')" />
     </div>
 
     <div class="panel-card">
       <div class="section-head">
-        <span class="panel-title">最近闪电交易</span>
-        <span class="helper-text">{{ history.length }} 条记录</span>
+        <span class="panel-title">{{ $t('quick_trade.history') }}</span>
+        <span class="helper-text">{{ $t('quick_trade.history_count', { count: history.length }) }}</span>
       </div>
       <div v-if="history.length" class="list-wrap">
         <div v-for="item in history.slice(0, 12)" :key="item.id" class="list-row">
@@ -120,7 +147,7 @@
           </div>
         </div>
       </div>
-      <van-empty v-else description="暂无历史记录" />
+      <van-empty v-else :description="$t('quick_trade.history_empty')" />
     </div>
 
     <van-popup v-model:show="showCredentialPicker" position="bottom" round>
@@ -130,20 +157,32 @@
         @confirm="onSelectCredential"
       />
     </van-popup>
+
+    <SymbolPicker
+      v-model:show="showSymbolPicker"
+      :only-crypto="true"
+      :title="$t('watchlist.picker_title')"
+      @pick="onPickSymbol"
+    />
   </div>
 </template>
 
 <script>
 import { showConfirmDialog, showToast } from 'vant'
-import { credentialsApi, quickTradeApi } from '@/api'
-import { useCredentialsStore, useQuickTradeStore } from '@/stores'
+import { credentialsApi, quickTradeApi, watchlistApi } from '@/api'
+import { useCredentialsStore, useQuickTradeStore, useWatchlistStore } from '@/stores'
+import KlineChart from '@/components/KlineChart.vue'
+import SymbolPicker from '@/components/SymbolPicker.vue'
 
 export default {
   name: 'QuickTrade',
 
+  components: { KlineChart, SymbolPicker },
+
   data() {
     return {
       showCredentialPicker: false,
+      showSymbolPicker: false,
       submitting: false,
       form: {
         symbol: '',
@@ -151,24 +190,34 @@ export default {
         price: '',
         leverage: '1',
         order_type: 'market'
-      },
-      marketOptions: [
-        { label: '现货', value: 'spot' },
-        { label: '合约', value: 'swap' }
-      ],
-      orderTypeOptions: [
-        { label: '市价', value: 'market' },
-        { label: '限价', value: 'limit' }
-      ]
+      }
     }
   },
 
   computed: {
+    marketOptions() {
+      return [
+        { label: this.$t('quick_trade.market_spot'), value: 'spot' },
+        { label: this.$t('quick_trade.market_swap'), value: 'swap' }
+      ]
+    },
+    orderTypeOptions() {
+      return [
+        { label: this.$t('quick_trade.order_market'), value: 'market' },
+        { label: this.$t('quick_trade.order_limit'), value: 'limit' }
+      ]
+    },
     credentialsStore() {
       return useCredentialsStore()
     },
     quickTradeStore() {
       return useQuickTradeStore()
+    },
+    watchlistStore() {
+      return useWatchlistStore()
+    },
+    watchlistCrypto() {
+      return this.watchlistStore.items.filter((i) => (i.market || '').toLowerCase() === 'crypto')
     },
     credentials() {
       return this.credentialsStore.cryptoItems
@@ -219,21 +268,65 @@ export default {
     await this.bootstrap()
   },
 
+  activated() {
+    this.loadWatchlist()
+  },
+
   methods: {
     async bootstrap() {
       try {
-        const [credentialsRes, historyRes] = await Promise.allSettled([
+        const [credentialsRes, historyRes, wlRes] = await Promise.allSettled([
           credentialsApi.list(),
-          quickTradeApi.getHistory()
+          quickTradeApi.getHistory(),
+          watchlistApi.getList()
         ])
         this.credentialsStore.setItems(credentialsRes.status === 'fulfilled' ? (credentialsRes.value.data || []) : [])
         this.quickTradeStore.setHistory(historyRes.status === 'fulfilled' ? (historyRes.value.data || []) : [])
+        if (wlRes.status === 'fulfilled') {
+          this.watchlistStore.setItems(wlRes.value.data || [])
+          if (!this.form.symbol && this.watchlistStore.activeSymbol) {
+            this.form.symbol = this.watchlistStore.activeSymbol
+          } else if (!this.form.symbol && this.watchlistCrypto.length > 0) {
+            this.form.symbol = this.watchlistCrypto[0].symbol
+            this.watchlistStore.setActive(this.form.symbol, 'Crypto')
+          }
+        }
         if (!this.selectedCredentialId && this.credentials.length) {
           this.quickTradeStore.setSelectedCredential(this.credentials[0].id)
         }
       } catch (error) {
         console.error('Bootstrap quick trade failed:', error)
       }
+    },
+
+    async loadWatchlist() {
+      try {
+        const res = await watchlistApi.getList()
+        this.watchlistStore.setItems(res.data || [])
+      } catch (e) {
+        /* ignore */
+      }
+    },
+
+    openSymbolPicker() {
+      this.showSymbolPicker = true
+    },
+
+    onPickSymbol(item) {
+      this.form.symbol = item.symbol
+      this.watchlistStore.setActive(item.symbol, item.market || 'Crypto')
+    },
+
+    selectWatchlist(item) {
+      this.form.symbol = item.symbol
+      this.watchlistStore.setActive(item.symbol, item.market || 'Crypto')
+    },
+
+    shortSymbol(symbol) {
+      if (!symbol) return ''
+      const s = String(symbol)
+      if (s.includes('/')) return s.split('/')[0]
+      return s.replace('USDT', '').replace('USD', '')
     },
 
     setMarketType(value) {
@@ -251,7 +344,7 @@ export default {
 
     openCredentialPicker() {
       if (!this.credentialActions.length) {
-        showToast({ message: '请先到“我的”里添加 API Key', type: 'fail' })
+        showToast({ message: this.$t('quick_trade.no_credential'), type: 'fail' })
         return
       }
       this.showCredentialPicker = true
@@ -282,19 +375,19 @@ export default {
 
     validateOrder() {
       if (!this.selectedCredentialId) {
-        showToast({ message: '请先选择 API Key', type: 'fail' })
+        showToast({ message: this.$t('quick_trade.need_credential'), type: 'fail' })
         return false
       }
       if (!this.form.symbol.trim()) {
-        showToast({ message: '请输入交易对', type: 'fail' })
+        showToast({ message: this.$t('quick_trade.need_symbol'), type: 'fail' })
         return false
       }
       if (!Number(this.form.amount)) {
-        showToast({ message: '请输入下单金额', type: 'fail' })
+        showToast({ message: this.$t('quick_trade.need_amount'), type: 'fail' })
         return false
       }
       if (this.form.order_type === 'limit' && !Number(this.form.price)) {
-        showToast({ message: '请输入限价价格', type: 'fail' })
+        showToast({ message: this.$t('quick_trade.need_price'), type: 'fail' })
         return false
       }
       return true
@@ -315,7 +408,8 @@ export default {
           market_type: this.marketType,
           source: 'manual'
         })
-        showToast({ message: `${side === 'buy' ? '买入' : '卖出'}请求已提交`, type: 'success' })
+        const sideLabel = side === 'buy' ? this.$t('quick_trade.side_buy') : this.$t('quick_trade.side_sell')
+        showToast({ message: this.$t('quick_trade.place_success', { side: sideLabel }), type: 'success' })
         await this.refreshTradeData()
       } catch (error) {
         console.error('Submit quick trade failed:', error)
@@ -327,8 +421,11 @@ export default {
     async closePosition(position) {
       try {
         await showConfirmDialog({
-          title: '确认平仓',
-          message: `确认平掉 ${position.symbol || this.form.symbol} 的${this.getSideText(position.side)}仓位吗？`
+          title: this.$t('quick_trade.close_confirm_title'),
+          message: this.$t('quick_trade.close_confirm_msg', {
+            symbol: position.symbol || this.form.symbol,
+            side: this.getSideText(position.side)
+          })
         })
         await quickTradeApi.closePosition({
           credential_id: this.selectedCredentialId,
@@ -337,7 +434,7 @@ export default {
           position_side: position.side,
           source: 'manual'
         })
-        showToast({ message: '平仓请求已提交', type: 'success' })
+        showToast({ message: this.$t('quick_trade.close_success'), type: 'success' })
         await this.refreshTradeData()
       } catch (error) {
         if (error !== 'cancel') {
@@ -348,19 +445,19 @@ export default {
 
     getSideText(value) {
       const map = {
-        buy: '买入',
-        sell: '卖出',
-        long: '多仓',
-        short: '空仓'
+        buy: this.$t('quick_trade.side_buy'),
+        sell: this.$t('quick_trade.side_sell'),
+        long: this.$t('quick_trade.side_long'),
+        short: this.$t('quick_trade.side_short')
       }
       return map[value] || (value || '-')
     },
 
     getStatusText(value) {
       const map = {
-        filled: '已成交',
-        submitted: '已提交',
-        failed: '失败'
+        filled: this.$t('quick_trade.status_filled'),
+        submitted: this.$t('quick_trade.status_submitted'),
+        failed: this.$t('quick_trade.status_failed')
       }
       return map[value] || (value || '-')
     },
@@ -387,74 +484,141 @@ export default {
 <style scoped>
 .quick-trade-page {
   min-height: 100vh;
-  padding: 16px 16px 110px;
+  padding: calc(14px + var(--safe-area-top, 0px)) 16px 110px;
+  background: var(--bg);
+  color: var(--text);
 }
 
-.hero-card,
-.panel-card {
-  margin-bottom: 16px;
-  padding: 18px 16px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+.watchlist-bar {
+  margin-bottom: 12px;
+  overflow: hidden;
 }
-
-.hero-card {
+.watchlist-scroll {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 2px 6px;
+  scrollbar-width: none;
+}
+.watchlist-scroll::-webkit-scrollbar { display: none; }
+.wl-chip {
+  flex-shrink: 0;
+  padding: 7px 13px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  letter-spacing: 0.03em;
+}
+.wl-chip.active {
+  color: var(--on-accent);
+  background: var(--accent-grad);
+  border-color: transparent;
+}
+.wl-chip.add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 10px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: transparent;
 }
 
-.hero-title,
+.chart-wrap {
+  margin-bottom: 14px;
+}
+.chart-placeholder {
+  padding: 32px 16px;
+  border-radius: 16px;
+  background: var(--surface-raised);
+  border: 1px dashed var(--border-strong);
+  color: var(--text-3);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.chart-placeholder .van-icon {
+  font-size: 26px;
+  color: var(--text-3);
+}
+
+.panel-card {
+  margin-bottom: 14px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+
 .panel-title {
   display: block;
-  font-size: 16px;
-  font-weight: 700;
-  color: #fff;
-}
-
-.hero-desc {
-  margin-top: 6px;
-  font-size: 12px;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.48);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
 }
 
 .market-toggle {
   display: flex;
-  gap: 8px;
-  margin: 12px 0 14px;
+  gap: 4px;
+  margin: 12px 0;
+  padding: 3px;
+  background: var(--surface-deep);
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
 }
 
 .market-toggle.compact {
-  margin: 14px 0;
+  margin: 12px 0;
 }
 
 .toggle-item {
   flex: 1;
   text-align: center;
-  padding: 10px 12px;
-  border-radius: 12px;
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 8px 12px;
+  border-radius: 9px;
+  color: var(--text-2);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s;
 }
 
 .toggle-item.active {
-  color: #050505;
-  background: rgba(240, 211, 155, 0.95);
+  color: var(--text-on-accent);
+  background: var(--accent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 .balance-card {
+  position: relative;
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 12px;
-  padding: 14px;
+  padding: 16px;
   margin-bottom: 14px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  overflow: hidden;
 }
+.balance-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(240px 160px at 0% 0%, var(--c-amber-soft), transparent 60%);
+}
+.balance-card > * { position: relative; }
 
 .quick-trade-page :deep(.van-cell) {
   background: transparent;
@@ -465,7 +629,7 @@ export default {
 .quick-trade-page :deep(.van-cell__title),
 .quick-trade-page :deep(.van-cell__value),
 .quick-trade-page :deep(.van-cell__right-icon) {
-  color: #fff;
+  color: var(--text);
 }
 
 .balance-label,
@@ -473,33 +637,56 @@ export default {
 .row-subtitle,
 .history-side small {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
 }
 
 .balance-value {
   margin-top: 6px;
-  font-size: 22px;
-  font-weight: 700;
-  color: #fff;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-amber);
 }
+
+.balance-side { text-align: right; }
 
 .balance-sub {
   margin-top: 6px;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--text-2);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .action-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  margin-top: 6px;
+}
+
+.action-row :deep(.van-button) {
+  border-radius: 13px;
+  height: 46px;
+  font-size: 15px;
+  font-weight: 700;
+  border: none;
+}
+.action-row :deep(.van-button--success) {
+  background: var(--up);
+  color: #fff;
+}
+.action-row :deep(.van-button--danger) {
+  background: var(--down);
+  color: #fff;
 }
 
 .section-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .list-wrap {
@@ -514,7 +701,7 @@ export default {
   align-items: center;
   gap: 12px;
   padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .list-row:last-child {
@@ -526,7 +713,7 @@ export default {
   display: block;
   font-size: 14px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text);
 }
 
 .row-actions,
@@ -539,14 +726,14 @@ export default {
 
 .row-value {
   font-size: 13px;
-  color: #fff;
+  color: var(--text);
 }
 
 .row-value.profit {
-  color: #34c759;
+  color: var(--up);
 }
 
 .row-value.loss {
-  color: #ff5f57;
+  color: var(--down);
 }
 </style>

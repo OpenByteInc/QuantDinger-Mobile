@@ -160,16 +160,27 @@ export default {
 <style scoped>
 .assets-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+  background: transparent;
   padding: 16px;
   padding-bottom: 100px;
 }
 
 .total-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 20px;
   margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.total-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(320px 220px at 100% 0%, var(--c-amber-soft), transparent 62%);
+  pointer-events: none;
 }
 
 .card-header {
@@ -177,27 +188,30 @@ export default {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+  position: relative;
 }
 
 .card-header .label {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-2);
   font-size: 14px;
 }
 
 .card-header .van-icon {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-2);
 }
 
 .total-value {
   font-size: 32px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text);
   margin-bottom: 16px;
+  position: relative;
 }
 
 .pnl-row {
   display: flex;
   gap: 24px;
+  position: relative;
 }
 
 .pnl-item {
@@ -208,27 +222,22 @@ export default {
 
 .pnl-item .label {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-3);
 }
 
 .pnl-item .value {
   font-size: 16px;
-  font-weight: 600;
-  color: #fff;
+  font-weight: 700;
+  color: var(--text);
 }
 
-.pnl-item .value.profit {
-  color: #51cf66;
-}
-
-.pnl-item .value.loss {
-  color: #ff6b6b;
-}
+.pnl-item .value.profit { color: var(--up); }
+.pnl-item .value.loss   { color: var(--down); }
 
 .section-title {
   font-size: 16px;
-  font-weight: 600;
-  color: #fff;
+  font-weight: 700;
+  color: var(--text);
   margin-bottom: 12px;
 }
 
@@ -239,8 +248,9 @@ export default {
 }
 
 .broker-card {
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   padding: 16px;
 }
 
@@ -251,14 +261,12 @@ export default {
   margin-bottom: 14px;
 }
 
-.broker-header .icon {
-  font-size: 24px;
-}
+.broker-header .icon { font-size: 24px; }
 
 .broker-header .name {
   font-size: 16px;
-  font-weight: 600;
-  color: #fff;
+  font-weight: 700;
+  color: var(--text);
   flex: 1;
 }
 
@@ -276,12 +284,12 @@ export default {
 
 .broker-body .label {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-3);
 }
 
 .broker-body .value {
   font-size: 15px;
-  color: #fff;
+  color: var(--text);
 }
 
 .page-loading {
@@ -289,6 +297,6 @@ export default {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: #fff;
+  color: var(--text);
 }
 </style>

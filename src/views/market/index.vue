@@ -1,239 +1,377 @@
 <template>
   <div class="market-page">
-    <!-- 搜索栏 -->
-    <div class="search-bar">
+    <van-nav-bar :title="$t('market.title')" left-arrow @click-left="$router.back()">
+      <template #right>
+        <van-icon name="bag-o" size="20" @click="$router.push('/market/my-purchases')" />
+      </template>
+    </van-nav-bar>
+
+    <div class="hero">
+      <div class="hero-title">{{ $t('market.title') }}</div>
+      <p class="hero-desc">{{ $t('market.subtitle') }}</p>
+    </div>
+
+    <div class="toolbar">
       <van-search
-        v-model="searchText"
-        placeholder="搜索指标"
+        v-model="keyword"
         shape="round"
-        background="transparent"
+        :placeholder="$t('market.search_placeholder')"
+        @search="reload"
       />
+      <div class="filter-row">
+        <div class="segment">
+          <div
+            v-for="opt in filterOptions"
+            :key="opt.value"
+            :class="['seg-item', { active: pricing === opt.value }]"
+            @click="setPricing(opt.value)"
+          >{{ opt.label }}</div>
+        </div>
+        <van-cell :value="sortLabel" is-link class="sort-cell" @click="showSortPicker = true">
+          <template #title>
+            <van-icon name="exchange" />
+          </template>
+        </van-cell>
+      </div>
     </div>
 
-    <!-- 分类标签 -->
-    <div class="category-tabs">
-      <span
-        v-for="cat in categories"
-        :key="cat.value"
-        :class="{ active: currentCategory === cat.value }"
-        @click="currentCategory = cat.value"
-      >
-        {{ cat.label }}
-      </span>
-    </div>
-
-    <!-- 指标列表 -->
-    <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
-      <div class="indicator-list">
-        <div
-          v-for="indicator in filteredIndicators"
-          :key="indicator.id"
-          class="indicator-card"
-          @click="goToDetail(indicator)"
-        >
-          <div class="card-header">
-            <span class="name">{{ indicator.name }}</span>
-            <van-tag v-if="indicator.is_free" type="success" size="small">免费</van-tag>
-            <span v-else class="price">¥{{ indicator.price }}</span>
-          </div>
-          <p class="description">{{ indicator.description || '暂无描述' }}</p>
-          <div class="card-footer">
-            <div class="stats">
-              <span>⭐ {{ indicator.rating?.toFixed(1) || '-' }}</span>
-              <span>📥 {{ indicator.downloads || 0 }}</span>
+    <van-list
+      v-model:loading="loading"
+      :finished="finished"
+      finished-text=""
+      @load="loadMore"
+    >
+      <div class="grid">
+        <div v-for="item in items" :key="item.id" class="ind-card" @click="openDetail(item)">
+          <div class="ind-cover" :style="coverStyle(item)">
+            <div class="cover-overlay"></div>
+            <div class="cover-top">
+              <span class="cover-badge">
+                <van-icon :name="item.pricing_type === 'paid' ? 'gold-coin-o' : 'gift-o'" />
+                {{ item.pricing_type === 'paid' ? $t('market.filter_paid') : $t('market.filter_free') }}
+              </span>
+              <span v-if="item.vip_free" class="cover-vip">VIP</span>
             </div>
-            <span class="author">{{ indicator.author }}</span>
+            <div class="cover-bottom">
+              <span class="cover-initials">{{ initialsOf(item.name) }}</span>
+              <span class="cover-type">{{ typeLabel(item) }}</span>
+            </div>
+          </div>
+          <div class="ind-body">
+            <div class="ind-title">{{ item.name }}</div>
+            <p class="ind-desc">{{ shortDesc(item.description) }}</p>
+            <div class="ind-stats">
+              <span class="stat">
+                <van-icon name="star" /> {{ Number(item.avg_rating || 0).toFixed(1) }}
+              </span>
+              <span class="stat">
+                <van-icon name="cart-o" /> {{ item.purchase_count || 0 }}
+              </span>
+              <span :class="['price', item.pricing_type === 'paid' ? 'paid' : 'free']">
+                {{ item.pricing_type === 'paid' ? $t('market.price_credits', { price: item.price }) : $t('market.price_free') }}
+              </span>
+            </div>
           </div>
         </div>
-
-        <van-empty v-if="filteredIndicators.length === 0 && !loading" description="暂无指标" />
       </div>
-    </van-pull-refresh>
+    </van-list>
 
-    <van-loading v-if="loading" class="page-loading" vertical>加载中...</van-loading>
+    <van-empty v-if="!loading && !items.length" :description="$t('common.empty')" />
+
+    <van-popup v-model:show="showSortPicker" position="bottom" round>
+      <van-picker
+        :columns="sortColumns"
+        @cancel="showSortPicker = false"
+        @confirm="onSortSelect"
+      />
+    </van-popup>
   </div>
 </template>
 
 <script>
-import { communityApi } from '@/api'
+import { marketApi } from '@/api'
 
 export default {
-  name: 'IndicatorMarket',
-  
+  name: 'Market',
   data() {
     return {
-      searchText: '',
-      currentCategory: 'all',
+      items: [],
+      keyword: '',
+      pricing: '',
+      sort: 'newest',
+      page: 1,
+      pageSize: 12,
+      total: 0,
       loading: false,
-      refreshing: false,
-      indicators: [],
-      categories: [
-        { label: '全部', value: 'all' },
-        { label: '趋势', value: 'trend' },
-        { label: '震荡', value: 'oscillator' },
-        { label: '成交量', value: 'volume' },
-        { label: '自定义', value: 'custom' }
-      ]
+      finished: false,
+      showSortPicker: false
     }
   },
-  
   computed: {
-    filteredIndicators() {
-      let list = this.indicators
-      
-      if (this.currentCategory !== 'all') {
-        list = list.filter(i => i.category === this.currentCategory)
-      }
-      
-      if (this.searchText.trim()) {
-        const keyword = this.searchText.trim().toLowerCase()
-        list = list.filter(i => 
-          i.name?.toLowerCase().includes(keyword) ||
-          i.description?.toLowerCase().includes(keyword)
-        )
-      }
-      
-      return list
+    filterOptions() {
+      return [
+        { value: '', label: this.$t('market.filter_all') },
+        { value: 'free', label: this.$t('market.filter_free') },
+        { value: 'paid', label: this.$t('market.filter_paid') }
+      ]
+    },
+    sortColumns() {
+      return [
+        { value: 'newest', text: this.$t('market.sort_newest') },
+        { value: 'hot', text: this.$t('market.sort_hot') },
+        { value: 'price_asc', text: this.$t('market.sort_price_asc') },
+        { value: 'price_desc', text: this.$t('market.sort_price_desc') },
+        { value: 'rating', text: this.$t('market.sort_rating') }
+      ]
+    },
+    sortLabel() {
+      const it = this.sortColumns.find((s) => s.value === this.sort)
+      return it ? it.text : ''
     }
   },
-  
   mounted() {
-    this.loadIndicators()
+    this.reload()
   },
-  
   methods: {
-    async loadIndicators() {
+    async reload() {
+      this.page = 1
+      this.finished = false
+      this.items = []
+      await this.loadMore()
+    },
+    async loadMore() {
+      if (this.loading || this.finished) return
       this.loading = true
       try {
-        const res = await communityApi.getIndicators({})
-        if (res.code === 1 && res.data) {
-          this.indicators = res.data.items || res.data || []
+        const res = await marketApi.getIndicators({
+          page: this.page,
+          page_size: this.pageSize,
+          keyword: this.keyword || undefined,
+          pricing_type: this.pricing || undefined,
+          sort_by: this.sort
+        })
+        const list = res.data?.items || []
+        this.items = this.page === 1 ? list : this.items.concat(list)
+        this.total = res.data?.total || this.items.length
+        if (this.items.length >= this.total || list.length === 0) {
+          this.finished = true
+        } else {
+          this.page += 1
         }
       } catch (err) {
-        console.error('Load indicators error:', err)
+        this.finished = true
       } finally {
         this.loading = false
       }
     },
-    
-    async onRefresh() {
-      await this.loadIndicators()
-      this.refreshing = false
+    setPricing(val) {
+      if (this.pricing === val) return
+      this.pricing = val
+      this.reload()
     },
-    
-    goToDetail(indicator) {
-      this.$router.push(`/market/indicator/${indicator.id}`)
+    onSortSelect(payload) {
+      const selected = payload?.selectedOptions?.[0] || payload?.[0]
+      if (selected) this.sort = selected.value
+      this.showSortPicker = false
+      this.reload()
+    },
+    openDetail(item) {
+      this.$router.push(`/market/indicator/${item.id}`)
+    },
+    shortDesc(text) {
+      if (!text) return ''
+      return text.length > 80 ? `${text.slice(0, 80)}...` : text
+    },
+    initialsOf(name) {
+      if (!name) return 'IN'
+      const str = String(name).trim().toUpperCase()
+      const parts = str.split(/\s+/).filter(Boolean)
+      if (parts.length >= 2) return parts[0].slice(0, 1) + parts[1].slice(0, 1)
+      const ascii = str.replace(/[^A-Z0-9]/g, '')
+      if (ascii) return ascii.slice(0, 2)
+      return str.slice(0, 2)
+    },
+    typeLabel(item) {
+      return item.indicator_type || item.type || item.language || 'Indicator'
+    },
+    coverStyle(item) {
+      const palettes = [
+        ['#667eea', '#764ba2'],
+        ['#4facfe', '#00f2fe'],
+        ['#f7971e', '#ffd200'],
+        ['#ff6a00', '#ee0979'],
+        ['#11998e', '#38ef7d'],
+        ['#fc466b', '#3f5efb'],
+        ['#7c5cff', '#22d3ee'],
+        ['#42275a', '#734b6d'],
+        ['#08AEEA', '#2AF598']
+      ]
+      const key = String(item.id || item.name || '')
+      let hash = 0
+      for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) | 0
+      const palette = palettes[Math.abs(hash) % palettes.length]
+      return {
+        background: `linear-gradient(135deg, ${palette[0]}, ${palette[1]})`
+      }
     }
   }
 }
 </script>
 
 <style scoped>
-.market-page {
-  min-height: 100vh;
-  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-  padding-bottom: 100px;
-}
-
-.search-bar {
-  padding: 8px 16px;
-}
-
-.search-bar :deep(.van-search__content) {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.search-bar :deep(.van-field__control) {
-  color: #fff;
-}
-
-.category-tabs {
-  display: flex;
-  gap: 8px;
-  padding: 0 16px 12px;
-  overflow-x: auto;
-}
-
-.category-tabs span {
-  padding: 6px 14px;
-  border-radius: 16px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.05);
-  white-space: nowrap;
-  transition: all 0.3s;
-}
-
-.category-tabs span.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-}
-
-.indicator-list {
-  padding: 0 16px;
-}
-
-.indicator-card {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 12px;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.card-header .name {
-  font-size: 16px;
-  font-weight: 600;
-  color: #fff;
-  flex: 1;
-}
-
-.card-header .price {
-  font-size: 14px;
-  color: #ffd43b;
-  font-weight: 600;
-}
-
-.description {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
-  line-height: 1.5;
-  margin: 0 0 12px 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+.market-page { min-height: 100vh; padding-bottom: 60px; }
+:deep(.van-nav-bar) { background: transparent; }
+:deep(.van-nav-bar .van-nav-bar__title),
+:deep(.van-nav-bar .van-icon) { color: var(--text); }
+.hero {
+  margin: 8px 16px 16px;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  position: relative;
   overflow: hidden;
 }
-
-.card-footer {
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(260px 180px at 100% 0%, var(--c-amber-soft), transparent 62%);
+}
+.hero > * { position: relative; }
+.hero-title { font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 6px; letter-spacing: -0.02em; }
+.hero-desc { font-size: 12px; color: var(--text-2); }
+.toolbar { padding: 0 8px; }
+:deep(.van-search) { background: transparent; padding: 8px; }
+:deep(.van-search__content) { background: var(--surface-raised); }
+:deep(.van-field__control) { color: var(--text); }
+.filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+}
+.segment { display: flex; gap: 6px; }
+.seg-item {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+}
+.seg-item.active {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
+}
+.sort-cell {
+  background: transparent;
+  padding: 0 12px;
+  color: var(--text-2);
+  font-size: 12px;
+  flex: none;
+  width: auto;
+}
+:deep(.sort-cell .van-cell__title) {
+  flex: none;
+  padding-right: 6px;
+}
+.grid {
+  padding: 6px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ind-card {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+.ind-cover {
+  position: relative;
+  height: 104px;
+  padding: 14px;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 80% 10%, rgba(255,255,255,0.2), transparent 55%),
+    radial-gradient(circle at 10% 90%, rgba(0,0,0,0.35), transparent 60%);
+}
+.cover-top,
+.cover-bottom {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
-.stats {
+.cover-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.45);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.cover-vip {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--c-amber);
+  color: #0a0a0d;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+.cover-initials {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+.cover-type {
+  font-size: 11px;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.ind-body { padding: 14px 16px 16px; }
+.ind-title {
+  color: var(--text);
+  font-weight: 700;
+  font-size: 15px;
+}
+.ind-desc {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-2);
+  min-height: 36px;
+}
+.ind-stats {
+  margin-top: 12px;
   display: flex;
-  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-3);
 }
-
-.author {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
+.stat {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
 }
-
-.page-loading {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: #fff;
-}
+.price { font-weight: 700; }
+.price.paid { color: var(--c-amber); }
+.price.free { color: var(--up); }
 </style>

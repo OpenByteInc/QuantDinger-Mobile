@@ -100,21 +100,15 @@ export default {
 <style scoped>
 .records-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-}
-
-.records-page :deep(.van-nav-bar) {
   background: transparent;
 }
 
+.records-page :deep(.van-nav-bar) { background: transparent; }
 .records-page :deep(.van-nav-bar__title),
-.records-page :deep(.van-nav-bar__arrow) {
-  color: #fff;
-}
+.records-page :deep(.van-nav-bar__arrow),
+.records-page :deep(.van-nav-bar .van-icon) { color: var(--text); }
 
-.content {
-  padding: 16px;
-}
+.content { padding: 16px; }
 
 .trade-list {
   display: flex;
@@ -123,8 +117,9 @@ export default {
 }
 
 .trade-item {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   padding: 14px;
 }
 
@@ -137,8 +132,8 @@ export default {
 
 .trade-header .symbol {
   font-size: 15px;
-  font-weight: 600;
-  color: #fff;
+  font-weight: 700;
+  color: var(--text);
 }
 
 .direction {
@@ -147,20 +142,13 @@ export default {
   border-radius: 6px;
 }
 
-.direction.buy {
-  background: rgba(81, 207, 102, 0.2);
-  color: #51cf66;
-}
-
-.direction.sell {
-  background: rgba(255, 107, 107, 0.2);
-  color: #ff6b6b;
-}
+.direction.buy  { background: var(--up-soft);   color: var(--up); }
+.direction.sell { background: var(--down-soft); color: var(--down); }
 
 .trade-header .time {
   margin-left: auto;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-3);
 }
 
 .trade-body {
@@ -177,27 +165,22 @@ export default {
 
 .info .label {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-3);
 }
 
 .info .value {
   font-size: 14px;
-  color: #fff;
+  color: var(--text);
 }
 
-.info .value.profit {
-  color: #51cf66;
-}
-
-.info .value.loss {
-  color: #ff6b6b;
-}
+.info .value.profit { color: var(--up); }
+.info .value.loss   { color: var(--down); }
 
 .page-loading {
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: #fff;
+  color: var(--text);
 }
 </style>

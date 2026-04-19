@@ -1,13 +1,15 @@
 <template>
   <div class="notifications-page">
     <van-nav-bar
-      title="消息通知"
+      :title="$t('notifications.title')"
       left-arrow
       :border="false"
       @click-left="$router.back()"
     >
       <template #right>
-        <span class="nav-link" @click="markAllRead">全部已读</span>
+        <span v-if="notifications.length" class="nav-link" @click="markAllRead">
+          {{ $t('notifications.mark_all_read') }}
+        </span>
       </template>
     </van-nav-bar>
 
@@ -27,23 +29,30 @@
               <span class="title">{{ getTitle(item) }}</span>
               <span class="time">{{ formatTime(item.created_at) }}</span>
             </div>
-            <p class="message">{{ item.message || item.content || '暂无内容' }}</p>
+            <p class="message">
+              {{ item.message || item.content || $t('notifications.no_content') }}
+            </p>
             <div class="meta">
               <van-tag v-if="item.strategy_id" size="small" plain type="primary">
-                策略 #{{ item.strategy_id }}
+                {{ $t('notifications.strategy') }} #{{ item.strategy_id }}
               </van-tag>
               <van-tag v-if="!item.is_read && !item.read" size="small" plain type="warning">
-                未读
+                {{ $t('notifications.unread') }}
               </van-tag>
             </div>
           </div>
         </div>
 
-        <van-empty v-if="!loading && notifications.length === 0" description="暂无通知" />
+        <van-empty
+          v-if="!loading && notifications.length === 0"
+          :description="$t('notifications.empty')"
+        />
       </div>
     </van-pull-refresh>
 
-    <van-loading v-if="loading" class="page-loading" vertical>加载中...</van-loading>
+    <van-loading v-if="loading" class="page-loading" vertical>
+      {{ $t('common.loading') }}
+    </van-loading>
   </div>
 </template>
 
@@ -114,17 +123,21 @@ export default {
     },
 
     getTitle(item) {
-      return item.title || item.event_type || '策略通知'
+      return item.title || item.event_type || this.$t('notifications.default_title')
     },
 
     formatTime(value) {
       const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value)
-      if (Number.isNaN(date.getTime())) return '刚刚'
+      if (Number.isNaN(date.getTime())) return this.$t('notifications.just_now')
       const now = Date.now()
       const diff = now - date.getTime()
-      if (diff < 60 * 1000) return '刚刚'
-      if (diff < 60 * 60 * 1000) return `${Math.floor(diff / 60000)} 分钟前`
-      if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / 3600000)} 小时前`
+      if (diff < 60 * 1000) return this.$t('notifications.just_now')
+      if (diff < 60 * 60 * 1000) {
+        return this.$t('notifications.minutes_ago', { n: Math.floor(diff / 60000) })
+      }
+      if (diff < 24 * 60 * 60 * 1000) {
+        return this.$t('notifications.hours_ago', { n: Math.floor(diff / 3600000) })
+      }
       return `${date.getMonth() + 1}/${date.getDate()}`
     },
 
@@ -154,39 +167,35 @@ export default {
 .notifications-page {
   min-height: 100vh;
   padding-bottom: 24px;
-}
-
-.notifications-page :deep(.van-nav-bar) {
   background: transparent;
 }
 
+.notifications-page :deep(.van-nav-bar) { background: transparent; }
 .notifications-page :deep(.van-nav-bar__title),
-.notifications-page :deep(.van-nav-bar__arrow) {
-  color: #fff;
-}
+.notifications-page :deep(.van-nav-bar__arrow),
+.notifications-page :deep(.van-nav-bar .van-icon) { color: var(--text); }
 
 .nav-link {
-  color: var(--primary-color);
+  color: var(--accent);
   font-size: 14px;
+  font-weight: 600;
 }
 
-.notification-list {
-  padding: 16px;
-}
+.notification-list { padding: 16px; }
 
 .notification-item {
   display: flex;
   gap: 12px;
   padding: 14px;
   margin-bottom: 10px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
 }
 
 .notification-item.unread {
-  border-color: rgba(212, 176, 106, 0.2);
-  background: rgba(212, 176, 106, 0.06);
+  border-color: transparent;
+  background: var(--accent-soft);
 }
 
 .icon-wrapper {
@@ -200,22 +209,23 @@ export default {
 }
 
 .icon-wrapper.signal {
-  background: rgba(212, 176, 106, 0.12);
-  color: var(--primary-color);
+  background: var(--c-amber-soft);
+  color: var(--c-amber);
 }
 
 .icon-wrapper.trade {
-  background: rgba(52, 199, 89, 0.12);
-  color: #34c759;
+  background: var(--up-soft);
+  color: var(--up);
 }
 
 .icon-wrapper.alert {
-  background: rgba(255, 95, 87, 0.12);
-  color: #ff5f57;
+  background: var(--down-soft);
+  color: var(--down);
 }
 
 .content {
   flex: 1;
+  min-width: 0;
 }
 
 .header {
@@ -228,12 +238,15 @@ export default {
 .title {
   font-size: 15px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .time {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.42);
+  color: var(--text-3);
   white-space: nowrap;
 }
 
@@ -241,12 +254,13 @@ export default {
   margin: 8px 0;
   font-size: 13px;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.68);
+  color: var(--text-2);
 }
 
 .meta {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .page-loading {
@@ -254,6 +268,6 @@ export default {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: #fff;
+  color: var(--text);
 }
 </style>

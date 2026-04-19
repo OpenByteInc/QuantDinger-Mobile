@@ -9,7 +9,7 @@ const http = axios.create({
   }
 })
 
-const getBaseUrl = () => {
+export const getBaseUrl = () => {
   const serverUrl = localStorage.getItem('serverUrl')?.trim()
   if (serverUrl) {
     return serverUrl.replace(/\/$/, '')
@@ -18,6 +18,188 @@ const getBaseUrl = () => {
 }
 
 const ensureArray = (value) => Array.isArray(value) ? value : []
+
+/** Global market calendar: API may return { list: [] } / { events: [] } etc. */
+const unwrapCalendarList = (data) => {
+  if (Array.isArray(data)) return data
+  if (!data || typeof data !== 'object') return []
+  const keys = ['items', 'list', 'events', 'calendar', 'records', 'rows', 'data']
+  for (const k of keys) {
+    const v = data[k]
+    if (Array.isArray(v)) return v
+  }
+  return []
+}
+
+const parseNumericMetric = (val) => {
+  if (val == null || val === '') return { text: '', num: null }
+  if (typeof val === 'number') {
+    return Number.isFinite(val) ? { text: String(val), num: val } : { text: '', num: null }
+  }
+  const text = String(val).trim()
+  if (!text) return { text: '', num: null }
+  const match = text.replace(/,/g, '').match(/-?\d+(\.\d+)?/)
+  const num = match ? Number(match[0]) : null
+  return { text, num: Number.isFinite(num) ? num : null }
+}
+
+// 事件 → 黄金影响极性：{ bullish: '实际高于预期->利多', bearish: ... }
+// 命中的关键词按从上到下优先级
+const GOLD_IMPACT_RULES = [
+  { kw: /unemploy|jobless|initial\s*claims|失业|申请失业/, higherIs: 'bullish' },
+  { kw: /cpi|inflation|ppi|pce|消费者物价|生产者物价|通胀|通膨/, higherIs: 'bullish' },
+  { kw: /nonfarm|payroll|non[- ]?farm|非农|就业/, higherIs: 'bearish' },
+  { kw: /gdp|国内生产总值/, higherIs: 'bearish' },
+  { kw: /retail\s*sales|零售销售/, higherIs: 'bearish' },
+  { kw: /pmi|ism|制造业|采购经理/, higherIs: 'bearish' },
+  { kw: /industrial\s*production|工业产出|工业生产/, higherIs: 'bearish' },
+  { kw: /durable\s*goods|耐用品/, higherIs: 'bearish' },
+  { kw: /consumer\s*confidence|消费者信心/, higherIs: 'bearish' },
+  { kw: /trade\s*balance|贸易差额|贸易逆差/, higherIs: 'bearish' },
+  { kw: /housing|home\s*sales|住房/, higherIs: 'bearish' },
+  { kw: /dollar\s*index|dxy|美元指数/, higherIs: 'bearish' },
+  { kw: /fed\s*funds|interest\s*rate|rate\s*decision|利率决议|基准利率|federal\s*funds/, higherIs: 'bearish' }
+]
+
+const decideGoldImpact = (titleRaw, surprise) => {
+  if (!surprise || surprise === 'inline') return null
+  const t = String(titleRaw || '').toLowerCase()
+  if (!t) return null
+  const rule = GOLD_IMPACT_RULES.find(r => r.kw.test(t))
+  if (!rule) return null
+  const opposite = rule.higherIs === 'bullish' ? 'bearish' : 'bullish'
+  return surprise === 'higher' ? rule.higherIs : opposite
+}
+
+const normalizeCalendarEvent = (ev) => {
+  if (!ev || typeof ev !== 'object') return null
+  const title =
+    ev.title ??
+    ev.event_title ??
+    ev.event_name ??
+    ev.name ??
+    ev.event ??
+    ev.subject ??
+    ev.indicator ??
+    ev.indicator_name ??
+    ev.description ??
+    ev.holiday_name ??
+    ''
+  const titleEn =
+    ev.title_en ??
+    ev.name_en ??
+    ev.event_name_en ??
+    ev.event_title_en ??
+    ev.indicator_en ??
+    ''
+  const titleZh =
+    ev.title_zh ??
+    ev.name_zh ??
+    ev.event_name_zh ??
+    ev.event_title_zh ??
+    ''
+  const time =
+    ev.time ??
+    ev.event_time ??
+    ev.datetime ??
+    ev.date_time ??
+    ev.date ??
+    ev.scheduled ??
+    '--'
+  const country =
+    ev.country ??
+    ev.region ??
+    ev.currency ??
+    ev.currency_code ??
+    ev.ccy ??
+    ''
+  const id = ev.id ?? ev.event_id ?? `${String(time)}-${String(title)}-${String(country)}`
+  const impact = String(ev.impact ?? ev.importance ?? ev.level ?? '').toLowerCase()
+
+  const actualMetric = parseNumericMetric(
+    ev.actual ?? ev.actual_value ?? ev.actualValue ?? ev.value ?? ev.result
+  )
+  const forecastMetric = parseNumericMetric(
+    ev.forecast ?? ev.forecast_value ?? ev.forecastValue ?? ev.expected ?? ev.consensus ?? ev.estimate
+  )
+  const previousMetric = parseNumericMetric(
+    ev.previous ?? ev.previous_value ?? ev.previousValue ?? ev.prior ?? ev.last
+  )
+
+  let surprise = null // 'higher' | 'lower' | 'inline'
+  if (actualMetric.num != null && forecastMetric.num != null) {
+    if (actualMetric.num > forecastMetric.num) surprise = 'higher'
+    else if (actualMetric.num < forecastMetric.num) surprise = 'lower'
+    else surprise = 'inline'
+  }
+
+  const goldImpact = decideGoldImpact(title, surprise) // 'bullish' | 'bearish' | null
+
+  return {
+    ...ev,
+    id,
+    time: String(time),
+    country: String(country),
+    title: String(title || '--'),
+    title_en: String(titleEn || ''),
+    title_zh: String(titleZh || ''),
+    impact,
+    actual: actualMetric.text,
+    forecast: forecastMetric.text,
+    previous: previousMetric.text,
+    actualNum: actualMetric.num,
+    forecastNum: forecastMetric.num,
+    previousNum: previousMetric.num,
+    surprise,
+    goldImpact
+  }
+}
+
+/** Fear & Greed: PC/alternative.me often returns { value, classification } not fear_greed. */
+const normalizeGlobalSentiment = (raw) => {
+  if (raw == null) return null
+  let d = raw
+  if (typeof raw === 'string') {
+    try {
+      d = JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  if (typeof d !== 'object') return null
+  if (d.data != null && typeof d.data === 'object' && !Array.isArray(d.data)) {
+    const nested = d.data
+    if (
+      nested.value != null ||
+      nested.fear_greed != null ||
+      nested.classification != null ||
+      (typeof nested.fear_greed === 'object' && nested.fear_greed !== null)
+    ) {
+      d = nested
+    }
+  }
+  const inner =
+    typeof d.fear_greed === 'object' && d.fear_greed !== null && !Array.isArray(d.fear_greed)
+      ? d.fear_greed
+      : d
+  const fromNumber = typeof d.fear_greed === 'number' ? d.fear_greed : NaN
+  const n = Number(
+    inner.value ??
+      inner.fear_greed ??
+      (Number.isFinite(fromNumber) ? fromNumber : NaN) ??
+      d.value ??
+      NaN
+  )
+  if (!Number.isFinite(n)) return null
+  return {
+    fear_greed: Math.round(Math.max(0, Math.min(100, n))),
+    classification: String(
+      inner.classification ?? d.classification ?? inner.label ?? ''
+    ).trim(),
+    source: String(inner.source ?? d.source ?? ''),
+    timestamp: inner.timestamp ?? d.timestamp
+  }
+}
 
 const unwrapItems = (data, key = 'items') => {
   if (Array.isArray(data)) return data
@@ -91,10 +273,13 @@ http.interceptors.request.use(
 http.interceptors.response.use(
   (response) => {
     const res = response.data
+    if (response.config?.raw) {
+      return res
+    }
     if (res?.code === 1 || res?.code === 200 || res?.success) {
       return res
     }
-    if (response.status === 200 && !res?.code) {
+    if (response.status === 200 && (res?.code === undefined || res?.code === null)) {
       return { code: 1, data: res }
     }
     showToast({
@@ -136,9 +321,14 @@ http.interceptors.response.use(
 
 export const authApi = {
   login: (data) => http.post('/api/auth/login', data),
+  loginWithCode: (data) => http.post('/api/auth/login-code', data),
+  register: (data) => http.post('/api/auth/register', data),
+  sendCode: (data) => http.post('/api/auth/send-code', data),
+  resetPassword: (data) => http.post('/api/auth/reset-password', data),
   getSecurityConfig: () => http.get('/api/auth/security-config'),
   getInfo: () => http.get('/api/auth/info'),
-  logout: () => http.post('/api/auth/logout')
+  logout: () => http.post('/api/auth/logout'),
+  changePassword: (data) => http.post('/api/auth/change-password', data)
 }
 
 export const dashboardApi = {
@@ -189,6 +379,25 @@ export const credentialsApi = {
 }
 
 export const strategyApi = {
+  getTemplates: async (params = {}) => {
+    const res = await http.get('/api/templates', { params })
+    return {
+      ...res,
+      data: ensureArray(res.data)
+    }
+  },
+  getTemplate: async (key) => {
+    const res = await http.get(`/api/templates/${key}`)
+    return {
+      ...res,
+      data: res.data || null
+    }
+  },
+  create: (payload) => http.post('/api/strategies/create', payload),
+  batchCreate: (payload) => http.post('/api/strategies/batch-create', payload),
+  update: (id, payload) => http.put('/api/strategies/update', { id, ...payload }),
+  delete: (id) => http.delete('/api/strategies/delete', { params: { id } }),
+  aiGenerate: (payload) => http.post('/api/strategies/ai-generate', payload, { raw: true, timeout: 180000 }),
   getList: async () => {
     const res = await http.get('/api/strategies')
     return {
@@ -313,13 +522,257 @@ export const quickTradeApi = {
   }
 }
 
+export const aiAnalysisApi = {
+  analyze: (payload) => http.post('/api/fast-analysis/analyze', payload, { timeout: 300000 }),
+  getHistory: async (params = {}) => {
+    const res = await http.get('/api/fast-analysis/history', { params })
+    return {
+      ...res,
+      data: unwrapItems(res.data)
+    }
+  },
+  getAllHistory: async (params = {}) => {
+    const res = await http.get('/api/fast-analysis/history/all', { params })
+    return {
+      ...res,
+      data: {
+        list: ensureArray(res.data?.list),
+        total: Number(res.data?.total || 0),
+        page: Number(res.data?.page || 1),
+        pagesize: Number(res.data?.pagesize || 20)
+      }
+    }
+  },
+  deleteHistory: (memoryId) => http.delete(`/api/fast-analysis/history/${memoryId}`),
+  getPerformance: async (params = {}) => {
+    const res = await http.get('/api/fast-analysis/performance', { params })
+    return {
+      ...res,
+      data: res.data || {}
+    }
+  },
+  submitFeedback: (payload) => http.post('/api/fast-analysis/feedback', payload),
+  getSimilarPatterns: async (params = {}) => {
+    const res = await http.get('/api/fast-analysis/similar-patterns', { params })
+    return {
+      ...res,
+      data: res.data || {}
+    }
+  }
+}
+
+export const marketApi = {
+  getIndicators: async (params = {}) => {
+    const res = await http.get('/api/community/indicators', { params })
+    return {
+      ...res,
+      data: {
+        items: ensureArray(res.data?.items),
+        total: Number(res.data?.total || 0),
+        page: Number(res.data?.page || 1),
+        page_size: Number(res.data?.page_size || 12)
+      }
+    }
+  },
+  getIndicator: async (id) => {
+    const res = await http.get(`/api/community/indicators/${id}`)
+    return {
+      ...res,
+      data: res.data || null
+    }
+  },
+  purchase: (id) => http.post(`/api/community/indicators/${id}/purchase`),
+  syncIndicator: (id) => http.post(`/api/community/indicators/${id}/sync`),
+  getMyPurchases: async (params = {}) => {
+    const res = await http.get('/api/community/my-purchases', { params })
+    return {
+      ...res,
+      data: {
+        items: ensureArray(res.data?.items),
+        total: Number(res.data?.total || 0)
+      }
+    }
+  },
+  getComments: async (id, params = {}) => {
+    const res = await http.get(`/api/community/indicators/${id}/comments`, { params })
+    return {
+      ...res,
+      data: {
+        items: ensureArray(res.data?.items),
+        total: Number(res.data?.total || 0)
+      }
+    }
+  },
+  getIndicatorPerformance: async (id) => {
+    const res = await http.get(`/api/community/indicators/${id}/performance`)
+    return {
+      ...res,
+      data: res.data || {}
+    }
+  }
+}
+
+export const watchlistApi = {
+  getList: async () => {
+    const res = await http.get('/api/market/watchlist/get')
+    return {
+      ...res,
+      data: ensureArray(res.data).map((item) => ({
+        id: item.id,
+        market: item.market,
+        symbol: item.symbol,
+        name: item.name || item.symbol
+      }))
+    }
+  },
+  add: (payload) => http.post('/api/market/watchlist/add', payload),
+  remove: (symbol) => http.post('/api/market/watchlist/remove', { symbol }),
+  search: async (params) => {
+    const res = await http.get('/api/market/symbols/search', { params })
+    return {
+      ...res,
+      data: ensureArray(res.data)
+    }
+  },
+  getHot: async (params) => {
+    const res = await http.get('/api/market/symbols/hot', { params })
+    return {
+      ...res,
+      data: ensureArray(res.data)
+    }
+  },
+  getPrices: async (list) => {
+    const res = await http.get('/api/market/watchlist/prices', {
+      params: { watchlist: JSON.stringify(list || []) }
+    })
+    return {
+      ...res,
+      data: ensureArray(res.data)
+    }
+  }
+}
+
+export const klineApi = {
+  getKline: async ({ market = 'Crypto', symbol, timeframe = '1h', limit = 200, beforeTime } = {}) => {
+    const params = { market, symbol, timeframe, limit }
+    if (beforeTime) params.before_time = beforeTime
+    const res = await http.get('/api/indicator/kline', { params })
+    return {
+      ...res,
+      data: ensureArray(res.data)
+    }
+  },
+  getPrice: async ({ market = 'Crypto', symbol } = {}) => {
+    const res = await http.get('/api/indicator/price', { params: { market, symbol } })
+    return {
+      ...res,
+      data: res.data || null
+    }
+  }
+}
+
+export const indicatorApi = {
+  getList: async () => {
+    const res = await http.get('/api/indicator/getIndicators')
+    return {
+      ...res,
+      data: ensureArray(res.data?.indicators || res.data)
+    }
+  },
+  getParams: async (id) => {
+    const res = await http.get('/api/indicator/getIndicatorParams', { params: { indicator_id: id } })
+    return {
+      ...res,
+      data: Array.isArray(res.data) ? res.data : (res.data?.params || [])
+    }
+  },
+  parseStrategyConfig: async (code) => {
+    const res = await http.post('/api/indicator/parseStrategyConfig', { code: code || '' })
+    return {
+      ...res,
+      data: res.data || { strategyConfig: {}, indicatorParams: [] }
+    }
+  }
+}
+
 export const userApi = {
   getProfile: () => http.get('/api/users/profile'),
   updateProfile: (data) => http.put('/api/users/profile/update', data),
   getNotificationSettings: () => http.get('/api/users/notification-settings'),
   updateNotificationSettings: (data) => http.put('/api/users/notification-settings', data),
   testNotificationSettings: () => http.post('/api/users/notification-settings/test'),
-  changePassword: (data) => http.post('/api/users/change-password', data)
+  changePassword: (data) => http.post('/api/users/change-password', data),
+  getMyCreditsLog: async (params = {}) => {
+    const res = await http.get('/api/users/my-credits-log', { params })
+    const items = ensureArray(res.data?.items || res.data?.list)
+    return {
+      ...res,
+      data: {
+        list: items,
+        items,
+        total: Number(res.data?.total || 0),
+        page: Number(res.data?.page || 1),
+        page_size: Number(res.data?.page_size || 20),
+        total_pages: Number(res.data?.total_pages || 0)
+      }
+    }
+  },
+  getMyReferrals: async (params = {}) => {
+    const res = await http.get('/api/users/my-referrals', { params })
+    return {
+      ...res,
+      data: {
+        list: ensureArray(res.data?.list),
+        total: Number(res.data?.total || 0),
+        referral_code: res.data?.referral_code || '',
+        referral_bonus: Number(res.data?.referral_bonus || 0),
+        register_bonus: Number(res.data?.register_bonus || 0)
+      }
+    }
+  }
+}
+
+export const globalMarketApi = {
+  getOverview: async () => {
+    const res = await http.get('/api/global-market/overview')
+    return {
+      ...res,
+      data: res.data || { indices: [] }
+    }
+  },
+  getCalendar: async (params = {}) => {
+    const res = await http.get('/api/global-market/calendar', { params })
+    const list = unwrapCalendarList(res.data)
+      .map(normalizeCalendarEvent)
+      .filter(Boolean)
+    return {
+      ...res,
+      data: list
+    }
+  },
+  getSentiment: async () => {
+    const res = await http.get('/api/global-market/sentiment')
+    const normalized = normalizeGlobalSentiment(res.data)
+    return {
+      ...res,
+      data: normalized
+    }
+  }
+}
+
+export const billingApi = {
+  getPlans: async () => {
+    const res = await http.get('/api/billing/plans')
+    return {
+      ...res,
+      data: res.data || {}
+    }
+  },
+  purchase: (plan) => http.post('/api/billing/purchase', { plan }),
+  createUsdtOrder: (plan) => http.post('/api/billing/usdt/create', { plan }),
+  getUsdtOrder: (orderId, refresh = true) => http.get(`/api/billing/usdt/order/${orderId}`, {
+    params: { refresh: refresh ? 1 : 0 }
+  })
 }
 
 export default http

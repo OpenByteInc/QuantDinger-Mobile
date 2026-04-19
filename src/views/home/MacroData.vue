@@ -103,12 +103,17 @@ export default {
           this.indices = overviewRes.data.indices || []
         }
         
-        if (calendarRes.code === 1 && calendarRes.data) {
-          this.calendar = calendarRes.data || []
+        if (Array.isArray(calendarRes?.data)) {
+          this.calendar = calendarRes.data
+        } else {
+          this.calendar = []
         }
         
-        if (sentimentRes.code === 1 && sentimentRes.data) {
-          this.sentiment = sentimentRes.data
+        const s = sentimentRes?.data
+        if (s && typeof s === 'object' && s.fear_greed != null && Number.isFinite(Number(s.fear_greed))) {
+          this.sentiment = s
+        } else {
+          this.sentiment = null
         }
       } catch (err) {
         console.error('Load macro data error:', err)
@@ -133,35 +138,28 @@ export default {
 <style scoped>
 .macro-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-}
-
-.macro-page :deep(.van-nav-bar) {
   background: transparent;
 }
 
+.macro-page :deep(.van-nav-bar) { background: transparent; }
 .macro-page :deep(.van-nav-bar__title),
-.macro-page :deep(.van-nav-bar__arrow) {
-  color: #fff;
-}
+.macro-page :deep(.van-nav-bar__arrow),
+.macro-page :deep(.van-nav-bar .van-icon) { color: var(--text); }
 
 .content {
   padding: 16px;
   padding-bottom: 80px;
 }
 
-.section {
-  margin-bottom: 24px;
-}
+.section { margin-bottom: 24px; }
 
 .section-title {
   font-size: 16px;
-  font-weight: 600;
-  color: #fff;
+  font-weight: 700;
+  color: var(--text);
   margin-bottom: 12px;
 }
 
-/* 指数网格 */
 .index-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -169,47 +167,31 @@ export default {
 }
 
 .index-card {
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.index-card .name {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
-}
+.index-card .name { font-size: 13px; color: var(--text-2); }
+.index-card .value { font-size: 18px; font-weight: 700; color: var(--text); }
+.index-card .change { font-size: 13px; }
+.index-card .change.up { color: var(--up); }
+.index-card .change.down { color: var(--down); }
 
-.index-card .value {
-  font-size: 18px;
-  font-weight: 600;
-  color: #fff;
-}
-
-.index-card .change {
-  font-size: 13px;
-}
-
-.index-card .change.up {
-  color: #51cf66;
-}
-
-.index-card .change.down {
-  color: #ff6b6b;
-}
-
-/* 情绪卡片 */
 .sentiment-card {
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   padding: 16px;
 }
 
 .fear-greed .gauge {
   height: 8px;
-  background: linear-gradient(90deg, #ff6b6b 0%, #ffd43b 50%, #51cf66 100%);
+  background: linear-gradient(90deg, var(--down) 0%, var(--warn) 50%, var(--up) 100%);
   border-radius: 4px;
   position: relative;
   margin-bottom: 8px;
@@ -220,7 +202,7 @@ export default {
   top: -4px;
   width: 4px;
   height: 16px;
-  background: #fff;
+  background: var(--text);
   border-radius: 2px;
 }
 
@@ -228,15 +210,14 @@ export default {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-3);
 }
 
 .fear-greed .labels .value {
-  font-weight: 600;
-  color: #fff;
+  font-weight: 700;
+  color: var(--text);
 }
 
-/* 日历列表 */
 .calendar-list {
   display: flex;
   flex-direction: column;
@@ -247,26 +228,25 @@ export default {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   padding: 12px;
 }
 
 .event-time {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-3);
   min-width: 50px;
 }
 
-.event-content {
-  flex: 1;
-}
+.event-content { flex: 1; }
 
 .event-content .country {
   display: inline-block;
   font-size: 11px;
-  color: #667eea;
-  background: rgba(102, 126, 234, 0.2);
+  color: var(--c-indigo);
+  background: var(--c-indigo-soft);
   padding: 2px 6px;
   border-radius: 4px;
   margin-bottom: 4px;
@@ -275,7 +255,7 @@ export default {
 .event-content .title {
   display: block;
   font-size: 14px;
-  color: #fff;
+  color: var(--text);
   margin-bottom: 4px;
 }
 
@@ -283,7 +263,7 @@ export default {
   display: flex;
   gap: 12px;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-3);
 }
 
 .impact {
@@ -292,26 +272,15 @@ export default {
   border-radius: 4px;
 }
 
-.impact.high {
-  background: rgba(255, 107, 107, 0.2);
-  color: #ff6b6b;
-}
-
-.impact.medium {
-  background: rgba(255, 212, 59, 0.2);
-  color: #ffd43b;
-}
-
-.impact.low {
-  background: rgba(134, 142, 150, 0.2);
-  color: #868e96;
-}
+.impact.high   { background: var(--down-soft);   color: var(--down); }
+.impact.medium { background: var(--warn-soft);   color: var(--warn); }
+.impact.low    { background: var(--c-slate-soft); color: var(--c-slate); }
 
 .page-loading {
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: #fff;
+  color: var(--text);
 }
 </style>

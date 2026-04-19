@@ -1,5 +1,6 @@
 import { createPinia, defineStore } from 'pinia'
 import { DEFAULT_SERVER_URL, DEFAULT_THEME } from '@/config'
+import { initialLocale, setLocale as applyLocale } from '@/locales'
 
 export const pinia = createPinia()
 
@@ -109,8 +110,26 @@ export const useDashboardStore = defineStore('dashboard', {
   getters: {
     totalAssets: (state) => Number(state.summary?.total_equity || 0),
     totalPnl: (state) => Number(state.summary?.total_pnl || 0),
+    realizedPnl: (state) => Number(state.summary?.total_realized_pnl || 0),
+    unrealizedPnl: (state) => Number(state.summary?.total_unrealized_pnl || 0),
     positions: (state) => Array.isArray(state.summary?.current_positions) ? state.summary.current_positions : [],
-    recentTrades: (state) => Array.isArray(state.summary?.recent_trades) ? state.summary.recent_trades : []
+    recentTrades: (state) => Array.isArray(state.summary?.recent_trades) ? state.summary.recent_trades : [],
+    performance: (state) => (state.summary?.performance && typeof state.summary.performance === 'object') ? state.summary.performance : {},
+    winRate: (state) => Number(state.summary?.performance?.win_rate || 0),
+    totalTrades: (state) => Number(state.summary?.performance?.total_trades || 0),
+    profitFactor: (state) => Number(state.summary?.performance?.profit_factor || 0),
+    maxDrawdownPct: (state) => Number(state.summary?.performance?.max_drawdown_pct || 0),
+    dailyPnlChart: (state) => Array.isArray(state.summary?.daily_pnl_chart) ? state.summary.daily_pnl_chart : [],
+    todayPnl: (state) => {
+      const list = Array.isArray(state.summary?.daily_pnl_chart) ? state.summary.daily_pnl_chart : []
+      if (!list.length) return 0
+      const today = new Date()
+      const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      const found = list.find((d) => d.date === key)
+      return Number(found?.profit || 0)
+    },
+    aiStrategyCount: (state) => Number(state.summary?.ai_strategy_count || 0),
+    indicatorStrategyCount: (state) => Number(state.summary?.indicator_strategy_count || 0)
   },
 
   actions: {
@@ -127,7 +146,8 @@ export const useDashboardStore = defineStore('dashboard', {
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
     serverUrl: localStorage.getItem('serverUrl') || DEFAULT_SERVER_URL,
-    theme: localStorage.getItem('theme') || DEFAULT_THEME
+    theme: localStorage.getItem('theme') || DEFAULT_THEME,
+    locale: initialLocale
   }),
 
   actions: {
@@ -144,6 +164,55 @@ export const useSettingsStore = defineStore('settings', {
       this.theme = theme
       localStorage.setItem('theme', theme)
       document.documentElement.setAttribute('data-theme', theme)
+    },
+
+    setLocale(locale) {
+      this.locale = locale
+      applyLocale(locale)
+    }
+  }
+})
+
+export const useAiAnalysisStore = defineStore('aiAnalysis', {
+  state: () => ({
+    history: [],
+    total: 0,
+    loading: false,
+    lastResult: null
+  }),
+
+  actions: {
+    setHistory(payload) {
+      this.history = Array.isArray(payload?.list) ? payload.list : []
+      this.total = Number(payload?.total || 0)
+    },
+    setLastResult(result) {
+      this.lastResult = result || null
+    },
+    setLoading(val) {
+      this.loading = val
+    }
+  }
+})
+
+export const useMarketStore = defineStore('market', {
+  state: () => ({
+    items: [],
+    total: 0,
+    loading: false,
+    purchases: []
+  }),
+
+  actions: {
+    setItems(list, total = 0) {
+      this.items = Array.isArray(list) ? list : []
+      this.total = Number(total || this.items.length)
+    },
+    setPurchases(list) {
+      this.purchases = Array.isArray(list) ? list : []
+    },
+    setLoading(val) {
+      this.loading = val
     }
   }
 })
@@ -179,6 +248,47 @@ export const useNotificationStore = defineStore('notification', {
         item.read = true
       })
       this.unreadCount = 0
+    }
+  }
+})
+
+export const useWatchlistStore = defineStore('watchlist', {
+  state: () => ({
+    items: [],
+    activeSymbol: localStorage.getItem('watchlist_active_symbol') || '',
+    activeMarket: localStorage.getItem('watchlist_active_market') || 'Crypto',
+    loading: false
+  }),
+
+  getters: {
+    cryptoItems: (state) => state.items.filter((i) => (i.market || '').toLowerCase() === 'crypto'),
+    activeItem: (state) => state.items.find((i) => i.symbol === state.activeSymbol) || null
+  },
+
+  actions: {
+    setItems(list) {
+      this.items = Array.isArray(list) ? list : []
+      if (!this.activeSymbol && this.items.length > 0) {
+        const first = this.items.find((i) => (i.market || '').toLowerCase() === 'crypto') || this.items[0]
+        if (first) {
+          this.activeSymbol = first.symbol
+          this.activeMarket = first.market || 'Crypto'
+          localStorage.setItem('watchlist_active_symbol', this.activeSymbol)
+          localStorage.setItem('watchlist_active_market', this.activeMarket)
+        }
+      }
+    },
+
+    setActive(symbol, market) {
+      this.activeSymbol = symbol || ''
+      if (market) this.activeMarket = market
+      if (symbol) localStorage.setItem('watchlist_active_symbol', symbol)
+      else localStorage.removeItem('watchlist_active_symbol')
+      if (market) localStorage.setItem('watchlist_active_market', market)
+    },
+
+    setLoading(val) {
+      this.loading = val
     }
   }
 })

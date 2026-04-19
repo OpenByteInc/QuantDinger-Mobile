@@ -35,21 +35,15 @@ export default {
 <style scoped>
 .detail-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-}
-
-.detail-page :deep(.van-nav-bar) {
   background: transparent;
 }
 
+.detail-page :deep(.van-nav-bar) { background: transparent; }
 .detail-page :deep(.van-nav-bar__title),
-.detail-page :deep(.van-nav-bar__arrow) {
-  color: #fff;
-}
+.detail-page :deep(.van-nav-bar__arrow),
+.detail-page :deep(.van-nav-bar .van-icon) { color: var(--text); }
 
-.content {
-  padding: 16px;
-}
+.content { padding: 16px; }
 
 .placeholder {
   height: 300px;
@@ -57,12 +51,12 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-2);
 }
 
 .placeholder .sub {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-3);
   margin-top: 8px;
 }
 </style>
