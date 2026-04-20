@@ -58,7 +58,8 @@
 
 <script>
 import { showToast } from 'vant'
-import { userApi, getBaseUrl } from '@/api'
+import { userApi } from '@/api'
+import { PUBLIC_WEB_BASE_URL } from '@/config'
 
 export default {
   name: 'ProfileReferral',
@@ -79,12 +80,8 @@ export default {
     referralLink() {
       const code = this.data.referral_code
       if (!code) return ''
-      try {
-        const base = window.location.origin || getBaseUrl()
-        return `${base.replace(/\/$/, '')}/login?ref=${code}`
-      } catch (_) {
-        return `${getBaseUrl()}/login?ref=${code}`
-      }
+      const base = String(PUBLIC_WEB_BASE_URL || '').replace(/\/$/, '')
+      return `${base}/login?ref=${encodeURIComponent(code)}`
     }
   },
   mounted() {

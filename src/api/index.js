@@ -1,6 +1,8 @@
 import axios from 'axios'
 import { showToast } from 'vant'
 import { DEFAULT_SERVER_URL } from '@/config'
+import router from '@/router'
+import { useUserStore } from '@/stores'
 
 const http = axios.create({
   timeout: 30000,
@@ -257,6 +259,49 @@ const normalizeStrategy = (raw = {}) => {
   }
 }
 
+/** 登录/注册等「主动提交凭证」接口的 401 不应整页踢回登录（例如密码错误） */
+const isAuthCredentialRequest = (url) =>
+  /\/api\/auth\/(login|register|send-code|reset-password)(?:\?|$)/i.test(String(url || ''))
+
+function clearAuthSession() {
+  try {
+    localStorage.removeItem('token')
+    useUserStore().logout()
+  } catch (_) {
+    localStorage.removeItem('token')
+  }
+}
+
+/** 会话失效：清状态并回登录（已在登录页则只清状态） */
+function redirectToLoginIfNeeded(requestUrl) {
+  if (isAuthCredentialRequest(requestUrl)) {
+    clearAuthSession()
+    return
+  }
+  clearAuthSession()
+  try {
+    if (router.currentRoute.value.path === '/login') return
+    const full = router.currentRoute.value.fullPath || '/home'
+    router.replace({ path: '/login', query: { redirect: full } })
+  } catch (_) {
+    /* router 未就绪时忽略 */
+  }
+}
+
+/** HTTP 200 但业务体表示需重新登录 */
+function isSessionExpiredBusinessResponse(res) {
+  if (!res || typeof res !== 'object') return false
+  const code = res.code
+  const msg = String(res.msg || res.message || '')
+  if (code === 401) return true
+  if (code === -1 || code === 403) {
+    return /未登录|请重新登录|请登录|登录失效|登录过期|token|Token|会话|过期|失效|鉴权|unauthorized|invalid\s*token|挤掉|elsewhere|session/i.test(
+      msg
+    )
+  }
+  return false
+}
+
 http.interceptors.request.use(
   (config) => {
     config.baseURL = getBaseUrl()
@@ -282,6 +327,10 @@ http.interceptors.response.use(
     if (response.status === 200 && (res?.code === undefined || res?.code === null)) {
       return { code: 1, data: res }
     }
+    const reqUrl = String(response.config?.url || '')
+    if (isSessionExpiredBusinessResponse(res) && !isAuthCredentialRequest(reqUrl)) {
+      redirectToLoginIfNeeded(reqUrl)
+    }
     showToast({
       message: res?.msg || res?.message || '请求失败',
       type: 'fail'
@@ -294,7 +343,7 @@ http.interceptors.response.use(
       switch (error.response.status) {
         case 401:
           message = '未授权，请重新登录'
-          localStorage.removeItem('token')
+          redirectToLoginIfNeeded(error.config?.url)
           break
         case 403:
           message = '拒绝访问'
