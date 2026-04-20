@@ -573,6 +573,19 @@ export default {
   watch: {
     isLightTheme() {
       this.$nextTick(() => this.renderTurnstileIfNeeded())
+    },
+    /**
+     * 原生 OAuth：Browser 关闭后 main.js 通过 appUrlOpen 再 router.replace 带上 oauth_token。
+     * 此时仍停留在 Login 组件实例上，mounted 不会重跑，必须监听路由 query。
+     */
+    '$route.query': {
+      deep: true,
+      handler() {
+        const q = this.$route.query || {}
+        if (q.oauth_token || q.oauth_error) {
+          this.$nextTick(() => this.handleOAuthCallback())
+        }
+      }
     }
   },
 
@@ -656,8 +669,8 @@ export default {
 
     async handleOAuthCallback() {
       const query = this.$route.query || {}
-      const token = query.oauth_token
-      const err = query.oauth_error
+      const token = Array.isArray(query.oauth_token) ? query.oauth_token[0] : query.oauth_token
+      const err = Array.isArray(query.oauth_error) ? query.oauth_error[0] : query.oauth_error
 
       if (!token && !err) return
 
