@@ -1,141 +1,184 @@
-# QuantDinger Mobile · 移动端
+# QuantDinger Mobile
 
-**English:** Official companion app for [QuantDinger](https://github.com/brokermr810/QuantDinger)—Vue 3 + Vite + **Capacitor 6** (Android / iOS) and **H5**. Point it at your self-hosted API or the hosted service; OAuth and deep links work when the backend allows your mobile/H5 origin.
+<p align="right"><a href="README_CN.md">简体中文</a></p>
 
-**中文：** [QuantDinger](https://github.com/brokermr810/QuantDinger) 的官方配套客户端：基于 **Vue 3 + Vite + Capacitor 6**，可打 **Android / iOS** 包，也可作为 **H5** 部署。在「设置 → 服务器」填写后端 **API 根地址**（能访问到 `/api/health` 的 Origin），即可对接自托管或 SaaS；需在服务端配置允许的 OAuth 回跳域名。
+**QuantDinger Mobile** is the official mobile and lightweight web client for the [QuantDinger](https://github.com/brokermr810/QuantDinger) quantitative platform. It is built with **Vue 3**, **Vite**, and **Capacitor 6**, and ships as **Android** and **iOS** native shells around the same web app you can also host as **standalone H5**. Connect it to your self-hosted stack or to the hosted service by pointing the app at a QuantDinger-compatible API base URL.
 
----
-
-## License / 开源许可
-
-**English:** This repository is distributed under the **QuantDinger Frontend Source-Available License v1.0**—the **same license text** as [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) (`LICENSE` in this repo). In short:
-
-- **Non-commercial** use and **qualified non-profit** use are **free** under the terms in `LICENSE`.
-- **Commercial use** requires a **separate commercial license** from the copyright holder.
-- You must **retain** copyright notices, the full license text, and any **“Powered by QuantDinger”** (or similar) branding—**do not remove or misrepresent** them without written permission.
-
-**中文：** 本仓库使用与 [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) **相同**的 **《QuantDinger Frontend Source-Available License v1.0》**（见本仓库根目录 **`LICENSE`**）。要点：
-
-- **非商业**与**符合条件的非营利/教育等**用途，在遵守条款前提下**免费**使用。
-- **商业用途**需向版权方**另行取得商业授权**。
-- 须**保留**版权声明、完整许可证正文及应用内 **QuantDinger** 相关署名/水印；未经许可不得删除或篡改。
-
-Trademark / branding rules for the wider project: see the main repo [`TRADEMARKS.md`](https://github.com/brokermr810/QuantDinger/blob/master/TRADEMARKS.md).
+This repository is licensed under the same **source-available** terms as the [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) desktop frontend. See [License](#license) below and the [`LICENSE`](LICENSE) file for the full text.
 
 ---
 
-## Related repositories / 相关仓库
+## Table of contents
 
-| Repository | Role |
-|------------|------|
-| [QuantDinger](https://github.com/brokermr810/QuantDinger) | Backend, Docker Compose, docs, prebuilt **desktop web** UI |
-| [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) | **Desktop web** UI source (same source-available license) |
-| **QuantDinger-Mobile** (this repo) | **Mobile + H5** client |
+- [Why this client exists](#why-this-client-exists)
+- [What you can do](#what-you-can-do)
+- [How it talks to the backend](#how-it-talks-to-the-backend)
+- [Repository map](#repository-map)
+- [Tech stack](#tech-stack)
+- [Prerequisites](#prerequisites)
+- [Getting started](#getting-started)
+- [npm scripts](#npm-scripts)
+- [Configuring the API base URL](#configuring-the-api-base-url)
+- [Android and iOS builds](#android-and-ios-builds)
+- [H5 deployment](#h5-deployment)
+- [OAuth and backend environment](#oauth-and-backend-environment)
+- [Troubleshooting](#troubleshooting)
+- [Related repositories](#related-repositories)
+- [License](#license)
+- [Contact](#contact)
 
 ---
 
-## Tech stack / 技术栈
+## Why this client exists
 
-| | |
-|--|--|
-| **English** | Vue 3, Vite, Capacitor 6, Vant 4, Pinia, Vue Router, vue-i18n, Axios |
-| **中文** | Vue 3、Vite、Capacitor 6、Vant 4、Pinia、Vue Router、vue-i18n、Axios |
+QuantDinger’s main operator experience is a rich **desktop web** application. This project delivers a **touch-first, narrow-screen** experience for the same backend: watchlists, strategies, notifications, settings, AI-assisted flows, and trading-related views where implemented. You run one backend (or use the hosted one) and choose **desktop web**, **mobile native**, or **mobile H5** as the front door.
 
 ---
 
-## Project layout / 项目结构
+## What you can do
 
-**English:** High-level layout (native folders appear after `npx cap add android|ios`):
+- Browse markets and manage watchlists (subject to backend capabilities).
+- Inspect and control strategies, notifications, and account-oriented screens as exposed by the API.
+- Switch **API base URL** in settings so a single build can target **dev**, **LAN**, **production**, or **SaaS**.
+- Ship **Capacitor** wrappers for **Google Play** / sideloaded APK and **Apple** distribution workflows.
+- Deploy the same `dist/` output as **SPA** behind Nginx (or similar) for a mobile web site.
 
-**中文：** 顶层结构如下（执行 `npx cap add android` / `ios` 后会生成原生工程目录）：
+Exact feature coverage evolves with the platform; treat the running app against your backend as the source of truth.
 
-```text
+---
+
+## How it talks to the backend
+
+The client stores a **server base URL** (origin only, no path suffix). All REST calls use that origin plus routes such as `/api/health`, `/api/...`. A successful **Settings → Test connection** check hits `{base}/api/health`.
+
+The default compiled default is defined in `src/config/index.js` (`DEFAULT_SERVER_URL`). Users override it in the UI; the value is persisted locally (e.g. `localStorage`).
+
+---
+
+## Repository map
+
+```
 quantdinger-mobile/
 ├── src/
-│   ├── api/          # API layer / API 封装
+│   ├── api/           # HTTP client and API modules
 │   ├── assets/
-│   ├── components/   # Shared components / 公共组件
-│   ├── config/       # Defaults (e.g. API base) / 默认配置
+│   ├── components/    # Shared Vue components
+│   ├── config/        # Defaults (API base, public web base for shares, theme)
 │   ├── router/
-│   ├── stores/
+│   ├── stores/        # Pinia
 │   ├── styles/
 │   ├── utils/
-│   ├── views/
+│   ├── views/         # Feature screens
 │   ├── App.vue
 │   └── main.js
-├── android/          # Android project (Capacitor) / Android 工程
-├── ios/              # iOS project (Capacitor, macOS only) / iOS 工程
+├── android/           # Capacitor Android project (after platform add / sync)
+├── ios/               # Capacitor iOS project (macOS)
 ├── capacitor.config.json
 ├── vite.config.js
-└── package.json
+├── package.json
+├── LICENSE            # QuantDinger Frontend Source-Available License v1.0
+├── README.md          # This file (English)
+└── README_CN.md       # Chinese README
 ```
 
 ---
 
-## Prerequisites / 环境要求
+## Tech stack
 
-**English:** Node.js **18+** (20.x or 22.x recommended), npm, Android Studio for Android builds; Xcode + Apple Developer account for iOS release builds.
-
-**中文：** Node.js **18+**（建议 20 / 22 LTS）、npm；Android 打包需 **Android Studio**；iOS 上架需 **macOS + Xcode + 开发者账号**。
+| Layer        | Choice                          |
+|-------------|----------------------------------|
+| UI framework | Vue 3                           |
+| Build tool   | Vite                            |
+| Native shell | Capacitor 6                     |
+| Mobile UI    | Vant 4                          |
+| State        | Pinia                           |
+| Routing      | Vue Router 4 (history mode)     |
+| i18n         | vue-i18n                        |
+| HTTP         | Axios                           |
 
 ---
 
-## Commands / 常用命令
+## Prerequisites
 
-**English:**
+- **Node.js** 18 or newer (20.x or 22.x LTS recommended).
+- **npm** (or compatible client) for installing dependencies.
+- **Android Studio** and an Android SDK when building or debugging Android.
+- **macOS**, **Xcode**, and an **Apple Developer** account for device deployment and App Store–style distribution.
+
+---
+
+## Getting started
 
 ```bash
-npm install          # dependencies
-npm run dev          # Vite dev server (H5)
-npm run build        # production build → dist/
-npm run cap:sync     # sync web build to native projects
-npm run cap:android  # open Android Studio
-npm run cap:ios      # open Xcode (macOS)
-npm run build:android
-npm run build:ios
+git clone https://github.com/brokermr810/QuantDinger-Mobile.git
+cd QuantDinger-Mobile
+npm install
+npm run dev
 ```
 
-**中文：** 安装依赖 → 本地调试 H5 → `build` 出 `dist/` → `cap:sync` 同步到原生工程 → 用 Android Studio / Xcode 打包。
+The dev server is the H5 experience. For native projects, add or sync platforms after a production build:
+
+```bash
+npx cap add android    # first time only, if not present
+npx cap add ios        # first time only, on macOS
+npm run build
+npx cap sync
+```
 
 ---
 
-## Backend URL / 后端地址怎么填
+## npm scripts
 
-**English:** The app prepends your saved **server base URL** to API paths (e.g. `{base}/api/health`). Use the **origin** only—**no trailing slash**, typically:
-
-- Reverse-proxy entry (Nginx serves both static and `/api`): `https://m.example.com` or `http://<LAN-IP>:8888`
-- Direct API port (if you expose Flask only and CORS allows the app): `http://<host>:5000`
-
-Default baked into `src/config/index.js` is `https://api.quantdinger.com`; override in **Settings → Server** (persisted in `localStorage`).
-
-**中文：** 填写 **API 的根 Origin**（协议 + 主机 + 端口），**不要**末尾 `/`。应用会请求 `{地址}/api/health` 等。常见写法：
-
-- 反代统一入口（静态 + `/api` 同源）：`https://m.example.com` 或 `http://局域网IP:8888`
-- 仅暴露后端 API（且已配置 CORS）：`http://主机:5000`
-
-默认内置地址见 `src/config/index.js`；用户可在 **设置 → 服务器** 覆盖（存 `localStorage`）。
+| Script            | Purpose |
+|-------------------|---------|
+| `npm run dev`     | Start Vite dev server (H5). |
+| `npm run build`   | Production build to `dist/`. |
+| `npm run preview` | Preview the production build locally. |
+| `npm run cap:sync` | Copy web assets into native projects. |
+| `npm run cap:android` | Open the Android project in Android Studio. |
+| `npm run cap:ios` | Open the iOS project in Xcode (macOS). |
+| `npm run build:android` | `build` + sync Android. |
+| `npm run build:ios` | `build` + sync iOS. |
+| `npm run build:all` | `build` + sync all configured platforms. |
 
 ---
 
-## Native release builds / 原生发布提要
+## Configuring the API base URL
 
-**English:** After `npm run build:android` or `build:ios`, open the native IDE to sign, bump `applicationId` / bundle ID if you fork, and ship through Play Store / TestFlight / App Store as usual.
+Enter the **origin** your browser or WebView can reach, **without** a trailing slash. Examples:
 
-**中文：** 执行 `build:android` / `build:ios` 后用各 IDE 完成签名与上架；若 Fork 应用，请修改 `appId`、包名与图标等品牌相关配置。
+| Scenario | Example base URL |
+|----------|------------------|
+| Nginx serves SPA and proxies `/api` to the backend | `https://m.example.com` |
+| LAN Docker-style web on port 8888 | `http://192.168.1.10:8888` |
+| Backend API only (CORS must allow the app origin) | `http://192.168.1.10:5000` |
+
+After changing the URL, use **Test connection** in settings. If health checks fail, verify TLS, firewall, and that the backend is listening on the host and port you expect.
 
 ---
 
-## H5 deployment / H5 部署（SPA + API 反代）
+## Android and iOS builds
 
-**English:** Deploy `dist/` to your site root. Vue Router uses **history** mode—you **must** use `try_files ... /index.html`. Prefer proxying `/api/` to the QuantDinger backend on the **same origin** to avoid CORS. Below is a **reference** Nginx snippet (adjust paths and SSL).
+1. Run `npm run build:android` or `npm run build:ios`.
+2. Open the native IDE (`npm run cap:android` / `cap:ios`).
+3. Configure signing, package name / bundle identifier, icons, and store listings in the IDE or vendor consoles.
 
-**中文：** 将 `npm run build` 的 **`dist/`** 整包放到站点根目录。路由为 **history** 模式，**必须**配置 SPA 回退 `try_files $uri $uri/ /index.html`。建议将 **`/api/`** 反代到后端，与前端**同源**以省 CORS。以下为 **Nginx 参考**（路径与证书请按环境修改）。
+Capacitor documentation covers push plugins, splash screens, and store-specific packaging in detail; this README stays aligned with QuantDinger-specific wiring only.
+
+---
+
+## H5 deployment
+
+1. Run `npm run build` and upload the contents of **`dist/`** to your static host root.
+2. **Vue Router** uses **HTML5 history** mode. Your server must fall back to `index.html` for unknown paths, or deep links and refresh will 404.
+
+Example Nginx pattern (adjust `server_name`, `root`, TLS, and upstream):
 
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name m.quantdinger.com;
-    root /www/sites/m.quantdinger.com/index;
+    server_name m.example.com;
+    root /var/www/m.example.com;
     index index.html;
 
     location /api/ {
@@ -164,48 +207,63 @@ server {
 }
 ```
 
-**English:** Validate with e.g. `curl -sI https://your-host/login` (should be `200`) and `curl -sI https://your-host/api/health`.
-
-**中文：** 自检示例：`curl -sI https://你的域名/login` 应为 `200`；`curl -sI https://你的域名/api/health` 应能打到后端。
-
----
-
-## Backend environment (OAuth) / 后端环境变量（OAuth）
-
-**English:** For Google / GitHub login from the mobile **H5 origin**, add your site to the backend allow list, e.g. in `backend_api_python/.env`:
-
-**中文：** 若在手机 **H5 域名**使用 OAuth，请在后端 `backend_api_python/.env` 等处把该域名加入白名单，例如：
+Sanity checks:
 
 ```bash
-FRONTEND_URL=https://m.quantdinger.com/login
-OAUTH_ALLOWED_REDIRECTS=https://m.quantdinger.com,https://m.quantdinger.com/login,https://ai.quantdinger.com,http://localhost:5173
+curl -sI https://m.example.com/          # expect 200, HTML
+curl -sI https://m.example.com/login     # expect 200 (SPA fallback)
+curl -sI https://m.example.com/api/health # expect 200 via proxy
 ```
 
-Then restart / rebuild the backend container after changes.
+---
+
+## OAuth and backend environment
+
+For **Google / GitHub** sign-in from your **H5** domain, the QuantDinger backend must allow redirects for that origin. Typical `backend_api_python/.env` entries include:
+
+```bash
+FRONTEND_URL=https://m.example.com/login
+OAUTH_ALLOWED_REDIRECTS=https://m.example.com,https://m.example.com/login,https://ai.quantdinger.com,http://localhost:5173
+```
+
+Restart or rebuild the backend container after changes. If OAuth still lands on the wrong host, confirm the running image includes your latest configuration.
 
 ---
 
-## Troubleshooting / 常见问题
+## Troubleshooting
 
-| Symptom / 现象 | Cause / 原因 | Fix / 处理 |
-|----------------|--------------|------------|
-| `/login` or refresh 404 | Missing SPA fallback | Add `try_files $uri $uri/ /index.html;` in `location /` |
-| API or CORS errors | No `/api/` proxy or wrong base URL | Fix Nginx `proxy_pass` or the server URL in app settings |
-| OAuth lands on wrong site | Stale backend image or redirect list | Rebuild backend; update `OAUTH_ALLOWED_REDIRECTS` |
-| SSL errors | Bad Nginx TLS config | `nginx -t`; use TLS 1.2+ only |
-
----
-
-## Roadmap / 功能规划
-
-**English:** Feature areas evolve with the main platform; typical modules include home overview, watchlists, strategies, notifications, settings, AI analysis flows, and chart components. Push notifications and biometric login may require extra native setup.
-
-**中文：** 功能随主版本迭代，当前包含首页、行情、策略、通知、设置、AI 分析等模块；**推送通知**、**生物识别登录**等需额外原生能力与配置。
+| Problem | What to check |
+|---------|----------------|
+| 404 on `/login` or after refresh | SPA `try_files` / equivalent missing for the static host. |
+| CORS or API errors | Prefer same-origin `/api/` proxy; or open CORS on the API for your H5 origin. |
+| OAuth redirect mismatch | `OAUTH_ALLOWED_REDIRECTS` and `FRONTEND_URL` on the backend; rebuild/restart. |
+| SSL handshake errors | Certificate chain, Nginx `ssl_protocols` (TLS 1.2+), `nginx -t`. |
 
 ---
 
-## Contact / 联系
+## Related repositories
 
-**English:** Commercial licensing (same license family as QuantDinger-Vue): see **`LICENSE`** §6—[quantdinger.com](https://quantdinger.com), [brokermr810@gmail.com](mailto:brokermr810@gmail.com).
+| Project | Role |
+|---------|------|
+| [QuantDinger](https://github.com/brokermr810/QuantDinger) | Backend API, Docker Compose, documentation, prebuilt desktop web bundle |
+| [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) | Desktop web UI source (same license family as this repo) |
+| **QuantDinger-Mobile** | This repository: mobile + H5 client |
 
-**中文：** 商业授权与 Vue 前端同源许可体系，联系方式见 **`LICENSE`** 第六节或 [quantdinger.com](https://quantdinger.com)。
+---
+
+## License
+
+This software is released under the **QuantDinger Frontend Source-Available License, Version 1.0** (see [`LICENSE`](LICENSE)). It is the **same legal text** as the [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) repository.
+
+- **Non-commercial** and **qualified non-profit** uses are permitted **free of charge** under the conditions in the license.
+- **Commercial use** requires a **separate written agreement** with the copyright holder.
+- You must **preserve** copyright notices, the license file, and in-app **QuantDinger** attribution / branding as required by Section 3.1 of the license.
+
+Project-wide trademark guidance: [`TRADEMARKS.md`](https://github.com/brokermr810/QuantDinger/blob/master/TRADEMARKS.md) in the main QuantDinger repository.
+
+---
+
+## Contact
+
+- Website: [quantdinger.com](https://quantdinger.com)  
+- Commercial licensing and partnerships: see **Section 6** of [`LICENSE`](LICENSE) (email listed there).
