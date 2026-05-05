@@ -1,0 +1,141 @@
+QuantDinger Frontend Source-Available License
+Version 1.0, 2026
+
+Copyright (c) 2026 QuantDinger (quantdinger.com). All rights reserved.
+
+================================================================================
+
+1. DEFINITIONS
+
+For purposes of this License:
+
+"Software" means the source code, object code, documentation, and all
+associated files made available under this License.
+
+"Commercial Use" means any use of the Software that is intended for, directed
+toward, or results in commercial advantage, private monetary gain, or revenue
+generation, including without limitation:
+- selling the Software or services based on the Software;
+- integrating the Software into a commercial product or service; or
+- using the Software to operate a paid, monetized, or revenue-generating
+  service.
+
+"Non-Commercial Use" means use of the Software for personal learning, study,
+academic research, teaching, internal evaluation, experimentation, portfolio
+demonstrations, or any other purpose that does not constitute Commercial Use.
+
+"Qualified Non-Profit Entity" means a legally registered non-profit
+organization, an accredited educational institution (including schools,
+colleges, and universities), or a government-funded public research
+institution.
+
+================================================================================
+
+2. LICENSE GRANT
+
+Subject to the terms and conditions of this License, the copyright holder
+grants a limited, non-exclusive, non-transferable, revocable license to use,
+copy, modify, and distribute the Software as follows:
+
+2.1 Non-Commercial Use (Free)
+
+Any individual or organization may, free of charge:
+- use, copy, modify, and distribute the Software for Non-Commercial Use;
+- create derivative works of the Software for Non-Commercial Use; and
+- use the Software for personal learning, technical research, portfolio
+  demonstrations, testing, and educational purposes.
+
+2.2 Qualified Non-Profit Entity Use (Free)
+
+Qualified Non-Profit Entities may, free of charge:
+- use the Software for purposes related to their non-profit, educational,
+  academic, or public-interest mission, including mission-aligned activities
+  that may generate revenue, provided that such revenue is used exclusively to
+  support the entity's non-profit objectives;
+- deploy the Software in production environments operated by or on behalf of
+  the Qualified Non-Profit Entity; and
+- modify the Software and create derivative works, provided that such use
+  remains within the scope of this Section 2.2.
+
+2.3 Commercial Use (Separate License Required)
+
+Any Commercial Use of the Software by any individual or organization that is
+not a Qualified Non-Profit Entity requires a separate commercial license
+agreement from the copyright holder.
+
+To obtain a commercial license, contact: [brokermr810@gmail.com]
+
+================================================================================
+
+3. CONDITIONS
+
+All use of the Software, whether free of charge or pursuant to a separate
+commercial license, is subject to the following conditions:
+
+3.1 Attribution and Branding
+
+You must retain all copyright notices, this License text, and any "Powered by
+QuantDinger" or similar branding, watermark, or attribution notices included in
+the Software or any derivative works. You may not remove, obscure, alter, or
+misrepresent such branding, watermark, or attribution without prior written
+permission from the copyright holder.
+
+3.2 No Sublicensing
+
+You may not sublicense the Software, or grant to any third party rights that
+exceed those granted under this License, unless expressly authorized under a
+separate commercial license agreement.
+
+3.3 No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, WHETHER EXPRESS,
+IMPLIED, OR STATUTORY, INCLUDING WITHOUT LIMITATION ANY WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, OR NONINFRINGEMENT.
+
+3.4 Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, LOSSES, OR OTHER LIABILITY,
+WHETHER IN CONTRACT, TORT, OR OTHERWISE, ARISING FROM OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OF OR INABILITY TO USE THE SOFTWARE.
+
+3.5 Verification of Qualified Status
+
+If you are a Qualified Non-Profit Entity relying on rights granted under
+Section 2.2, you agree to provide reasonable evidence of your qualifying status
+upon request by the copyright holder.
+
+================================================================================
+
+4. TERMINATION
+
+This License, and all rights granted under it, shall terminate automatically if
+you fail to comply with any of its terms or conditions.
+
+Upon termination, you must immediately cease all use of the Software and
+destroy or permanently remove all copies of the Software in your possession or
+control, except to the extent retention is required by applicable law.
+
+================================================================================
+
+5. GOVERNING LAW
+
+This License shall be governed by and construed in accordance with applicable
+law, without regard to conflict-of-law principles that would require the
+application of the laws of a specific jurisdiction.
+
+Any dispute arising out of or in connection with this License shall be resolved
+by a court of competent jurisdiction, subject to any mandatory rights,
+remedies, or protections available under applicable law.
+
+================================================================================
+
+6. CONTACT
+
+For commercial licensing inquiries, partnerships, or questions regarding this
+License, please contact:
+
+  Website: https://quantdinger.com
+  Email:   [brokermr810@gmail.com]
+
+================================================================================

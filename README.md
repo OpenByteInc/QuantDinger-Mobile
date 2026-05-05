@@ -1,259 +1,211 @@
-# QuantDinger Mobile
+# QuantDinger Mobile · 移动端
 
-📱 QuantDinger 移动端应用 - 基于 Vue 3 + Capacitor
+**English:** Official companion app for [QuantDinger](https://github.com/brokermr810/QuantDinger)—Vue 3 + Vite + **Capacitor 6** (Android / iOS) and **H5**. Point it at your self-hosted API or the hosted service; OAuth and deep links work when the backend allows your mobile/H5 origin.
 
-## 技术栈
+**中文：** [QuantDinger](https://github.com/brokermr810/QuantDinger) 的官方配套客户端：基于 **Vue 3 + Vite + Capacitor 6**，可打 **Android / iOS** 包，也可作为 **H5** 部署。在「设置 → 服务器」填写后端 **API 根地址**（能访问到 `/api/health` 的 Origin），即可对接自托管或 SaaS；需在服务端配置允许的 OAuth 回跳域名。
 
-- **Vue 3** - 前端框架
-- **Vite** - 构建工具
-- **Capacitor 6** - 跨平台打包
-- **Vant 4** - 移动端 UI 组件库
-- **Pinia** - 状态管理
-- **Vue Router 4** - 路由管理
+---
 
-## 项目结构
+## License / 开源许可
 
-```
-QuantDinger-Mobile/
+**English:** This repository is distributed under the **QuantDinger Frontend Source-Available License v1.0**—the **same license text** as [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) (`LICENSE` in this repo). In short:
+
+- **Non-commercial** use and **qualified non-profit** use are **free** under the terms in `LICENSE`.
+- **Commercial use** requires a **separate commercial license** from the copyright holder.
+- You must **retain** copyright notices, the full license text, and any **“Powered by QuantDinger”** (or similar) branding—**do not remove or misrepresent** them without written permission.
+
+**中文：** 本仓库使用与 [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) **相同**的 **《QuantDinger Frontend Source-Available License v1.0》**（见本仓库根目录 **`LICENSE`**）。要点：
+
+- **非商业**与**符合条件的非营利/教育等**用途，在遵守条款前提下**免费**使用。
+- **商业用途**需向版权方**另行取得商业授权**。
+- 须**保留**版权声明、完整许可证正文及应用内 **QuantDinger** 相关署名/水印；未经许可不得删除或篡改。
+
+Trademark / branding rules for the wider project: see the main repo [`TRADEMARKS.md`](https://github.com/brokermr810/QuantDinger/blob/master/TRADEMARKS.md).
+
+---
+
+## Related repositories / 相关仓库
+
+| Repository | Role |
+|------------|------|
+| [QuantDinger](https://github.com/brokermr810/QuantDinger) | Backend, Docker Compose, docs, prebuilt **desktop web** UI |
+| [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) | **Desktop web** UI source (same source-available license) |
+| **QuantDinger-Mobile** (this repo) | **Mobile + H5** client |
+
+---
+
+## Tech stack / 技术栈
+
+| | |
+|--|--|
+| **English** | Vue 3, Vite, Capacitor 6, Vant 4, Pinia, Vue Router, vue-i18n, Axios |
+| **中文** | Vue 3、Vite、Capacitor 6、Vant 4、Pinia、Vue Router、vue-i18n、Axios |
+
+---
+
+## Project layout / 项目结构
+
+**English:** High-level layout (native folders appear after `npx cap add android|ios`):
+
+**中文：** 顶层结构如下（执行 `npx cap add android` / `ios` 后会生成原生工程目录）：
+
+```text
+quantdinger-mobile/
 ├── src/
-│   ├── api/          # API 接口
-│   ├── assets/       # 静态资源
-│   ├── components/   # 公共组件
-│   ├── router/       # 路由配置
-│   ├── stores/       # Pinia 状态
-│   ├── styles/       # 全局样式
-│   ├── utils/        # 工具函数
-│   ├── views/        # 页面组件
-│   ├── App.vue       # 根组件
-│   └── main.js       # 入口文件
-├── android/          # Android 原生项目（需要运行 cap add android）
-├── ios/              # iOS 原生项目（需要运行 cap add ios）
-├── capacitor.config.json  # Capacitor 配置
-├── vite.config.js    # Vite 配置
+│   ├── api/          # API layer / API 封装
+│   ├── assets/
+│   ├── components/   # Shared components / 公共组件
+│   ├── config/       # Defaults (e.g. API base) / 默认配置
+│   ├── router/
+│   ├── stores/
+│   ├── styles/
+│   ├── utils/
+│   ├── views/
+│   ├── App.vue
+│   └── main.js
+├── android/          # Android project (Capacitor) / Android 工程
+├── ios/              # iOS project (Capacitor, macOS only) / iOS 工程
+├── capacitor.config.json
+├── vite.config.js
 └── package.json
 ```
 
-## 开发命令
+---
+
+## Prerequisites / 环境要求
+
+**English:** Node.js **18+** (20.x or 22.x recommended), npm, Android Studio for Android builds; Xcode + Apple Developer account for iOS release builds.
+
+**中文：** Node.js **18+**（建议 20 / 22 LTS）、npm；Android 打包需 **Android Studio**；iOS 上架需 **macOS + Xcode + 开发者账号**。
+
+---
+
+## Commands / 常用命令
+
+**English:**
 
 ```bash
-# 安装依赖
-npm install
-
-# 启动开发服务器（H5）
-npm run dev
-
-# 构建生产版本
-npm run build
-
-# 添加 Android 平台
-npx cap add android
-
-# 添加 iOS 平台（需要 Mac）
-npx cap add ios
-
-# 同步代码到原生项目
-npm run cap:sync
-
-# 打开 Android Studio
-npm run cap:android
-
-# 打开 Xcode（需要 Mac）
-npm run cap:ios
-
-# 一键构建 Android
+npm install          # dependencies
+npm run dev          # Vite dev server (H5)
+npm run build        # production build → dist/
+npm run cap:sync     # sync web build to native projects
+npm run cap:android  # open Android Studio
+npm run cap:ios      # open Xcode (macOS)
 npm run build:android
-
-# 一键构建 iOS
 npm run build:ios
 ```
 
-## 配置后端地址
+**中文：** 安装依赖 → 本地调试 H5 → `build` 出 `dist/` → `cap:sync` 同步到原生工程 → 用 Android Studio / Xcode 打包。
 
-在设置页面配置服务器地址，例如：
-- 本地开发：`http://localhost:8000`
-- 局域网：`http://192.168.1.100:8000`
-- 公网：`https://your-domain.com`
+---
 
-## 打包 APK
+## Backend URL / 后端地址怎么填
 
-1. 运行 `npm run build:android`
-2. 打开 Android Studio
-3. Build → Generate Signed Bundle / APK
-4. 选择 APK，配置签名
-5. 选择 release 版本
-6. 生成 APK
+**English:** The app prepends your saved **server base URL** to API paths (e.g. `{base}/api/health`). Use the **origin** only—**no trailing slash**, typically:
 
-## 打包 IPA（需要 Mac）
+- Reverse-proxy entry (Nginx serves both static and `/api`): `https://m.example.com` or `http://<LAN-IP>:8888`
+- Direct API port (if you expose Flask only and CORS allows the app): `http://<host>:5000`
 
-1. 运行 `npm run build:ios`
-2. 打开 Xcode
-3. Product → Archive
-4. Distribute App
+Default baked into `src/config/index.js` is `https://api.quantdinger.com`; override in **Settings → Server** (persisted in `localStorage`).
 
-## 功能规划
+**中文：** 填写 **API 的根 Origin**（协议 + 主机 + 端口），**不要**末尾 `/`。应用会请求 `{地址}/api/health` 等。常见写法：
 
-- [x] 首页 - 账户概览、策略状态、最近信号
-- [x] 行情 - 自选列表、实时价格
-- [x] 策略 - 策略列表、启动/停止
-- [x] 通知 - 信号通知列表
-- [x] 设置 - 服务器配置、通知设置
-- [ ] K 线图表
-- [ ] 推送通知
-- [ ] 生物识别登录
+- 反代统一入口（静态 + `/api` 同源）：`https://m.example.com` 或 `http://局域网IP:8888`
+- 仅暴露后端 API（且已配置 CORS）：`http://主机:5000`
 
-## 注意事项
+默认内置地址见 `src/config/index.js`；用户可在 **设置 → 服务器** 覆盖（存 `localStorage`）。
 
-1. 当前 Node 版本（18.x）与部分依赖的推荐版本不完全匹配，但功能正常
-2. 如遇问题，建议升级 Node 到 20.x 或 22.x
-3. iOS 打包需要 Mac 和 Apple 开发者账号
+---
 
-## H5 部署（m.quantdinger.com）
+## Native release builds / 原生发布提要
 
-### 构建产物
+**English:** After `npm run build:android` or `build:ios`, open the native IDE to sign, bump `applicationId` / bundle ID if you fork, and ship through Play Store / TestFlight / App Store as usual.
 
-```bash
-npm run build
-# 产物在 dist/ 目录，把整个 dist 内容上传到服务器站点根目录
-# 默认路径（示例）：/www/sites/m.quantdinger.com/index
-```
+**中文：** 执行 `build:android` / `build:ios` 后用各 IDE 完成签名与上架；若 Fork 应用，请修改 `appId`、包名与图标等品牌相关配置。
 
-### Nginx 站点配置
+---
 
-Vue Router 使用 `history` 模式，必须配置 SPA fallback（`try_files ... /index.html`），
-否则 `/login`、`/trading`、`/trading/strategy/:id` 等路由直接访问或刷新会 404。
-另外后端 API 建议同源反向代理到 `127.0.0.1:5000`，避免跨子域 CORS 配置。
+## H5 deployment / H5 部署（SPA + API 反代）
 
-**完整站点配置**（覆盖面板生成的默认配置即可）：
+**English:** Deploy `dist/` to your site root. Vue Router uses **history** mode—you **must** use `try_files ... /index.html`. Prefer proxying `/api/` to the QuantDinger backend on the **same origin** to avoid CORS. Below is a **reference** Nginx snippet (adjust paths and SSL).
+
+**中文：** 将 `npm run build` 的 **`dist/`** 整包放到站点根目录。路由为 **history** 模式，**必须**配置 SPA 回退 `try_files $uri $uri/ /index.html`。建议将 **`/api/`** 反代到后端，与前端**同源**以省 CORS。以下为 **Nginx 参考**（路径与证书请按环境修改）。
 
 ```nginx
-# ========== HTTP 自动跳 HTTPS ==========
-server {
-    listen 80;
-    server_name m.quantdinger.com;
-
-    # Let's Encrypt 续签路径
-    location ^~ /.well-known/acme-challenge {
-        allow all;
-        root /usr/share/nginx/html;
-    }
-
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-# ========== HTTPS 主站 ==========
 server {
     listen 443 ssl http2;
     server_name m.quantdinger.com;
-
-    # —— SSL（证书路径按实际修改）——
-    ssl_certificate     /www/sites/m.quantdinger.com/ssl/fullchain.pem;
-    ssl_certificate_key /www/sites/m.quantdinger.com/ssl/privkey.pem;
-    ssl_protocols       TLSv1.2 TLSv1.3;
-    ssl_ciphers         ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:!aNULL:!eNULL:!EXPORT:!DSS:!DES:!RC4:!3DES:!MD5:!PSK:!KRB5:!SRP:!CAMELLIA:!SEED;
-    ssl_prefer_server_ciphers on;
-    ssl_session_cache   shared:SSL:10m;
-    ssl_session_timeout 10m;
-    add_header Strict-Transport-Security "max-age=31536000" always;
-    error_page 497 https://$host$request_uri;
-
-    # —— 站点根目录（手机端 dist）——
-    root  /www/sites/m.quantdinger.com/index;
+    root /www/sites/m.quantdinger.com/index;
     index index.html;
 
-    # —— 日志 ——
-    access_log /www/sites/m.quantdinger.com/log/access.log main;
-    error_log  /www/sites/m.quantdinger.com/log/error.log;
-
-    # —— Let's Encrypt 续签路径 ——
-    location ^~ /.well-known/acme-challenge {
-        allow all;
-        root /usr/share/nginx/html;
-    }
-
-    # —— 反向代理到后端 API（同源，免 CORS）——
-    # 若后端不在本机，把 127.0.0.1:5000 改成实际内网地址
     location /api/ {
-        proxy_pass         http://127.0.0.1:5000/api/;
+        proxy_pass http://127.0.0.1:5000/api/;
         proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-        proxy_set_header   Upgrade           $http_upgrade;
-        proxy_set_header   Connection        $http_connection;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 120s;
-        proxy_send_timeout 120s;
     }
 
-    # —— 静态资源缓存（Vite 打包后文件名带 hash，可长缓存）——
-    location ~* \.(?:js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|gif|ico|webp|map)$ {
+    location ~* \.(?:js|css|woff2?|ttf|svg|png|jpg|jpeg|gif|ico|webp|map)$ {
         expires 30d;
         add_header Cache-Control "public, immutable";
         try_files $uri =404;
-        access_log off;
     }
 
-    # —— index.html 不缓存（保证发新版本后用户立即看到）——
     location = /index.html {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
-        expires off;
     }
 
-    # —— SPA history 模式兜底（关键，放最后）——
     location / {
         try_files $uri $uri/ /index.html;
     }
 }
 ```
 
-### 应用配置
+**English:** Validate with e.g. `curl -sI https://your-host/login` (should be `200`) and `curl -sI https://your-host/api/health`.
 
-```bash
-# 1. 覆盖旧配置（1Panel 示例路径）
-#    /opt/1panel/apps/openresty/openresty/conf/conf.d/m.quantdinger.com.conf
-# 2. 语法检查
-nginx -t
-# 3. reload（不断连接）
-nginx -s reload
-```
+**中文：** 自检示例：`curl -sI https://你的域名/login` 应为 `200`；`curl -sI https://你的域名/api/health` 应能打到后端。
 
-### 部署验证
+---
 
-```bash
-curl -sI https://m.quantdinger.com/           | head -5   # 200 text/html
-curl -sI https://m.quantdinger.com/login      | head -5   # 200 text/html（SPA fallback）
-curl -sI https://m.quantdinger.com/api/health | head -5   # 200，后端反代正常
-```
+## Backend environment (OAuth) / 后端环境变量（OAuth）
 
-### 后端环境变量（`backend_api_python/.env`）
+**English:** For Google / GitHub login from the mobile **H5 origin**, add your site to the backend allow list, e.g. in `backend_api_python/.env`:
 
-支持 Google / GitHub OAuth 从手机端回跳，必须把 m.quantdinger.com 加进白名单：
+**中文：** 若在手机 **H5 域名**使用 OAuth，请在后端 `backend_api_python/.env` 等处把该域名加入白名单，例如：
 
 ```bash
 FRONTEND_URL=https://m.quantdinger.com/login
 OAUTH_ALLOWED_REDIRECTS=https://m.quantdinger.com,https://m.quantdinger.com/login,https://ai.quantdinger.com,http://localhost:5173
 ```
 
-改完 `.env` 重启后端：
+Then restart / rebuild the backend container after changes.
 
-```bash
-docker compose restart backend
-```
+---
 
-后端 Python 代码有改动时记得重新构建镜像：
+## Troubleshooting / 常见问题
 
-```bash
-docker compose up -d --build backend
-```
+| Symptom / 现象 | Cause / 原因 | Fix / 处理 |
+|----------------|--------------|------------|
+| `/login` or refresh 404 | Missing SPA fallback | Add `try_files $uri $uri/ /index.html;` in `location /` |
+| API or CORS errors | No `/api/` proxy or wrong base URL | Fix Nginx `proxy_pass` or the server URL in app settings |
+| OAuth lands on wrong site | Stale backend image or redirect list | Rebuild backend; update `OAUTH_ALLOWED_REDIRECTS` |
+| SSL errors | Bad Nginx TLS config | `nginx -t`; use TLS 1.2+ only |
 
-### 常见问题
+---
 
-| 现象 | 原因 | 解决 |
-|---|---|---|
-| 直接访问 `/login` 或 OAuth 回跳后 404 | Nginx 没配 SPA fallback | 检查 `location /` 里有没有 `try_files $uri $uri/ /index.html;` |
-| `ERR_SSL_PROTOCOL_ERROR` | Nginx 配置加载失败 / 协议含 `TLSv1` `TLSv1.1` 被浏览器拒 | `nginx -t` 检查，`ssl_protocols` 只保留 `TLSv1.2 TLSv1.3` |
-| API 404 / CORS 报错 | 没配反向代理，或后端没启动 | 检查 `location /api/`，`curl -I http://127.0.0.1:5000/api/health` |
-| Google 登录回到 PC 页 | 后端旧镜像 / `OAUTH_ALLOWED_REDIRECTS` 未加手机域名 | `docker compose up -d --build backend`，检查 `.env` |
-| 登录回跳地址为 `.../login/#/user/login?oauth_token=...` | 后端是旧镜像没拿到新代码 | 同上 `--build` |
+## Roadmap / 功能规划
+
+**English:** Feature areas evolve with the main platform; typical modules include home overview, watchlists, strategies, notifications, settings, AI analysis flows, and chart components. Push notifications and biometric login may require extra native setup.
+
+**中文：** 功能随主版本迭代，当前包含首页、行情、策略、通知、设置、AI 分析等模块；**推送通知**、**生物识别登录**等需额外原生能力与配置。
+
+---
+
+## Contact / 联系
+
+**English:** Commercial licensing (same license family as QuantDinger-Vue): see **`LICENSE`** §6—[quantdinger.com](https://quantdinger.com), [brokermr810@gmail.com](mailto:brokermr810@gmail.com).
+
+**中文：** 商业授权与 Vue 前端同源许可体系，联系方式见 **`LICENSE`** 第六节或 [quantdinger.com](https://quantdinger.com)。
