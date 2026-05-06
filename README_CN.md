@@ -2,6 +2,16 @@
 
 <p align="right"><a href="README.md">English</a></p>
 
+## 页面展示
+
+<p align="center">
+  <a href="banner.png" title="查看原图"><img src="banner.png" alt="QuantDinger 移动端 — 宣传海报与界面展示" width="720" /></a>
+</p>
+
+<p align="center"><sub><strong>海报：</strong> QuantDinger 移动端品牌与应用界面亮点；点击图片可在仓库中查看完整 <code>banner.png</code>。</sub></p>
+
+---
+
 **QuantDinger Mobile** 是 [QuantDinger](https://github.com/brokermr810/QuantDinger) 量化平台的官方**移动端与轻量 Web 客户端**。项目基于 **Vue 3**、**Vite** 与 **Capacitor 6**：同一套前端既可封装为 **Android / iOS** 原生壳，也可将构建产物 **`dist/`** 单独部署为 **H5**。只需在应用内配置可访问的 **API 根地址**，即可对接**自托管**后端或**官方托管**环境。
 
 本仓库许可条款与桌面端 [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) **一致**，均采用 **Source-Available** 授权（详见根目录 [`LICENSE`](LICENSE)）。使用、分发或商用前请务必完整阅读许可正文。
@@ -10,6 +20,7 @@
 
 ## 目录
 
+- [页面展示](#页面展示)
 - [定位与边界](#定位与边界)
 - [能力概览](#能力概览)
 - [与后端的协作方式](#与后端的协作方式)

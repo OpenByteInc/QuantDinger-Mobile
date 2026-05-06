@@ -2,6 +2,16 @@
 
 <p align="right"><a href="README_CN.md">简体中文</a></p>
 
+## Preview
+
+<p align="center">
+  <a href="banner.png" title="Open full-size banner"><img src="banner.png" alt="QuantDinger Mobile — product poster and UI showcase" width="720" /></a>
+</p>
+
+<p align="center"><sub><strong>Poster:</strong> QuantDinger Mobile — branding and in-app experience highlights (click the image for the full <code>banner.png</code> in the repository).</sub></p>
+
+---
+
 **QuantDinger Mobile** is the official mobile and lightweight web client for the [QuantDinger](https://github.com/brokermr810/QuantDinger) quantitative platform. It is built with **Vue 3**, **Vite**, and **Capacitor 6**, and ships as **Android** and **iOS** native shells around the same web app you can also host as **standalone H5**. Connect it to your self-hosted stack or to the hosted service by pointing the app at a QuantDinger-compatible API base URL.
 
 This repository is licensed under the same **source-available** terms as the [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) desktop frontend. See [License](#license) below and the [`LICENSE`](LICENSE) file for the full text.
@@ -10,6 +20,7 @@ This repository is licensed under the same **source-available** terms as the [Qu
 
 ## Table of contents
 
+- [Preview](#preview)
 - [Why this client exists](#why-this-client-exists)
 - [What you can do](#what-you-can-do)
 - [How it talks to the backend](#how-it-talks-to-the-backend)
