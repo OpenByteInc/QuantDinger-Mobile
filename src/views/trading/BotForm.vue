@@ -52,19 +52,6 @@
           :label="$t('bot_create.bot_name')"
           :placeholder="$t('bot_create.bot_name_placeholder')"
         />
-        <van-cell :title="$t('bot_create.market_category')">
-          <template #right-icon>
-            <van-radio-group v-model="form.marketCategory" direction="horizontal">
-              <van-radio
-                v-for="opt in marketCategoryOptions"
-                :key="opt.value"
-                :name="opt.value"
-                :disabled="!opt.supported"
-              >{{ opt.label }}</van-radio>
-            </van-radio-group>
-          </template>
-        </van-cell>
-        <div class="field-hint">{{ $t('bot_create.market_category_hint') }}</div>
         <van-cell :title="$t('bot_create.exchange_account')" :value="credentialLabel" is-link @click="openCredentialPicker" />
         <van-cell
           :title="$t('quick_trade.symbol')"
@@ -316,10 +303,6 @@
           <span class="confirm-value">{{ form.botName || '-' }}</span>
         </div>
         <div class="confirm-row">
-          <span class="confirm-label">{{ $t('bot_create.market_category') }}</span>
-          <span class="confirm-value">{{ currentMarketCategoryLabel }}</span>
-        </div>
-        <div class="confirm-row">
           <span class="confirm-label">{{ $t('quick_trade.symbol') }}</span>
           <span class="confirm-value">{{ form.symbol || '-' }}</span>
         </div>
@@ -444,7 +427,6 @@ export default {
       botType: 'grid',
       form: {
         botName: '',
-        marketCategory: 'Crypto',
         credentialId: null,
         symbol: '',
         timeframe: '1h',
@@ -516,24 +498,6 @@ export default {
       const ex = (c.exchange_id || '').toUpperCase()
       const hint = c.api_key_hint ? ` · ${c.api_key_hint}` : ''
       return `${label} (${ex}${hint})`
-    },
-    /**
-     * Market categories mirror PC `BotCreateWizard.marketCategoryOptions`.
-     * Only Crypto is fully supported for fixed-template bots today; other
-     * categories are shown disabled with a tooltip so the parity is
-     * visible to the user.
-     */
-    marketCategoryOptions() {
-      return [
-        { value: 'Crypto', label: this.$t('bot_create.cat_crypto'), supported: true },
-        { value: 'USStock', label: this.$t('bot_create.cat_us_stock'), supported: false },
-        { value: 'Forex', label: this.$t('bot_create.cat_forex'), supported: false },
-        { value: 'Futures', label: this.$t('bot_create.cat_futures'), supported: false }
-      ]
-    },
-    currentMarketCategoryLabel() {
-      const opt = this.marketCategoryOptions.find((o) => o.value === this.form.marketCategory)
-      return opt ? opt.label : this.form.marketCategory
     },
     currentBotTypeLabel() {
       const opt = this.botTypes.find((o) => o.value === this.botType)
@@ -751,7 +715,6 @@ export default {
         const tc = detail.trading_config || {}
         const ec = detail.exchange_config || {}
         this.form.botName = detail.strategy_name || detail.name || ''
-        if (detail.market_category) this.form.marketCategory = detail.market_category
         if (ec.credential_id != null) this.form.credentialId = ec.credential_id
         if (tc.symbol) this.form.symbol = tc.symbol
         if (tc.timeframe) this.form.timeframe = tc.timeframe
@@ -972,7 +935,7 @@ export default {
         strategy_type: 'ScriptStrategy',
         strategy_mode: 'bot',
         strategy_code: code,
-        market_category: this.form.marketCategory || 'Crypto',
+        market_category: 'Crypto',
         execution_mode: 'live',
         exchange_config: {
           credential_id: this.form.credentialId
