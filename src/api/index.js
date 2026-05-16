@@ -810,6 +810,19 @@ export const globalMarketApi = {
 }
 
 export const billingApi = {
+  /**
+   * v3.0.6+ — list enabled USDT chains so the chain picker can render
+   * before the order is created. Chains without a configured receiving
+   * address are filtered out by the backend, so the response can be
+   * rendered verbatim.
+   */
+  listUsdtChains: async () => {
+    const res = await http.get('/api/billing/usdt/chains')
+    return {
+      ...res,
+      data: res.data || { chains: [] }
+    }
+  },
   getPlans: async () => {
     const res = await http.get('/api/billing/plans')
     return {
@@ -818,7 +831,11 @@ export const billingApi = {
     }
   },
   purchase: (plan) => http.post('/api/billing/purchase', { plan }),
-  createUsdtOrder: (plan) => http.post('/api/billing/usdt/create', { plan }),
+  createUsdtOrder: (plan, chain) => {
+    const payload = { plan }
+    if (chain) payload.chain = chain
+    return http.post('/api/billing/usdt/create', payload)
+  },
   getUsdtOrder: (orderId, refresh = true) => http.get(`/api/billing/usdt/order/${orderId}`, {
     params: { refresh: refresh ? 1 : 0 }
   })

@@ -13,6 +13,23 @@
       </div>
     </div>
 
+    <!-- KPI Cards (aligned with PC trading-bot view) -->
+    <div class="kpi-row">
+      <div
+        v-for="kpi in kpiCards"
+        :key="kpi.label"
+        class="kpi-card"
+      >
+        <div class="kpi-icon" :style="{ color: kpi.color, background: kpi.color + '1a' }">
+          <van-icon :name="kpi.icon" />
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-label">{{ kpi.label }}</div>
+          <div class="kpi-value" :class="kpi.cls">{{ kpi.value }}</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Search -->
     <div class="search-bar">
       <van-search
@@ -55,10 +72,15 @@
                 <span class="symbol">{{ strategy.trading_config?.symbol || strategy.symbol || '-' }}</span>
               </div>
             </div>
-            <span :class="['status-badge', strategy.status]">
-              <span class="dot"></span>
-              {{ getStatusText(strategy.status) }}
-            </span>
+            <div class="badge-stack">
+              <span :class="['status-badge', strategy.status]">
+                <span class="dot"></span>
+                {{ getStatusText(strategy.status) }}
+              </span>
+              <span v-if="botTypeBadgeText(strategy)" class="bot-type-badge" :style="botTypeBadgeStyle(strategy)">
+                {{ botTypeBadgeText(strategy) }}
+              </span>
+            </div>
           </div>
 
           <div class="meta-grid">
@@ -67,22 +89,22 @@
               <span class="value">{{ strategy.trading_config?.timeframe || '-' }}</span>
             </div>
             <div class="meta-item">
-              <span class="label">{{ $t('trading.mode') }}</span>
-              <span class="value">{{ modeLabel(strategy) }}</span>
-            </div>
-            <div class="meta-item">
               <span class="label">{{ indicatorLabelKey(strategy) }}</span>
               <span class="value">{{ indicatorDisplay(strategy) }}</span>
             </div>
             <div class="meta-item">
+              <span class="label">{{ $t('trading.initial_capital') }}</span>
+              <span class="value">{{ formatCapital(strategy) }}</span>
+            </div>
+            <div class="meta-item">
               <span class="label">{{ $t('trading.total_pnl') }}</span>
-              <span :class="['value pnl', pnlClass(strategy)]">{{ formatSigned(strategy.performance?.total_pnl) }}</span>
+              <span :class="['value pnl', pnlClass(strategy)]">{{ formatPnl(strategy) }}</span>
             </div>
           </div>
 
           <div class="card-actions">
             <van-button size="small" plain @click.stop="goToDetail(strategy.id)">
-              {{ $t('common.view_detail') }}
+              <van-icon name="eye-o" />
             </van-button>
             <van-button
               v-if="strategy.status === 'running'"
@@ -101,6 +123,22 @@
               @click.stop="startStrategy(strategy)"
             >
               {{ $t('trading.start') }}
+            </van-button>
+            <van-button
+              size="small"
+              :disabled="strategy.status === 'running'"
+              @click.stop="editStrategy(strategy)"
+            >
+              <van-icon name="edit" />
+            </van-button>
+            <van-button
+              size="small"
+              type="danger"
+              plain
+              :disabled="strategy.status === 'running'"
+              @click.stop="deleteStrategy(strategy)"
+            >
+              <van-icon name="delete-o" />
             </van-button>
           </div>
         </div>
@@ -152,6 +190,53 @@ export default {
         { label: this.$t('trading.filter_running'), value: 'running', count: counts.running },
         { label: this.$t('trading.filter_error'), value: 'error', count: counts.error },
         { label: this.$t('trading.filter_stopped'), value: 'stopped', count: counts.stopped }
+      ]
+    },
+    /**
+     * KPI cards mirror PC trading-bot/index.vue:
+     * - totalEquity sums each bot's initial_capital
+     * - totalPnl prefers unrealized_pnl (PC field), falls back to
+     *   performance.total_pnl, so older API payloads still render.
+     */
+    kpiCards() {
+      const list = this.strategies || []
+      const total = list.length
+      const running = list.filter((s) => s.status === 'running').length
+      let totalEquity = 0
+      let totalPnl = 0
+      list.forEach((s) => {
+        const cap = Number(s.trading_config?.initial_capital || 0)
+        if (Number.isFinite(cap)) totalEquity += cap
+        const pnl = this.bestPnl(s)
+        if (Number.isFinite(pnl)) totalPnl += pnl
+      })
+      const pnlSign = totalPnl >= 0 ? '+' : ''
+      return [
+        {
+          label: this.$t('trading.kpi_total_equity'),
+          value: `$${totalEquity.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+          icon: 'balance-pay',
+          color: '#1890ff'
+        },
+        {
+          label: this.$t('trading.kpi_total_pnl'),
+          value: `${pnlSign}$${Math.abs(totalPnl).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+          icon: 'chart-trending-o',
+          color: totalPnl >= 0 ? '#52c41a' : '#f5222d',
+          cls: totalPnl >= 0 ? 'kpi-up' : 'kpi-down'
+        },
+        {
+          label: this.$t('trading.kpi_running'),
+          value: `${running} / ${total}`,
+          icon: 'play-circle-o',
+          color: '#722ed1'
+        },
+        {
+          label: this.$t('trading.kpi_stopped'),
+          value: String(total - running),
+          icon: 'pause-circle-o',
+          color: '#faad14'
+        }
       ]
     },
     filteredStrategies() {
@@ -219,8 +304,42 @@ export default {
       return `${sign}${num.toFixed(2)}`
     },
 
+    /**
+     * Resolve a strategy's realized + unrealized P&L. PC uses
+     * `unrealized_pnl` directly on the strategy. Older mobile payloads
+     * stored a derived value under `performance.total_pnl`. Accept
+     * both so the badge value never silently reads as 0.00 just
+     * because the field name changed.
+     */
+    bestPnl(strategy) {
+      const candidates = [
+        strategy?.unrealized_pnl,
+        strategy?.performance?.total_pnl,
+        strategy?.performance?.unrealized_pnl,
+        strategy?.realized_pnl
+      ]
+      for (const v of candidates) {
+        if (v === null || v === undefined || v === '') continue
+        const n = Number(v)
+        if (Number.isFinite(n)) return n
+      }
+      return 0
+    },
+
+    formatPnl(strategy) {
+      const num = this.bestPnl(strategy)
+      const sign = num > 0 ? '+' : ''
+      return `${sign}$${num.toFixed(2)}`
+    },
+
+    formatCapital(strategy) {
+      const cap = Number(strategy?.trading_config?.initial_capital || 0)
+      if (!Number.isFinite(cap) || cap <= 0) return '-'
+      return `$${cap.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+    },
+
     pnlClass(strategy) {
-      const num = Number(strategy.performance?.total_pnl || 0)
+      const num = this.bestPnl(strategy)
       if (num > 0) return 'profit'
       if (num < 0) return 'loss'
       return ''
@@ -280,8 +399,65 @@ export default {
       return indName || '-'
     },
 
+    /**
+     * Coloured pill that mirrors PC `BotList.vue` so the user can
+     * identify a bot's strategy family at a glance. Only the four
+     * fixed-template bots get a coloured pill; indicator strategies
+     * read the indicator name in the meta grid instead.
+     */
+    botTypeBadgeText(strategy) {
+      const type = this.botType(strategy)
+      if (!['grid', 'martingale', 'trend', 'dca'].includes(type)) return ''
+      return this.modeLabel(strategy)
+    },
+    botTypeBadgeStyle(strategy) {
+      const type = this.botType(strategy)
+      const map = {
+        grid: { background: 'rgba(102, 126, 234, 0.16)', color: '#667eea' },
+        martingale: { background: 'rgba(245, 87, 108, 0.16)', color: '#f5576c' },
+        trend: { background: 'rgba(79, 172, 254, 0.16)', color: '#4facfe' },
+        dca: { background: 'rgba(67, 233, 123, 0.16)', color: '#21b66c' }
+      }
+      return map[type] || {}
+    },
+
     goToDetail(id) {
       this.$router.push(`/trading/strategy/${id}`)
+    },
+
+    /**
+     * Edit on PC reopens BotCreateWizard with the bot preloaded. On
+     * mobile we route the user back into the matching form view —
+     * fixed-template bots go to /trading/create/manual?edit=<id>,
+     * indicator bots go to /trading/create/indicator?edit=<id>. The
+     * downstream form is responsible for reading ?edit and hydrating.
+     */
+    editStrategy(strategy) {
+      if (strategy.status === 'running') return
+      const type = this.botType(strategy)
+      const isFixedTemplate = ['grid', 'martingale', 'trend', 'dca'].includes(type)
+      const path = isFixedTemplate ? '/trading/create/manual' : '/trading/create/indicator'
+      this.$router.push({ path, query: { edit: strategy.id } })
+    },
+
+    async deleteStrategy(strategy) {
+      if (strategy.status === 'running') return
+      try {
+        await showConfirmDialog({
+          title: this.$t('trading.delete_title'),
+          message: this.$t('trading.delete_confirm', { name: strategy.name || '' })
+        })
+        strategy._loading = true
+        await strategyApi.delete(strategy.id)
+        showToast({ message: this.$t('common.success'), type: 'success' })
+        await this.loadStrategies()
+      } catch (error) {
+        if (error !== 'cancel') {
+          console.error('Delete strategy failed:', error)
+        }
+      } finally {
+        strategy._loading = false
+      }
     },
 
     async startStrategy(strategy) {
@@ -364,6 +540,53 @@ export default {
   color: var(--bg);
   font-size: 22px;
 }
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 4px 16px 0;
+}
+.kpi-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+.kpi-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.kpi-body { min-width: 0; flex: 1; }
+.kpi-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.kpi-value {
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kpi-value.kpi-up { color: var(--up); }
+.kpi-value.kpi-down { color: var(--down); }
 
 .search-bar {
   padding: 8px 16px 4px;
@@ -540,6 +763,24 @@ export default {
 .status-badge.stopped {
   color: var(--text-3);
   background: var(--surface-raised);
+}
+
+.badge-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.bot-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .meta-grid {

@@ -62,6 +62,77 @@
       <van-empty v-else :description="$t('profile.credits_log_empty')" />
     </div>
 
+    <!-- Chain Picker Popup (v3.0.6+ parity with PC) -->
+    <van-popup
+      v-model:show="chainPickerVisible"
+      position="bottom"
+      round
+      :close-on-click-overlay="!creatingOrder"
+      class="chain-popup"
+    >
+      <div class="chain-sheet">
+        <div class="chain-head">
+          <div class="chain-title">{{ $t('profile.pay_pick_chain_title') }}</div>
+          <div class="chain-desc">{{ $t('profile.pay_pick_chain_desc') }}</div>
+          <van-icon
+            v-if="!creatingOrder"
+            class="chain-close"
+            name="cross"
+            @click="closeChainPicker"
+          />
+        </div>
+
+        <div v-if="chainsLoading" class="chain-loading">
+          <van-loading />
+        </div>
+        <div v-else-if="chainsLoadError" class="chain-error">
+          <van-icon name="warning-o" />
+          <span>{{ chainsLoadError }}</span>
+        </div>
+        <div v-else-if="!availableChains.length" class="chain-error">
+          <van-icon name="warning-o" />
+          <span>{{ $t('profile.pay_no_chains') }}</span>
+        </div>
+        <div v-else class="chain-list">
+          <div
+            v-for="c in availableChains"
+            :key="c.code"
+            class="chain-option"
+            :class="{ selected: selectedChain === c.code }"
+            @click="selectedChain = c.code"
+          >
+            <div class="chain-row">
+              <div class="chain-name">
+                <van-icon name="link-o" />
+                <span class="chain-label">{{ c.label }}</span>
+                <span v-if="c.recommended" class="chain-tag recommended">{{ $t('profile.pay_recommended') }}</span>
+              </div>
+              <van-icon v-if="selectedChain === c.code" name="checked" class="picked-icon" />
+            </div>
+            <div class="chain-meta">
+              <span class="meta-fee">
+                {{ $t('profile.pay_typical_fee') }}: ≈ ${{ Number(c.typical_fee_usdt || 0).toFixed(Number(c.typical_fee_usdt || 0) < 0.01 ? 4 : 2) }}
+              </span>
+              <span v-if="c.address_prefix_hint" class="meta-addr">{{ c.address_prefix_hint }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="chain-actions">
+          <van-button :disabled="creatingOrder" block plain @click="closeChainPicker">
+            {{ $t('common.cancel') }}
+          </van-button>
+          <van-button
+            type="primary"
+            block
+            :disabled="!selectedChain || !availableChains.length"
+            :loading="creatingOrder"
+            @click="confirmChain"
+          >{{ $t('profile.pay_continue_to_pay') }}</van-button>
+        </div>
+      </div>
+    </van-popup>
+
     <!-- USDT Pay Modal -->
     <van-popup
       v-model:show="payVisible"
@@ -166,7 +237,16 @@ export default {
       order: null,
       qrDataUrl: '',
       pollTimer: null,
-      refreshing: false
+      refreshing: false,
+
+      /* Chain picker state (v3.0.6+ parity with PC billing flow) */
+      chainPickerVisible: false,
+      chainsLoading: false,
+      chainsLoadError: '',
+      availableChains: [],
+      selectedChain: null,
+      pendingPlan: null,
+      creatingOrder: false
     }
   },
   computed: {
@@ -273,25 +353,73 @@ export default {
         this.loading = false
       }
     },
+    /**
+     * Step 1 of the v3.0.6+ purchase flow: open the chain picker.
+     * We re-fetch the chain list each time so newly-enabled chains on
+     * the backend show up without a refresh, mirroring PC behaviour.
+     */
     async handlePurchase(plan) {
+      this.pendingPlan = plan
+      this.selectedChain = null
+      this.availableChains = []
+      this.chainsLoadError = ''
+      this.chainsLoading = true
+      this.chainPickerVisible = true
       try {
-        const res = await billingApi.createUsdtOrder(plan.key)
+        const res = await billingApi.listUsdtChains()
+        if (res?.code === 1 && Array.isArray(res?.data?.chains)) {
+          this.availableChains = res.data.chains
+          const rec = this.availableChains.find((c) => c.recommended)
+          this.selectedChain = (rec || this.availableChains[0] || {}).code || null
+        } else {
+          this.chainsLoadError = res?.msg || this.$t('profile.pay_chain_load_fail')
+        }
+      } catch (err) {
+        this.chainsLoadError = err?.response?.data?.msg || this.$t('profile.pay_chain_load_fail')
+      } finally {
+        this.chainsLoading = false
+      }
+    },
+    closeChainPicker() {
+      if (this.creatingOrder) return
+      this.chainPickerVisible = false
+      this.pendingPlan = null
+      this.selectedChain = null
+    },
+    async confirmChain() {
+      if (!this.pendingPlan || !this.selectedChain) return
+      this.creatingOrder = true
+      try {
+        const res = await billingApi.createUsdtOrder(this.pendingPlan.key, this.selectedChain)
         if (res?.code === 1 && res?.data) {
           this.order = res.data
+          this.chainPickerVisible = false
+          this.pendingPlan = null
           this.payVisible = true
+          if (res.data.reused) {
+            showToast({ message: this.$t('profile.pay_reused_hint'), type: 'success' })
+          }
           await this.generateQr()
           this.startPolling()
         } else {
-          showToast({ message: res?.msg || 'Error', type: 'fail' })
+          showToast({ message: res?.msg || this.$t('profile.pay_create_fail'), type: 'fail' })
         }
       } catch (err) {
-        console.error('Create order failed:', err)
+        const msg = err?.response?.data?.msg || this.$t('profile.pay_create_fail')
+        showToast({ message: msg, type: 'fail' })
+      } finally {
+        this.creatingOrder = false
       }
     },
     async generateQr() {
-      if (!this.order?.address) return
+      if (!this.order) return
+      // PC parity: prefer payment_uri (EIP-681 / Solana Pay / tron:) so
+      // mobile wallets can auto-fill both recipient and amount. Fall
+      // back to raw address so legacy wallets still scan.
+      const qrText = this.order.payment_uri || this.order.address
+      if (!qrText) return
       try {
-        this.qrDataUrl = await QRCode.toDataURL(this.order.address, {
+        this.qrDataUrl = await QRCode.toDataURL(qrText, {
           width: 220,
           margin: 1,
           color: { dark: '#181818', light: '#ffffff' }
@@ -586,6 +714,108 @@ export default {
   font-size: 10px;
   color: var(--text-4);
 }
+
+/* Chain picker (v3.0.6+) */
+.chain-popup {
+  background: var(--bg-elevated) !important;
+  color: var(--text);
+}
+.chain-sheet {
+  padding: 18px 16px 22px;
+  position: relative;
+}
+.chain-head { margin-bottom: 14px; }
+.chain-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.chain-desc { margin-top: 4px; font-size: 12px; color: var(--text-2); }
+.chain-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  font-size: 20px;
+  color: var(--text-2);
+  padding: 4px;
+}
+.chain-loading,
+.chain-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 12px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.chain-error {
+  color: var(--warn);
+}
+.chain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.chain-option {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.chain-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.chain-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.chain-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 14px;
+}
+.chain-tag {
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.chain-tag.recommended {
+  color: var(--up);
+  background: var(--up-soft);
+}
+.picked-icon {
+  color: var(--accent);
+  font-size: 18px;
+}
+.chain-meta {
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.meta-addr {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+.chain-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+}
+.chain-actions :deep(.van-button) { border-radius: 12px; }
 
 /* USDT popup */
 .usdt-popup {

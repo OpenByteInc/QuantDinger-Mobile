@@ -2,6 +2,23 @@
   <div class="page">
     <van-nav-bar :title="$t('bot_create.title')" left-arrow @click-left="$router.back()" />
 
+    <!-- Wizard step indicator (mirrors PC BotCreateWizard 4-step layout) -->
+    <div class="wizard-steps">
+      <div
+        v-for="(step, idx) in wizardSteps"
+        :key="step.key"
+        :class="['ws-item', { active: idx === currentStep, done: idx < currentStep }]"
+        @click="onWizardStepTap(idx)"
+      >
+        <div class="ws-dot">
+          <van-icon v-if="idx < currentStep" name="success" />
+          <span v-else>{{ idx + 1 }}</span>
+        </div>
+        <span class="ws-text">{{ step.label }}</span>
+        <span v-if="idx < wizardSteps.length - 1" class="ws-line" :class="{ done: idx < currentStep }"></span>
+      </div>
+    </div>
+
     <div v-if="aiScriptBanner" class="ai-banner script">
       <van-icon name="description" />
       <span>{{ aiScriptBanner }}</span>
@@ -10,8 +27,12 @@
       <van-icon name="fire-o" />
       <span>{{ aiReason }}</span>
     </div>
+    <div v-if="isEditMode" class="ai-banner edit">
+      <van-icon name="edit" />
+      <span>{{ $t('bot_create.edit_banner') }}</span>
+    </div>
 
-    <div class="segmented" :class="{ 'segmented--locked': !!aiStrategyCode }">
+    <div class="segmented" :class="{ 'segmented--locked': !!aiStrategyCode || isEditMode }">
       <div
         v-for="opt in botTypes"
         :key="opt.value"
@@ -23,7 +44,7 @@
       </div>
     </div>
 
-    <div class="section">
+    <div class="section" ref="sectionBase">
       <div class="section-title">{{ $t('bot_create.base_config') }}</div>
       <van-cell-group inset>
         <van-field
@@ -31,6 +52,19 @@
           :label="$t('bot_create.bot_name')"
           :placeholder="$t('bot_create.bot_name_placeholder')"
         />
+        <van-cell :title="$t('bot_create.market_category')">
+          <template #right-icon>
+            <van-radio-group v-model="form.marketCategory" direction="horizontal">
+              <van-radio
+                v-for="opt in marketCategoryOptions"
+                :key="opt.value"
+                :name="opt.value"
+                :disabled="!opt.supported"
+              >{{ opt.label }}</van-radio>
+            </van-radio-group>
+          </template>
+        </van-cell>
+        <div class="field-hint">{{ $t('bot_create.market_category_hint') }}</div>
         <van-cell :title="$t('bot_create.exchange_account')" :value="credentialLabel" is-link @click="openCredentialPicker" />
         <van-cell
           :title="$t('quick_trade.symbol')"
@@ -64,7 +98,7 @@
       </van-cell-group>
     </div>
 
-    <div class="section">
+    <div class="section" ref="sectionStrategy">
       <div class="section-title">{{ $t('bot_create.strategy_params') }}</div>
       <van-cell-group inset>
         <template v-if="botType === 'grid'">
@@ -249,7 +283,7 @@
       </van-cell-group>
     </div>
 
-    <div class="section">
+    <div class="section" ref="sectionRisk">
       <div class="section-title">{{ $t('bot_create.risk_params') }}</div>
       <van-cell-group inset>
         <template v-if="botType !== 'martingale'">
@@ -273,15 +307,53 @@
       </van-cell-group>
     </div>
 
+    <!-- Step 4 / Confirm summary (parity with PC wizard's last step) -->
+    <div class="section" ref="sectionConfirm">
+      <div class="section-title">{{ $t('bot_create.confirm') }}</div>
+      <div class="confirm-card">
+        <div class="confirm-row">
+          <span class="confirm-label">{{ $t('bot_create.bot_name') }}</span>
+          <span class="confirm-value">{{ form.botName || '-' }}</span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-label">{{ $t('bot_create.market_category') }}</span>
+          <span class="confirm-value">{{ currentMarketCategoryLabel }}</span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-label">{{ $t('quick_trade.symbol') }}</span>
+          <span class="confirm-value">{{ form.symbol || '-' }}</span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-label">{{ $t('bot_create.timeframe') }}</span>
+          <span class="confirm-value">{{ isGridOrMartingale ? 'Tick' : form.timeframe }}</span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-label">{{ $t('bot_create.market_type') }}</span>
+          <span class="confirm-value">
+            {{ form.marketType === 'swap' ? $t('bot_create.market_type_swap') : $t('bot_create.market_type_spot') }}
+            <span v-if="form.marketType === 'swap'" class="leverage-chip">{{ form.leverage }}x</span>
+          </span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-label">{{ $t('bot_create.initial_capital') }}</span>
+          <span class="confirm-value">${{ Number(form.initialCapital || 0).toLocaleString('en-US') }}</span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-label">{{ $t('trading.bot_type') }}</span>
+          <span class="confirm-value">{{ currentBotTypeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
     <div class="submit-wrap">
       <van-button
         type="primary"
         block
         round
         :loading="submitting"
-        :loading-text="$t('bot_create.creating')"
+        :loading-text="isEditMode ? $t('bot_create.updating') : $t('bot_create.creating')"
         @click="submit"
-      >{{ $t('bot_create.submit') }}</van-button>
+      >{{ isEditMode ? $t('bot_create.update') : $t('bot_create.submit') }}</van-button>
     </div>
 
     <van-popup v-model:show="showCredentialPicker" position="bottom" round>
@@ -372,6 +444,7 @@ export default {
       botType: 'grid',
       form: {
         botName: '',
+        marketCategory: 'Crypto',
         credentialId: null,
         symbol: '',
         timeframe: '1h',
@@ -390,6 +463,12 @@ export default {
       showFreqPicker: false,
       submitting: false,
       aiReason: '',
+      /** Read from ?edit=<id> — hydrate from existing strategy */
+      editId: null,
+      editing: null,
+      /** Current visual step in the 4-step wizard indicator (0-3) */
+      currentStep: 0,
+      scrollHandler: null,
       /** AI 接口返回的 Python ScriptStrategy 源码（经 sessionStorage 传入） */
       aiStrategyCode: '',
       /** 每格金额是否与总投入金额联动自动计算 */
@@ -418,14 +497,58 @@ export default {
     credentialsStore() { return useCredentialsStore() },
     credentials() { return this.credentialsStore.items },
     credentialColumns() {
-      return this.credentials.map((c) => ({
-        text: `${c.name || c.exchange_id} · ${(c.exchange_id || '').toUpperCase()}`,
-        value: c.id
-      }))
+      // PC parity: show "<name> (<exchange> · <api_key_hint>)" so the
+      // user can disambiguate two credentials on the same exchange.
+      return this.credentials.map((c) => {
+        const label = c.name || c.exchange_id
+        const ex = (c.exchange_id || '').toUpperCase()
+        const hint = c.api_key_hint ? ` · ${c.api_key_hint}` : ''
+        return {
+          text: `${label} (${ex}${hint})`,
+          value: c.id
+        }
+      })
     },
     credentialLabel() {
       const c = this.credentials.find((i) => i.id === this.form.credentialId)
-      return c ? `${c.name || c.exchange_id} · ${(c.exchange_id || '').toUpperCase()}` : this.$t('bot_create.exchange_account_placeholder')
+      if (!c) return this.$t('bot_create.exchange_account_placeholder')
+      const label = c.name || c.exchange_id
+      const ex = (c.exchange_id || '').toUpperCase()
+      const hint = c.api_key_hint ? ` · ${c.api_key_hint}` : ''
+      return `${label} (${ex}${hint})`
+    },
+    /**
+     * Market categories mirror PC `BotCreateWizard.marketCategoryOptions`.
+     * Only Crypto is fully supported for fixed-template bots today; other
+     * categories are shown disabled with a tooltip so the parity is
+     * visible to the user.
+     */
+    marketCategoryOptions() {
+      return [
+        { value: 'Crypto', label: this.$t('bot_create.cat_crypto'), supported: true },
+        { value: 'USStock', label: this.$t('bot_create.cat_us_stock'), supported: false },
+        { value: 'Forex', label: this.$t('bot_create.cat_forex'), supported: false },
+        { value: 'Futures', label: this.$t('bot_create.cat_futures'), supported: false }
+      ]
+    },
+    currentMarketCategoryLabel() {
+      const opt = this.marketCategoryOptions.find((o) => o.value === this.form.marketCategory)
+      return opt ? opt.label : this.form.marketCategory
+    },
+    currentBotTypeLabel() {
+      const opt = this.botTypes.find((o) => o.value === this.botType)
+      return opt ? opt.title : this.botType
+    },
+    wizardSteps() {
+      return [
+        { key: 'base', label: this.$t('bot_create.step_base') },
+        { key: 'strategy', label: this.$t('bot_create.step_strategy') },
+        { key: 'risk', label: this.$t('bot_create.step_risk') },
+        { key: 'confirm', label: this.$t('bot_create.step_confirm') }
+      ]
+    },
+    isEditMode() {
+      return !!this.editId
     },
     timeframeColumns() {
       return ['1m', '5m', '15m', '1h', '4h', '1d'].map((v) => ({ value: v, text: v }))
@@ -573,13 +696,96 @@ export default {
   async mounted() {
     await this.loadCredentials()
     this.applyPreset()
+    await this.hydrateFromEditQuery()
     if (!this.form.credentialId && this.credentials.length > 0) {
       this.form.credentialId = this.credentials[0].id
+    }
+    this.scrollHandler = this.updateCurrentStep.bind(this)
+    window.addEventListener('scroll', this.scrollHandler, { passive: true })
+    this.$nextTick(() => this.updateCurrentStep())
+  },
+  beforeUnmount() {
+    if (this.scrollHandler) {
+      window.removeEventListener('scroll', this.scrollHandler)
     }
   },
   methods: {
     onPickSymbol(item) {
       this.form.symbol = item?.symbol || ''
+    },
+    /**
+     * Compute which "step" the user is currently looking at by
+     * measuring the offset of each anchored section against the
+     * viewport. We update `currentStep` so the wizard pill at the top
+     * stays in sync without forcing the user through a real
+     * multi-screen flow (mobile UX prefers one long form).
+     */
+    updateCurrentStep() {
+      const refs = ['sectionBase', 'sectionStrategy', 'sectionRisk', 'sectionConfirm']
+      const viewportMid = window.innerHeight * 0.35
+      let step = 0
+      refs.forEach((name, idx) => {
+        const el = this.$refs[name]
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        if (rect.top <= viewportMid) step = idx
+      })
+      this.currentStep = step
+    },
+    onWizardStepTap(idx) {
+      const refs = ['sectionBase', 'sectionStrategy', 'sectionRisk', 'sectionConfirm']
+      const el = this.$refs[refs[idx]]
+      if (!el) return
+      const top = el.getBoundingClientRect().top + window.pageYOffset - 56
+      window.scrollTo({ top, behavior: 'smooth' })
+    },
+    async hydrateFromEditQuery() {
+      const editId = Number(this.$route.query?.edit)
+      if (!editId || !Number.isFinite(editId)) return
+      try {
+        const res = await strategyApi.getDetail(editId)
+        const detail = res?.data
+        if (!detail) return
+        this.editId = editId
+        this.editing = detail
+        const tc = detail.trading_config || {}
+        const ec = detail.exchange_config || {}
+        this.form.botName = detail.strategy_name || detail.name || ''
+        if (detail.market_category) this.form.marketCategory = detail.market_category
+        if (ec.credential_id != null) this.form.credentialId = ec.credential_id
+        if (tc.symbol) this.form.symbol = tc.symbol
+        if (tc.timeframe) this.form.timeframe = tc.timeframe
+        if (tc.market_type) this.form.marketType = tc.market_type
+        if (tc.leverage) this.form.leverage = Number(tc.leverage) || this.form.leverage
+        if (tc.initial_capital) this.form.initialCapital = Number(tc.initial_capital) || this.form.initialCapital
+        if (tc.stop_loss_pct != null) {
+          this.form.stopLossPct = Number(tc.stop_loss_pct) || 0
+        }
+        if (tc.take_profit_pct != null) {
+          this.form.takeProfitPct = Number(tc.take_profit_pct) || 0
+        }
+        if (tc.max_position != null) {
+          this.form.maxPosition = Number(tc.max_position) || 0
+          this.maxPositionDirty = true
+        }
+        if (tc.max_daily_loss != null) {
+          this.form.maxDailyLoss = Number(tc.max_daily_loss) || 0
+          this.maxDailyLossDirty = true
+        }
+        const inferredType = tc.bot_type || detail.bot_type
+        if (inferredType && DEFAULT_PARAMS()[inferredType]) {
+          this.botType = inferredType
+        }
+        const params = tc.bot_params || {}
+        const target = this.p[this.botType]
+        if (target && params && typeof params === 'object') {
+          Object.entries(params).forEach(([k, v]) => {
+            if (v != null && k in target) target[k] = v
+          })
+        }
+      } catch (err) {
+        console.warn('Hydrate edit failed:', err)
+      }
     },
     onAmountPerGridManualChange() {
       this.gridCapitalLinked = false
@@ -766,7 +972,7 @@ export default {
         strategy_type: 'ScriptStrategy',
         strategy_mode: 'bot',
         strategy_code: code,
-        market_category: 'Crypto',
+        market_category: this.form.marketCategory || 'Crypto',
         execution_mode: 'live',
         exchange_config: {
           credential_id: this.form.credentialId
@@ -803,11 +1009,19 @@ export default {
       this.submitting = true
       try {
         const payload = this.buildPayload()
-        await strategyApi.create(payload)
-        showToast({ message: this.$t('bot_create.create_success'), type: 'success' })
+        if (this.isEditMode) {
+          await strategyApi.update(this.editId, payload)
+          showToast({ message: this.$t('bot_create.update_success'), type: 'success' })
+        } else {
+          await strategyApi.create(payload)
+          showToast({ message: this.$t('bot_create.create_success'), type: 'success' })
+        }
         this.$router.replace('/trading')
       } catch (err) {
-        showToast({ message: err?.message || this.$t('bot_create.create_fail'), type: 'fail' })
+        const fallback = this.isEditMode
+          ? this.$t('bot_create.update_fail')
+          : this.$t('bot_create.create_fail')
+        showToast({ message: err?.message || fallback, type: 'fail' })
       } finally {
         this.submitting = false
       }
@@ -836,6 +1050,111 @@ export default {
 .ai-banner.script {
   background: var(--warn-soft);
   color: var(--warn);
+}
+.ai-banner.edit {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Wizard step indicator (sticky, mirrors PC a-steps) */
+.wizard-steps {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--hairline);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.wizard-steps::-webkit-scrollbar { display: none; }
+.ws-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 70px;
+  gap: 6px;
+  cursor: pointer;
+}
+.ws-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 700;
+  z-index: 1;
+}
+.ws-item.active .ws-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent, #fff);
+}
+.ws-item.done .ws-dot {
+  background: var(--up);
+  border-color: var(--up);
+  color: #fff;
+}
+.ws-text {
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ws-item.active .ws-text { color: var(--text); }
+.ws-item.done .ws-text { color: var(--up); }
+.ws-line {
+  position: absolute;
+  top: 13px;
+  left: calc(50% + 13px);
+  width: calc(100% - 26px);
+  height: 1px;
+  background: var(--border);
+}
+.ws-line.done { background: var(--up); }
+
+.confirm-card {
+  margin: 0 16px;
+  padding: 4px 14px;
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+.confirm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--hairline);
+  font-size: 13px;
+}
+.confirm-row:first-child { border-top: none; }
+.confirm-label { color: var(--text-3); }
+.confirm-value {
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.leverage-chip {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 11px;
+  font-weight: 700;
 }
 .segmented--locked {
   opacity: 0.55;

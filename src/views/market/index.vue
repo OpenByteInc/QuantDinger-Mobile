@@ -98,7 +98,7 @@ export default {
       items: [],
       keyword: '',
       pricing: '',
-      sort: 'newest',
+      sort: 'score',
       page: 1,
       pageSize: 12,
       total: 0,
@@ -117,11 +117,12 @@ export default {
     },
     sortColumns() {
       return [
+        { value: 'score', text: this.$t('market.sort_score') },
         { value: 'newest', text: this.$t('market.sort_newest') },
         { value: 'hot', text: this.$t('market.sort_hot') },
+        { value: 'rating', text: this.$t('market.sort_rating') },
         { value: 'price_asc', text: this.$t('market.sort_price_asc') },
-        { value: 'price_desc', text: this.$t('market.sort_price_desc') },
-        { value: 'rating', text: this.$t('market.sort_rating') }
+        { value: 'price_desc', text: this.$t('market.sort_price_desc') }
       ]
     },
     sortLabel() {

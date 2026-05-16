@@ -784,15 +784,40 @@ export default {
       }, 1000)
     },
 
+    /**
+     * Normalize and validate an email address.
+     *
+     * Mobile IMEs sometimes inject full-width punctuation (e.g. `＠` `．`),
+     * NBSP / zero-width characters, or uppercase variants that look correct
+     * to the user but fail a strict ASCII regex. Normalize first so the
+     * "I clearly typed an email" case stops failing silently as
+     * `email_required`.
+     */
+    normalizeEmail(email) {
+      let s = String(email == null ? '' : email)
+      s = s.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '')
+      s = s.replace(/＠/g, '@').replace(/[．。]/g, '.')
+      return s.trim().toLowerCase()
+    },
     validEmail(email) {
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim())
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.normalizeEmail(email))
     },
 
     async sendCode(type) {
-      const email = type === 'register' ? this.registerForm.email : this.forgotForm.email
-      if (!this.validEmail(email)) {
+      const rawEmail = type === 'register' ? this.registerForm.email : this.forgotForm.email
+      const email = this.normalizeEmail(rawEmail)
+      if (!email) {
         showToast({ message: this.$t('login.email_required'), type: 'fail' })
         return
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showToast({ message: this.$t('login.email_invalid'), type: 'fail' })
+        return
+      }
+      if (type === 'register') {
+        this.registerForm.email = email
+      } else {
+        this.forgotForm.email = email
       }
       if (this.securityConfig.turnstile_enabled && !this.turnstileToken) {
         showToast({ message: this.$t('login.turnstile_required'), type: 'fail' })
@@ -802,7 +827,7 @@ export default {
       this.sendingCode = true
       try {
         const res = await authApi.sendCode({
-          email: email.trim(),
+          email,
           type,
           turnstile_token: this.turnstileToken || undefined
         })
@@ -887,7 +912,7 @@ export default {
       this.loading = true
       try {
         const res = await authApi.register({
-          email: this.registerForm.email.trim().toLowerCase(),
+          email: this.normalizeEmail(this.registerForm.email),
           code: this.registerForm.code.trim(),
           username: this.registerForm.username.trim(),
           password: this.registerForm.password,
@@ -917,7 +942,7 @@ export default {
       this.loading = true
       try {
         const res = await authApi.resetPassword({
-          email: this.forgotForm.email.trim().toLowerCase(),
+          email: this.normalizeEmail(this.forgotForm.email),
           code: this.forgotForm.code.trim(),
           new_password: this.forgotForm.newPassword,
           turnstile_token: this.turnstileToken || undefined
