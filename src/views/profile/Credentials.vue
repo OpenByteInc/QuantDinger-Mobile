@@ -98,9 +98,6 @@
               <span class="row-subtitle">
                 {{ formatExchange(item.exchange_id) }}
                 <span v-if="item.api_key_hint"> · {{ item.api_key_hint }}</span>
-                <van-tag v-if="item.enable_demo_trading" type="warning" plain size="mini">
-                  {{ $t('credentials.demo') }}
-                </van-tag>
               </span>
             </div>
           </div>

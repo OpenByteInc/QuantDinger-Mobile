@@ -271,17 +271,19 @@ export default {
             : ''
         const paramsObj =
           data.params && typeof data.params === 'object' && !Array.isArray(data.params) ? data.params : {}
+        const botType = this.normalizeBotType(data.botType || data.bot_type || data.strategy_bot_type || 'grid')
         return {
           mode: 'script',
           strategy_code: codeStr,
-          botType: 'grid',
+          botType,
           botName: data.botName || data.strategy_name || data.strategyName || '',
           reason: hs?.title || hs?.returned_text || data.summary || data.analysis || '',
-          strategyParams: paramsObj,
-          riskConfig: {},
+          strategyParams: this.normalizeBotParams(botType, paramsObj),
+          riskConfig: this.normalizeRiskConfig(data.riskConfig || data.risk_config || data.trading_config || {}),
           baseConfig: {
             symbol: data.symbol || this.form.symbol?.trim() || '',
             timeframe: data.timeframe || '1m',
+            marketCategory: data.marketCategory || data.market_category || 'Crypto',
             marketType: data.marketType || data.market_type || 'swap',
             leverage: data.leverage != null ? Number(data.leverage) : 5,
             initialCapital: data.initialCapital || data.initial_capital || Number(this.form.capital) || 1000
@@ -290,23 +292,132 @@ export default {
         }
       }
 
-      const botType = data.botType || data.bot_type || data.strategy_bot_type || 'grid'
+      const botType = this.normalizeBotType(data.botType || data.bot_type || data.strategy_bot_type || 'grid')
       const botName = data.botName || data.strategyName || data.strategy_name || ''
       const reason = data.reason || data.analysis || data.ai_reason || data.summary || ''
-      const strategyParams = data.strategyParams || data.strategy_params || data.params || {}
+      const strategyParams = this.normalizeBotParams(botType, data.strategyParams || data.strategy_params || data.bot_params || data.params || {})
       const baseConfig = data.baseConfig || data.base_config || {
         symbol: data.symbol,
         timeframe: data.timeframe,
+        marketCategory: data.marketCategory || data.market_category,
         marketType: data.marketType || data.market_type,
         leverage: data.leverage,
         initialCapital: data.initialCapital || data.initial_capital || this.form.capital
       }
-      const riskConfig = data.riskConfig || data.risk_config || {
+      const riskConfig = this.normalizeRiskConfig(data.riskConfig || data.risk_config || {
         stopLossPct: data.stopLossPct || data.stop_loss_pct,
         takeProfitPct: data.takeProfitPct || data.take_profit_pct,
-        maxPosition: data.maxPosition || data.max_position
-      }
+        maxPosition: data.maxPosition || data.max_position,
+        maxDailyLoss: data.maxDailyLoss || data.max_daily_loss,
+        gridOobBufferPct: data.gridOobBufferPct || data.grid_oob_buffer_pct
+      })
       return { botType, botName, reason, strategyParams, baseConfig, riskConfig }
+    },
+    normalizeBotType(value) {
+      const raw = String(value || '').trim().toLowerCase()
+      const map = {
+        grid_bot: 'grid',
+        grid: 'grid',
+        martingale_bot: 'martingale',
+        martin: 'martingale',
+        martingale: 'martingale',
+        trend_bot: 'trend',
+        trend_following: 'trend',
+        trend: 'trend',
+        dca_bot: 'dca',
+        dca: 'dca'
+      }
+      return map[raw] || 'grid'
+    },
+    normalizeRiskConfig(raw) {
+      return this.normalizeKeys(raw || {}, {
+        stop_loss_pct: 'stopLossPct',
+        take_profit_pct: 'takeProfitPct',
+        max_position: 'maxPosition',
+        max_daily_loss: 'maxDailyLoss',
+        grid_oob_buffer_pct: 'gridOobBufferPct'
+      })
+    },
+    normalizeBotParams(type, raw) {
+      const aliases = {
+        upper_price: 'upperPrice',
+        lower_price: 'lowerPrice',
+        grid_count: 'gridCount',
+        amount_per_grid: 'amountPerGrid',
+        grid_mode: 'gridMode',
+        grid_direction: 'gridDirection',
+        order_mode: 'orderMode',
+        initial_position_pct: 'initialPositionPct',
+        boundary_action: 'boundaryAction',
+        adaptive_bounds: 'adaptiveBounds',
+        adaptive_atr_mult: 'adaptiveAtrMult',
+        waterfall_protection: 'waterfallProtection',
+        waterfall_drop_pct: 'waterfallDropPct',
+        initial_amount: 'initialAmount',
+        max_layers: 'maxLayers',
+        price_drop_pct: 'priceDropPct',
+        take_profit_pct: 'takeProfitPct',
+        stop_loss_pct: 'stopLossPct',
+        trailing_tp_enabled: 'trailingTpEnabled',
+        trailing_tp_activation_pct: 'trailingTpActivationPct',
+        trailing_tp_callback_pct: 'trailingTpCallbackPct',
+        ma_period: 'maPeriod',
+        ma_type: 'maType',
+        confirm_bars: 'confirmBars',
+        position_pct: 'positionPct',
+        amount_each: 'amountEach',
+        total_budget: 'totalBudget',
+        dip_buy_enabled: 'dipBuyEnabled',
+        dip_threshold: 'dipThreshold'
+      }
+      const normalized = this.normalizeKeys(raw || {}, aliases)
+      if (normalized.waterfallDropPct != null && normalized.waterfallDropPct !== '') {
+        normalized.waterfallDropPct = this.ratioOrPercentToUiPercent(normalized.waterfallDropPct)
+      }
+      const allowed = {
+        grid: ['upperPrice', 'lowerPrice', 'gridCount', 'amountPerGrid', 'gridMode', 'gridDirection', 'orderMode', 'initialPositionPct', 'boundaryAction', 'adaptiveBounds', 'adaptiveAtrMult', 'waterfallProtection', 'waterfallDropPct'],
+        martingale: ['multiplier', 'maxLayers', 'priceDropPct', 'takeProfitPct', 'stopLossPct', 'direction', 'trailingTpEnabled', 'trailingTpCallbackPct', 'waterfallProtection', 'waterfallDropPct'],
+        trend: ['maPeriod', 'maType', 'confirmBars', 'positionPct', 'direction', 'trailingTpEnabled', 'trailingTpActivationPct', 'trailingTpCallbackPct'],
+        dca: ['amountEach', 'frequency', 'totalBudget', 'dipBuyEnabled', 'dipThreshold']
+      }[type] || []
+      const out = {}
+      allowed.forEach((key) => {
+        if (normalized[key] != null) out[key] = normalized[key]
+      })
+      return out
+    },
+    normalizeKeys(raw, aliases) {
+      const out = {}
+      Object.entries(raw || {}).forEach(([key, val]) => {
+        const mapped = aliases[key] || key
+        out[mapped] = this.normalizeValue(mapped, val)
+      })
+      return out
+    },
+    normalizeValue(key, val) {
+      if (['adaptiveBounds', 'waterfallProtection', 'trailingTpEnabled', 'dipBuyEnabled'].includes(key)) {
+        if (typeof val === 'boolean') return val
+        return ['true', '1', 'yes', 'on'].includes(String(val).toLowerCase())
+      }
+      if (val === '' || val == null) return val
+      const numericKeys = [
+        'upperPrice', 'lowerPrice', 'gridCount', 'amountPerGrid', 'initialPositionPct',
+        'adaptiveAtrMult', 'waterfallDropPct', 'multiplier', 'maxLayers', 'priceDropPct',
+        'takeProfitPct', 'stopLossPct', 'trailingTpActivationPct', 'trailingTpCallbackPct',
+        'maPeriod', 'confirmBars', 'positionPct', 'amountEach', 'totalBudget', 'dipThreshold',
+        'maxPosition', 'maxDailyLoss', 'gridOobBufferPct', 'leverage', 'initialCapital'
+      ]
+      if (numericKeys.includes(key)) {
+        const n = Number(val)
+        return Number.isFinite(n) ? n : val
+      }
+      return val
+    },
+    ratioOrPercentToUiPercent(value) {
+      const n = Number(value)
+      if (!Number.isFinite(n)) return value
+      if (n > 0 && n <= 1) return +(n * 100).toFixed(4)
+      return n
     },
     async generate() {
       if (!this.form.symbol?.trim()) {

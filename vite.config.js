@@ -9,13 +9,14 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const pkgVersion = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8')).version
+const appVersion = process.env.APP_VERSION || process.env.GIT_TAG || pkgVersion
 
 const apiTarget = 'https://api.quantdinger.com'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   define: {
-    __APP_VERSION__: JSON.stringify(pkgVersion)
+    __APP_VERSION__: JSON.stringify(appVersion)
   },
   plugins: [
     vue(),

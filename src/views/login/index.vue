@@ -32,42 +32,100 @@
       <div class="login-form">
         <!-- Login -->
         <template v-if="mode === 'login'">
-          <div class="form-item">
-            <div class="input-wrapper">
-              <van-icon name="user-o" class="input-icon" />
-              <input
-                v-model="loginForm.username"
-                type="text"
-                :placeholder="$t('login.placeholder_username')"
-                class="input"
-                autocomplete="username"
-              />
+          <div class="login-method-switch">
+            <button
+              type="button"
+              :class="['method-pill', { active: loginMethod === 'password' }]"
+              @click="switchLoginMethod('password')"
+            >
+              {{ $t('login.password_login') }}
+            </button>
+            <button
+              type="button"
+              :class="['method-pill', { active: loginMethod === 'code' }]"
+              @click="switchLoginMethod('code')"
+            >
+              {{ $t('login.code_login') }}
+            </button>
+          </div>
+
+          <template v-if="loginMethod === 'password'">
+            <div class="form-item">
+              <div class="input-wrapper">
+                <van-icon name="user-o" class="input-icon" />
+                <input
+                  v-model="loginForm.username"
+                  type="text"
+                  :placeholder="$t('login.placeholder_username')"
+                  class="input"
+                  autocomplete="username"
+                />
+              </div>
             </div>
-          </div>
-          <div class="form-item">
-            <div class="input-wrapper">
-              <van-icon name="lock" class="input-icon" />
-              <input
-                v-model="loginForm.password"
-                :type="showPassword ? 'text' : 'password'"
-                :placeholder="$t('login.placeholder_password')"
-                class="input"
-                autocomplete="current-password"
-                @keyup.enter="handleLogin"
-              />
-              <van-icon
-                :name="showPassword ? 'eye-o' : 'closed-eye'"
-                class="eye-icon"
-                @click="showPassword = !showPassword"
-              />
+            <div class="form-item">
+              <div class="input-wrapper">
+                <van-icon name="lock" class="input-icon" />
+                <input
+                  v-model="loginForm.password"
+                  :type="showPassword ? 'text' : 'password'"
+                  :placeholder="$t('login.placeholder_password')"
+                  class="input"
+                  autocomplete="current-password"
+                  @keyup.enter="handleLogin"
+                />
+                <van-icon
+                  :name="showPassword ? 'eye-o' : 'closed-eye'"
+                  class="eye-icon"
+                  @click="showPassword = !showPassword"
+                />
+              </div>
             </div>
-          </div>
-          <div class="row-between">
-            <van-checkbox v-model="rememberMe" shape="square" icon-size="16">
-              {{ $t('login.remember') }}
-            </van-checkbox>
-            <span class="link" @click="switchMode('forgot')">{{ $t('login.forgot_password') }}</span>
-          </div>
+            <div class="row-between">
+              <van-checkbox v-model="rememberMe" shape="square" icon-size="16">
+                {{ $t('login.remember') }}
+              </van-checkbox>
+              <span class="link" @click="switchMode('forgot')">{{ $t('login.forgot_password') }}</span>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="form-item">
+              <div class="input-wrapper">
+                <van-icon name="envelop-o" class="input-icon" />
+                <input
+                  v-model="codeLoginForm.email"
+                  type="email"
+                  :placeholder="$t('login.placeholder_email')"
+                  class="input"
+                  autocomplete="email"
+                />
+              </div>
+            </div>
+            <div class="form-item">
+              <div class="input-wrapper">
+                <van-icon name="shield-o" class="input-icon" />
+                <input
+                  v-model="codeLoginForm.code"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="6"
+                  :placeholder="$t('login.placeholder_code')"
+                  class="input"
+                  autocomplete="one-time-code"
+                  @keyup.enter="handleLogin"
+                />
+                <button
+                  type="button"
+                  class="code-btn"
+                  :disabled="getCodeCountdown('login') > 0 || isSendingCode('login')"
+                  @click="sendCode('login')"
+                >
+                  {{ getCodeBtnText('login') }}
+                </button>
+              </div>
+            </div>
+          </template>
+
           <div class="row-agreement">
             <van-checkbox v-model="agreeTerms" shape="square" icon-size="16">
               <span class="agree-line">
@@ -112,14 +170,15 @@
                 maxlength="6"
                 :placeholder="$t('login.placeholder_code')"
                 class="input"
+                autocomplete="one-time-code"
               />
               <button
                 type="button"
                 class="code-btn"
-                :disabled="codeCountdown > 0 || sendingCode"
+                :disabled="getCodeCountdown('register') > 0 || isSendingCode('register')"
                 @click="sendCode('register')"
               >
-                {{ codeBtnText }}
+                {{ getCodeBtnText('register') }}
               </button>
             </div>
           </div>
@@ -206,14 +265,15 @@
                 maxlength="6"
                 :placeholder="$t('login.placeholder_code')"
                 class="input"
+                autocomplete="one-time-code"
               />
               <button
                 type="button"
                 class="code-btn"
-                :disabled="codeCountdown > 0 || sendingCode"
+                :disabled="getCodeCountdown('forgot') > 0 || isSendingCode('forgot')"
                 @click="sendCode('reset_password')"
               >
-                {{ codeBtnText }}
+                {{ getCodeBtnText('forgot') }}
               </button>
             </div>
           </div>
@@ -355,6 +415,42 @@
         </div>
       </div>
     </van-popup>
+
+    <van-popup
+      v-model:show="mfaVisible"
+      round
+      closeable
+      class="mfa-popup-root"
+      :style="{ width: '88%', maxWidth: '420px' }"
+      @closed="resetMfaLogin"
+    >
+      <div class="mfa-popup">
+        <div class="mfa-icon">
+          <van-icon name="shield-o" />
+        </div>
+        <h3>{{ $t('login.mfa_title') }}</h3>
+        <p>{{ $t('login.mfa_hint') }}</p>
+        <div class="input-wrapper mfa-input">
+          <van-icon name="shield-o" class="input-icon" />
+          <input
+            v-model="mfaCode"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            :placeholder="$t('login.mfa_placeholder')"
+            class="input"
+            @keyup.enter="handleMfaLoginVerify"
+          />
+        </div>
+        <div v-if="mfaError" class="mfa-error">{{ mfaError }}</div>
+        <div class="mfa-actions">
+          <van-button block plain @click="mfaVisible = false">{{ $t('common.cancel') }}</van-button>
+          <van-button block type="primary" :loading="mfaLoading" @click="handleMfaLoginVerify">
+            {{ $t('login.mfa_verify') }}
+          </van-button>
+        </div>
+      </div>
+    </van-popup>
   </div>
 </template>
 
@@ -366,7 +462,7 @@ import { authApi, getBaseUrl } from '@/api'
 import { useUserStore, useSettingsStore } from '@/stores'
 import { getOAuthRedirectUri } from '@/utils/oauthRedirect'
 import { getLegal } from '@/constants/legal'
-import logoUrl from '@/assets/logo.png'
+import logoUrl from '@/assets/slogo.png'
 
 /** Normalize backend variants for Turnstile (PC / mobile API parity). */
 function parseTurnstileConfig(raw) {
@@ -460,7 +556,9 @@ export default {
     return {
       logoUrl,
       mode: 'login',
+      loginMethod: 'password',
       loginForm: { username: '', password: '' },
+      codeLoginForm: { email: '', code: '' },
       registerForm: { email: '', code: '', username: '', password: '', referralCode: '' },
       forgotForm: { email: '', code: '', newPassword: '', confirmPassword: '' },
       securityConfig: {
@@ -476,13 +574,22 @@ export default {
       rememberMe: true,
       agreeTerms: false,
       loading: false,
-      sendingCode: false,
-      codeCountdown: 0,
-      codeTimer: null,
+      sendingCodeType: '',
+      codeCountdowns: {
+        login: 0,
+        register: 0,
+        forgot: 0
+      },
+      codeTimers: {},
       turnstileWidgetId: null,
       turnstileToken: '',
       turnstileError: '',
       turnstileErrorCode: '',
+      mfaVisible: false,
+      mfaLoading: false,
+      mfaCode: '',
+      mfaError: '',
+      mfaChallengeId: '',
       showLangSheet: false,
       legalVisible: false,
       legalTab: 'terms'
@@ -507,15 +614,11 @@ export default {
       ]
     },
     submitLabel() {
-      if (this.mode === 'login') return this.$t('login.login')
+      if (this.mode === 'login') {
+        return this.loginMethod === 'code' ? this.$t('login.code_login_submit') : this.$t('login.login')
+      }
       if (this.mode === 'register') return this.$t('login.register')
       return this.$t('login.reset_submit')
-    },
-    codeBtnText() {
-      if (this.codeCountdown > 0) {
-        return this.$t('login.resend_in', { seconds: this.codeCountdown })
-      }
-      return this.$t('login.send_code')
     },
     langButtonLabel() {
       const map = {
@@ -546,11 +649,11 @@ export default {
       if (!turnstileReady) return false
 
       if (this.mode === 'login') {
-        return !!(
-          this.loginForm.username.trim() &&
-          this.loginForm.password &&
-          this.agreeTerms
-        )
+        if (!this.agreeTerms) return false
+        if (this.loginMethod === 'code') {
+          return !!(this.codeLoginForm.email.trim() && this.codeLoginForm.code.trim())
+        }
+        return !!(this.loginForm.username.trim() && this.loginForm.password)
       }
       if (this.mode === 'register') {
         return !!(
@@ -575,8 +678,8 @@ export default {
       this.$nextTick(() => this.renderTurnstileIfNeeded())
     },
     /**
-     * 原生 OAuth：Browser 关闭后 main.js 通过 appUrlOpen 再 router.replace 带上 oauth_token。
-     * 此时仍停留在 Login 组件实例上，mounted 不会重跑，必须监听路由 query。
+     * Native OAuth returns through appUrlOpen while this component is still alive,
+     * so watch query changes instead of relying on mounted() to run again.
      */
     '$route.query': {
       deep: true,
@@ -595,11 +698,20 @@ export default {
   },
 
   beforeUnmount() {
-    if (this.codeTimer) clearInterval(this.codeTimer)
+    Object.values(this.codeTimers || {}).forEach((timer) => {
+      if (timer) clearInterval(timer)
+    })
     this.destroyTurnstileWidget()
   },
 
   methods: {
+    switchLoginMethod(method) {
+      if (this.loginMethod === method) return
+      this.loginMethod = method
+      this.showPassword = false
+      this.resetTurnstile()
+    },
+
     switchMode(mode) {
       if (this.mode === mode) return
       this.mode = mode
@@ -772,14 +884,36 @@ export default {
         : this.$t('login.turnstile_fail')
     },
 
-    startCountdown(seconds = 60) {
-      this.codeCountdown = seconds
-      if (this.codeTimer) clearInterval(this.codeTimer)
-      this.codeTimer = setInterval(() => {
-        this.codeCountdown -= 1
-        if (this.codeCountdown <= 0) {
-          clearInterval(this.codeTimer)
-          this.codeTimer = null
+    getCodeStateKey(type) {
+      if (type === 'reset_password') return 'forgot'
+      if (type === 'register') return 'register'
+      return 'login'
+    },
+
+    getCodeCountdown(key) {
+      return Number(this.codeCountdowns?.[key] || 0)
+    },
+
+    getCodeBtnText(key) {
+      const seconds = this.getCodeCountdown(key)
+      if (seconds > 0) {
+        return this.$t('login.resend_in', { seconds })
+      }
+      return this.$t('login.send_code')
+    },
+
+    isSendingCode(key) {
+      return this.sendingCodeType === key
+    },
+
+    startCountdown(key, seconds = 60) {
+      this.codeCountdowns[key] = seconds
+      if (this.codeTimers[key]) clearInterval(this.codeTimers[key])
+      this.codeTimers[key] = setInterval(() => {
+        this.codeCountdowns[key] = Math.max(0, Number(this.codeCountdowns[key] || 0) - 1)
+        if (this.codeCountdowns[key] <= 0) {
+          clearInterval(this.codeTimers[key])
+          this.codeTimers[key] = null
         }
       }, 1000)
     },
@@ -803,8 +937,39 @@ export default {
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.normalizeEmail(email))
     },
 
+    validateUsername(username) {
+      const value = String(username || '').trim()
+      if (!value) return this.$t('login.username_required')
+      if (value.length < 3 || value.length > 30) return this.$t('login.username_length')
+      if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(value)) return this.$t('login.username_pattern')
+      return ''
+    },
+
+    validatePasswordStrength(password) {
+      const value = String(password || '')
+      if (!value) return this.$t('login.password_required')
+      if (value.length < 8) return this.$t('login.password_min')
+      if (!/[A-Z]/.test(value)) return this.$t('login.password_upper')
+      if (!/[a-z]/.test(value)) return this.$t('login.password_lower')
+      if (!/[0-9]/.test(value)) return this.$t('login.password_number')
+      return ''
+    },
+
+    getEmailForCodeType(type) {
+      if (type === 'register') return this.registerForm.email
+      if (type === 'reset_password') return this.forgotForm.email
+      return this.codeLoginForm.email
+    },
+
+    setEmailForCodeType(type, email) {
+      if (type === 'register') this.registerForm.email = email
+      else if (type === 'reset_password') this.forgotForm.email = email
+      else this.codeLoginForm.email = email
+    },
+
     async sendCode(type) {
-      const rawEmail = type === 'register' ? this.registerForm.email : this.forgotForm.email
+      const stateKey = this.getCodeStateKey(type)
+      const rawEmail = this.getEmailForCodeType(type)
       const email = this.normalizeEmail(rawEmail)
       if (!email) {
         showToast({ message: this.$t('login.email_required'), type: 'fail' })
@@ -814,17 +979,13 @@ export default {
         showToast({ message: this.$t('login.email_invalid'), type: 'fail' })
         return
       }
-      if (type === 'register') {
-        this.registerForm.email = email
-      } else {
-        this.forgotForm.email = email
-      }
+      this.setEmailForCodeType(type, email)
       if (this.securityConfig.turnstile_enabled && !this.turnstileToken) {
         showToast({ message: this.$t('login.turnstile_required'), type: 'fail' })
         return
       }
 
-      this.sendingCode = true
+      this.sendingCodeType = stateKey
       try {
         const res = await authApi.sendCode({
           email,
@@ -833,7 +994,7 @@ export default {
         })
         if (res.code === 1) {
           showToast({ message: this.$t('login.code_sent'), type: 'success' })
-          this.startCountdown(60)
+          this.startCountdown(stateKey, 60)
           this.resetTurnstile()
         } else {
           showToast({ message: res.msg || this.$t('login.code_send_fail'), type: 'fail' })
@@ -843,7 +1004,7 @@ export default {
         console.error('Send code error:', err)
         this.resetTurnstile()
       } finally {
-        this.sendingCode = false
+        this.sendingCodeType = ''
       }
     },
 
@@ -873,13 +1034,47 @@ export default {
           console.warn('Failed to get user info:', e)
         }
       }
-      const redirect = this.$route.query.redirect || '/home'
+      const redirect = this.$route.query.redirect || '/ai'
       this.$router.replace(redirect)
     },
 
+    async handleAuthResult(res, fallbackKey = 'login.login_fail') {
+      if (res?.code === 1 && res.data?.mfa_required) {
+        this.mfaChallengeId = res.data.challenge_id || ''
+        this.mfaCode = ''
+        this.mfaError = ''
+        this.mfaVisible = true
+        return true
+      }
+      if (res?.code === 1 && res.data?.token) {
+        showToast({ message: this.$t('login.login_success'), type: 'success' })
+        await this.finalizeLogin(res.data.token, res.data.userinfo)
+        return true
+      }
+      showToast({ message: res?.msg || this.$t(fallbackKey), type: 'fail' })
+      this.resetTurnstile()
+      return false
+    },
+
     async handleLogin() {
+      if (this.loginMethod === 'code') {
+        await this.handleCodeLogin()
+        return
+      }
+      await this.handlePasswordLogin()
+    },
+
+    async handlePasswordLogin() {
       if (!this.agreeTerms) {
         showToast({ message: this.$t('login.need_agree'), type: 'fail' })
+        return
+      }
+      if (!this.loginForm.username.trim()) {
+        showToast({ message: this.$t('login.account_required'), type: 'fail' })
+        return
+      }
+      if (!this.loginForm.password) {
+        showToast({ message: this.$t('login.password_required'), type: 'fail' })
         return
       }
       this.loading = true
@@ -889,15 +1084,42 @@ export default {
           password: this.loginForm.password,
           turnstile_token: this.turnstileToken || undefined
         })
-        if (res.code === 1 && res.data?.token) {
-          showToast({ message: this.$t('login.login_success'), type: 'success' })
-          await this.finalizeLogin(res.data.token, res.data.userinfo)
-        } else {
-          showToast({ message: res.msg || this.$t('login.login_fail'), type: 'fail' })
-          this.resetTurnstile()
-        }
+        await this.handleAuthResult(res, 'login.login_fail')
       } catch (err) {
         console.error('Login error:', err)
+        this.resetTurnstile()
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async handleCodeLogin() {
+      if (!this.agreeTerms) {
+        showToast({ message: this.$t('login.need_agree'), type: 'fail' })
+        return
+      }
+      const email = this.normalizeEmail(this.codeLoginForm.email)
+      if (!this.validEmail(email)) {
+        showToast({ message: email ? this.$t('login.email_invalid') : this.$t('login.email_required'), type: 'fail' })
+        return
+      }
+      const code = this.codeLoginForm.code.trim()
+      if (!code) {
+        showToast({ message: this.$t('login.code_required'), type: 'fail' })
+        return
+      }
+      this.codeLoginForm.email = email
+      this.loading = true
+      try {
+        const res = await authApi.loginWithCode({
+          email,
+          code,
+          turnstile_token: this.turnstileToken || undefined,
+          referral_code: this.registerForm.referralCode.trim() || undefined
+        })
+        await this.handleAuthResult(res, 'login.login_fail')
+      } catch (err) {
+        console.error('Code login error:', err)
         this.resetTurnstile()
       } finally {
         this.loading = false
@@ -909,10 +1131,29 @@ export default {
         showToast({ message: this.$t('login.need_agree'), type: 'fail' })
         return
       }
+      const email = this.normalizeEmail(this.registerForm.email)
+      if (!this.validEmail(email)) {
+        showToast({ message: email ? this.$t('login.email_invalid') : this.$t('login.email_required'), type: 'fail' })
+        return
+      }
+      const usernameError = this.validateUsername(this.registerForm.username)
+      if (usernameError) {
+        showToast({ message: usernameError, type: 'fail' })
+        return
+      }
+      if (!this.registerForm.code.trim()) {
+        showToast({ message: this.$t('login.code_required'), type: 'fail' })
+        return
+      }
+      const passwordError = this.validatePasswordStrength(this.registerForm.password)
+      if (passwordError) {
+        showToast({ message: passwordError, type: 'fail' })
+        return
+      }
       this.loading = true
       try {
         const res = await authApi.register({
-          email: this.normalizeEmail(this.registerForm.email),
+          email,
           code: this.registerForm.code.trim(),
           username: this.registerForm.username.trim(),
           password: this.registerForm.password,
@@ -935,6 +1176,20 @@ export default {
     },
 
     async handleReset() {
+      const email = this.normalizeEmail(this.forgotForm.email)
+      if (!this.validEmail(email)) {
+        showToast({ message: email ? this.$t('login.email_invalid') : this.$t('login.email_required'), type: 'fail' })
+        return
+      }
+      if (!this.forgotForm.code.trim()) {
+        showToast({ message: this.$t('login.code_required'), type: 'fail' })
+        return
+      }
+      const passwordError = this.validatePasswordStrength(this.forgotForm.newPassword)
+      if (passwordError) {
+        showToast({ message: passwordError, type: 'fail' })
+        return
+      }
       if (this.forgotForm.newPassword !== this.forgotForm.confirmPassword) {
         showToast({ message: this.$t('login.password_mismatch'), type: 'fail' })
         return
@@ -942,7 +1197,7 @@ export default {
       this.loading = true
       try {
         const res = await authApi.resetPassword({
-          email: this.normalizeEmail(this.forgotForm.email),
+          email,
           code: this.forgotForm.code.trim(),
           new_password: this.forgotForm.newPassword,
           turnstile_token: this.turnstileToken || undefined
@@ -963,6 +1218,45 @@ export default {
       } finally {
         this.loading = false
       }
+    },
+
+    async handleMfaLoginVerify() {
+      const code = this.mfaCode.trim()
+      if (!code) {
+        this.mfaError = this.$t('login.mfa_required')
+        return
+      }
+      if (!this.mfaChallengeId) {
+        this.mfaError = this.$t('login.mfa_expired')
+        return
+      }
+      this.mfaLoading = true
+      this.mfaError = ''
+      try {
+        const res = await authApi.verifyLoginMfa({
+          challenge_id: this.mfaChallengeId,
+          code
+        })
+        if (res.code === 1 && res.data?.token) {
+          showToast({ message: this.$t('login.login_success'), type: 'success' })
+          await this.finalizeLogin(res.data.token, res.data.userinfo)
+          this.resetMfaLogin()
+        } else {
+          this.mfaError = res.msg || this.$t('login.mfa_failed')
+        }
+      } catch (err) {
+        this.mfaError = err?.response?.data?.msg || err?.message || this.$t('login.mfa_failed')
+      } finally {
+        this.mfaLoading = false
+      }
+    },
+
+    resetMfaLogin() {
+      this.mfaVisible = false
+      this.mfaLoading = false
+      this.mfaCode = ''
+      this.mfaError = ''
+      this.mfaChallengeId = ''
     }
   }
 }
@@ -1030,18 +1324,20 @@ export default {
   width: 92px;
   height: 92px;
   margin: 0 auto 14px;
-  border-radius: 24px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--surface-raised);
   border: 1px solid var(--border);
+  overflow: hidden;
 }
 
 .logo-image {
-  width: 68px;
-  height: 68px;
-  object-fit: contain;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  object-fit: cover;
   filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.18));
 }
 
@@ -1081,6 +1377,39 @@ export default {
 .login-form {
   display: flex;
   flex-direction: column;
+}
+
+.login-method-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  margin: -4px 0 16px;
+  border-radius: 14px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+}
+
+.method-pill {
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.method-pill.active {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow: 0 8px 18px var(--accent-soft);
+}
+
+.method-pill:active {
+  transform: scale(0.98);
 }
 
 .form-item {
@@ -1375,5 +1704,66 @@ export default {
   color: var(--text-3);
   font-size: 11px;
   line-height: 1.6;
+}
+
+.mfa-popup-root {
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+.mfa-popup {
+  padding: 24px 18px 18px;
+  text-align: center;
+}
+
+.mfa-icon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 12px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: 24px;
+}
+
+.mfa-popup h3 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.mfa-popup p {
+  margin: 0 0 16px;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.mfa-input {
+  margin-bottom: 10px;
+  text-align: left;
+}
+
+.mfa-error {
+  margin: 2px 0 12px;
+  color: var(--down);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.mfa-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.mfa-actions :deep(.van-button) {
+  height: 44px;
+  border-radius: 14px;
 }
 </style>

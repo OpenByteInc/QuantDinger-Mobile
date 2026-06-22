@@ -1,7 +1,7 @@
 {
   "name": "quantdinger-mobile",
   "private": true,
-  "version": "1.0.5",
+  "version": "2.0.1",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "scripts": {
@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "cap:sync": "npx cap sync",
+    "cap:assets": "npx @capacitor/assets generate --iconBackgroundColor #111114 --splashBackgroundColor #000000",
     "cap:android": "npx cap open android",
     "cap:ios": "npx cap open ios",
     "build:android": "vite build && npx cap sync android",

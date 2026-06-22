@@ -214,6 +214,8 @@
           <van-field v-model.number="form.entryPct" type="number" :label="$t('indicator_bot.entry_pct')" />
           <van-field v-model.number="form.stopLossPct" type="number" :label="$t('bot_create.stop_loss_pct')" />
           <van-field v-model.number="form.takeProfitPct" type="number" :label="$t('bot_create.take_profit_pct')" />
+          <van-field v-model.number="form.maxPosition" type="number" :label="$t('bot_create.max_position')" />
+          <van-field v-model.number="form.maxDailyLoss" type="number" :label="$t('bot_create.max_daily_loss')" />
           <van-cell :title="$t('indicator_bot.trailing_enabled')">
             <template #right-icon>
               <van-switch v-model="form.trailingEnabled" size="20" />
@@ -240,9 +242,9 @@
           block
           round
           :loading="submitting"
-          :loading-text="$t('bot_create.creating')"
+          :loading-text="isEditMode ? $t('bot_create.updating') : $t('bot_create.creating')"
           @click="submit"
-        >{{ $t('bot_create.submit') }}</van-button>
+        >{{ isEditMode ? $t('bot_create.update') : $t('bot_create.submit') }}</van-button>
       </div>
     </template>
 
@@ -290,6 +292,8 @@ export default {
       paramValues: {},
       loadingParams: false,
       strategyDefaults: {},
+      editId: null,
+      editing: null,
       form: {
         botName: '',
         executionMode: 'live',
@@ -300,12 +304,14 @@ export default {
         leverage: 5,
         direction: 'long',
         initialCapital: 1000,
-        entryPct: 50,
-        stopLossPct: 5,
-        takeProfitPct: 10,
+        entryPct: 100,
+        stopLossPct: 0,
+        takeProfitPct: 0,
+        maxPosition: 1000,
+        maxDailyLoss: 100,
         trailingEnabled: false,
-        trailingStopPct: 1,
-        trailingActivationPct: 2,
+        trailingStopPct: 0,
+        trailingActivationPct: 0,
         commission: 0.05,
         slippage: 0.02,
         enableAiFilter: false
@@ -346,11 +352,21 @@ export default {
     },
     hasStrategyDefaults() {
       return !!this.strategyDefaults && Object.keys(this.strategyDefaults).length > 0
+    },
+    isEditMode() {
+      return !!this.editId
     }
   },
   async mounted() {
     await Promise.all([this.loadIndicators(), this.loadCredentials()])
     const query = this.$route.query || {}
+    if (query.edit) {
+      await this.hydrateFromEditQuery(query.edit)
+      if (!this.form.credentialId && this.credentials.length > 0) {
+        this.form.credentialId = this.credentials[0].id
+      }
+      return
+    }
     const preId = query.indicator_id || query.indicatorId
     const sourceId = query.source_indicator_id || query.sourceIndicatorId
     const preName = query.name
@@ -413,28 +429,34 @@ export default {
       this.selectedIndicator = ind
       this.params = []
       this.paramValues = {}
-      this.strategyDefaults = {}
+      const localDefaults = this.parseStrategyDefaultsFromCode(ind.code || '')
+      this.strategyDefaults = localDefaults
+      this.applyStrategyDefaults(localDefaults)
       this.loadingParams = true
       try {
-        const [paramRes, cfgRes] = await Promise.allSettled([
-          indicatorApi.getParams(ind.id),
-          ind.code ? indicatorApi.parseStrategyConfig(ind.code) : Promise.resolve({ data: {} })
-        ])
-        if (paramRes.status === 'fulfilled') {
-          const list = paramRes.value?.data || []
-          this.params = Array.isArray(list) ? list : []
+        const paramRes = await indicatorApi.getParams(ind.id)
+        const list = paramRes?.data || []
+        this.params = Array.isArray(list) ? list : []
+        this.params.forEach((p) => {
+          const t = (p.type || '').toLowerCase()
+          let dv = p.default
+          if (t === 'bool' || t === 'boolean') dv = !!dv
+          this.paramValues[p.name] = dv ?? ''
+        })
+        if (!this.params.length) {
+          this.params = this.parseIndicatorParamsFromCode(ind.code || '')
           this.params.forEach((p) => {
-            const t = (p.type || '').toLowerCase()
-            let dv = p.default
-            if (t === 'bool' || t === 'boolean') dv = !!dv
-            this.paramValues[p.name] = dv ?? ''
+            this.paramValues[p.name] = p.default ?? ''
           })
         }
-        if (cfgRes.status === 'fulfilled') {
-          const cfg = cfgRes.value?.data?.strategyConfig || {}
-          this.strategyDefaults = cfg
-          this.applyStrategyDefaults(cfg)
-        }
+      } catch {
+        this.params = this.parseIndicatorParamsFromCode(ind.code || '')
+        this.params.forEach((p) => {
+          const t = (p.type || '').toLowerCase()
+          let dv = p.default
+          if (t === 'bool' || t === 'boolean') dv = !!dv
+          this.paramValues[p.name] = dv ?? ''
+        })
       } finally {
         this.loadingParams = false
       }
@@ -444,21 +466,176 @@ export default {
       this.currentStep = 1
       window.scrollTo?.({ top: 0, behavior: 'smooth' })
     },
+    async hydrateFromEditQuery(id) {
+      const editId = Number(id)
+      if (!editId || !Number.isFinite(editId)) return
+      try {
+        const res = await strategyApi.getDetail(editId)
+        const detail = res?.data
+        if (!detail) return
+        this.editId = editId
+        this.editing = detail
+        const tc = detail.trading_config || {}
+        const ec = detail.exchange_config || {}
+        const ic = detail.indicator_config || {}
+        const indicatorId = ic.indicator_id || ic.id
+        let matched = null
+        if (indicatorId) {
+          matched = this.indicators.find((i) => String(i.id) === String(indicatorId))
+        }
+        if (!matched) {
+          matched = {
+            id: indicatorId,
+            name: ic.indicator_name || ic.name || detail.indicator_name || detail.name,
+            code: ic.indicator_code || ic.code || '',
+            description: ic.description || ''
+          }
+        }
+        if (matched?.id) {
+          await this.pickIndicator(matched)
+        }
+        this.form.botName = detail.strategy_name || detail.name || this.form.botName
+        this.form.executionMode = detail.execution_mode || (ec.credential_id ? 'live' : 'signal')
+        if (ec.credential_id != null) this.form.credentialId = ec.credential_id
+        if (tc.symbol) this.form.symbol = tc.symbol
+        if (tc.timeframe) this.form.timeframe = tc.timeframe
+        if (tc.market_type) this.form.marketType = tc.market_type
+        if (tc.leverage) this.form.leverage = Number(tc.leverage) || this.form.leverage
+        if (tc.trade_direction) this.form.direction = tc.trade_direction
+        if (tc.initial_capital) this.form.initialCapital = Number(tc.initial_capital) || this.form.initialCapital
+        this.form.entryPct = pctToUi(tc.entry_pct, this.form.entryPct)
+        this.form.stopLossPct = pctToUi(tc.stop_loss_pct, this.form.stopLossPct)
+        this.form.takeProfitPct = pctToUi(tc.take_profit_pct, this.form.takeProfitPct)
+        if (tc.max_position != null) this.form.maxPosition = Number(tc.max_position) || 0
+        if (tc.max_daily_loss != null) this.form.maxDailyLoss = Number(tc.max_daily_loss) || 0
+        this.form.trailingEnabled = !!tc.trailing_enabled
+        this.form.trailingStopPct = pctToUi(tc.trailing_stop_pct, this.form.trailingStopPct)
+        this.form.trailingActivationPct = pctToUi(tc.trailing_activation_pct, this.form.trailingActivationPct)
+        if (tc.commission != null) this.form.commission = Number(tc.commission) || 0
+        if (tc.slippage != null) this.form.slippage = Number(tc.slippage) || 0
+        this.form.enableAiFilter = !!tc.enable_ai_filter
+        if (tc.indicator_params && typeof tc.indicator_params === 'object') {
+          this.paramValues = { ...this.paramValues, ...tc.indicator_params }
+        }
+        this.currentStep = 1
+      } catch (err) {
+        console.warn('Hydrate indicator strategy failed:', err)
+        showToast({ message: this.$t('bot_create.update_fail'), type: 'fail' })
+      }
+    },
     applyStrategyDefaults(cfg) {
       if (!cfg) return
-      const toPct = (v) => (typeof v === 'number' ? v * 100 : undefined)
+      const risk = cfg.risk || {}
+      const position = cfg.position || {}
+      const trailing = risk.trailing || cfg.trailing || {}
+      const read = (...keys) => {
+        for (const key of keys) {
+          if (key.includes('.')) {
+            const parts = key.split('.')
+            let cur = cfg
+            for (const part of parts) cur = cur && cur[part]
+            if (cur !== undefined && cur !== null) return cur
+          } else if (cfg[key] !== undefined && cfg[key] !== null) {
+            return cfg[key]
+          }
+        }
+        return undefined
+      }
+      const toPct = (v) => {
+        if (v === undefined || v === null || v === '') return undefined
+        const n = Number(v)
+        if (!Number.isFinite(n)) return undefined
+        return n > 1 ? n : n * 100
+      }
       const maybe = (key, value) => {
         if (value === undefined || value === null || Number.isNaN(value)) return
         this.form[key] = value
       }
-      maybe('stopLossPct', toPct(cfg.stopLossPct ?? cfg.stop_loss_pct))
-      maybe('takeProfitPct', toPct(cfg.takeProfitPct ?? cfg.take_profit_pct))
-      maybe('entryPct', toPct(cfg.entryPct ?? cfg.entry_pct))
-      maybe('trailingEnabled', !!(cfg.trailingEnabled ?? cfg.trailing_enabled))
-      maybe('trailingStopPct', toPct(cfg.trailingStopPct ?? cfg.trailing_stop_pct))
-      maybe('trailingActivationPct', toPct(cfg.trailingActivationPct ?? cfg.trailing_activation_pct))
+      maybe('stopLossPct', toPct(read('stopLossPct', 'stop_loss_pct') ?? risk.stopLossPct))
+      maybe('takeProfitPct', toPct(read('takeProfitPct', 'take_profit_pct') ?? risk.takeProfitPct))
+      maybe('entryPct', toPct(read('entryPct', 'entry_pct') ?? position.entryPct))
+      const trailingEnabled = read('trailingEnabled', 'trailing_enabled') ?? trailing.enabled
+      if (trailingEnabled !== undefined) maybe('trailingEnabled', !!trailingEnabled)
+      maybe('trailingStopPct', toPct(read('trailingStopPct', 'trailing_stop_pct') ?? trailing.pct))
+      maybe('trailingActivationPct', toPct(read('trailingActivationPct', 'trailing_activation_pct') ?? trailing.activationPct))
       const dir = cfg.tradeDirection || cfg.trade_direction
       if (dir && ['long', 'short', 'both'].includes(dir)) this.form.direction = dir
+    },
+    parseStrategyAnnotationRaw(code) {
+      const lineRe = /^#\s*@strategy\s+(\w+)\s*:?\s*(\S+)/i
+      const config = {}
+      if (!code) return config
+      for (const rawLine of code.split('\n')) {
+        const line = rawLine.trim()
+        const m = line.match(lineRe)
+        if (m) config[m[1]] = m[2]
+      }
+      return config
+    },
+    parseIndicatorContractHeaders(code) {
+      const pairRe = /\b(signal_form|exit_owner|flip_mode)\s*:?\s*(\S+)/ig
+      const out = {}
+      if (!code) return out
+      for (const rawLine of code.split('\n')) {
+        const line = rawLine.trim()
+        if (!line.startsWith('#')) continue
+        pairRe.lastIndex = 0
+        let m
+        while ((m = pairRe.exec(line.slice(1).trim())) !== null) {
+          const key = String(m[1] || '').toLowerCase()
+          const val = String(m[2] || '').trim()
+          if (key === 'exit_owner') {
+            const owner = val.toLowerCase()
+            if (owner === 'indicator' || owner === 'engine') out.exit_owner = owner
+          } else if (key === 'signal_form') {
+            out.signal_form = val.toLowerCase()
+          } else if (key === 'flip_mode') {
+            out.flip_mode = val.toUpperCase()
+          }
+        }
+      }
+      return out
+    },
+    parseStrategyDefaultsFromCode(code) {
+      const raw = this.parseStrategyAnnotationRaw(code || '')
+      const headers = this.parseIndicatorContractHeaders(code || '')
+      const toFloat = (v) => {
+        const f = parseFloat(v)
+        return Number.isFinite(f) ? f : undefined
+      }
+      const toBool = (v) => ['true', '1', 'yes', 'on'].includes(String(v).toLowerCase())
+      const out = { ...headers }
+      const keys = ['stopLossPct', 'takeProfitPct', 'entryPct', 'trailingStopPct', 'trailingActivationPct']
+      keys.forEach((key) => {
+        if (raw[key] !== undefined) out[key] = toFloat(raw[key])
+      })
+      if (raw.trailingEnabled !== undefined) out.trailingEnabled = toBool(raw.trailingEnabled)
+      if (raw.tradeDirection && ['long', 'short', 'both'].includes(String(raw.tradeDirection).toLowerCase())) {
+        out.tradeDirection = String(raw.tradeDirection).toLowerCase()
+      }
+      return out
+    },
+    parseIndicatorParamsFromCode(code) {
+      if (!code) return []
+      const paramRe = /^\s*#\s*@param\s+(\w+)\s+(int|float|bool|str|string)\s+(\S+)\s*(.*)$/i
+      const list = []
+      for (const rawLine of code.split('\n')) {
+        const m = rawLine.match(paramRe)
+        if (!m) continue
+        const type = m[2].toLowerCase()
+        let def = m[3]
+        if (type === 'int') def = parseInt(def, 10)
+        else if (type === 'float') def = parseFloat(def)
+        else if (type === 'bool') def = ['true', '1', 'yes', 'on'].includes(String(def).toLowerCase())
+        list.push({
+          name: m[1],
+          type,
+          default: def,
+          label: m[1],
+          description: (m[4] || '').trim()
+        })
+      }
+      return list
     },
     paramInputType(p) {
       const t = (p.type || '').toLowerCase()
@@ -544,8 +721,11 @@ export default {
           market_type: marketType,
           margin_mode: 'cross',
           signal_mode: 'confirmed',
+          strict_mode: true,
           stop_loss_pct: pct(this.form.stopLossPct),
           take_profit_pct: pct(this.form.takeProfitPct),
+          max_position: Number(this.form.maxPosition) || 0,
+          max_daily_loss: Number(this.form.maxDailyLoss) || 0,
           entry_pct: pct(this.form.entryPct),
           trailing_enabled: !!this.form.trailingEnabled,
           trailing_stop_pct: pct(this.form.trailingStopPct),
@@ -565,6 +745,8 @@ export default {
       } else {
         payload.trading_config.symbol = symbols[0]
       }
+      const exitOwner = this.strategyDefaults?.exit_owner || this.strategyDefaults?.exitOwner
+      if (exitOwner) payload.trading_config.exit_owner = exitOwner
       return payload
     },
     async submit() {
@@ -582,16 +764,22 @@ export default {
         showToast({ message: this.$t('indicator_bot.symbol_required'), type: 'fail' })
         return
       }
+      if (this.isEditMode && symbols.length > 1) {
+        showToast({ message: this.$t('indicator_bot.edit_single_symbol'), type: 'fail' })
+        return
+      }
 
       this.submitting = true
       try {
         const payload = this.buildPayload(symbols)
-        const res = symbols.length > 1
-          ? await strategyApi.batchCreate(payload)
-          : await strategyApi.create(payload)
-        const msg = symbols.length > 1
-          ? this.$t('indicator_bot.create_success_batch', { count: symbols.length })
-          : this.$t('indicator_bot.create_success')
+        const res = this.isEditMode
+          ? await strategyApi.update(this.editId, payload)
+          : (symbols.length > 1 ? await strategyApi.batchCreate(payload) : await strategyApi.create(payload))
+        const msg = this.isEditMode
+          ? this.$t('bot_create.update_success')
+          : (symbols.length > 1
+              ? this.$t('indicator_bot.create_success_batch', { count: symbols.length })
+              : this.$t('indicator_bot.create_success'))
         showToast({ message: msg, type: 'success' })
         this.$router.replace('/trading')
         return res
@@ -611,6 +799,13 @@ function pct(v) {
   const n = Number(v)
   if (!Number.isFinite(n)) return 0
   return +(n / 100).toFixed(6)
+}
+
+function pctToUi(v, fallback) {
+  if (v === null || v === undefined || v === '') return fallback
+  const n = Number(v)
+  if (!Number.isFinite(n)) return fallback
+  return +(n * 100).toFixed(4)
 }
 </script>
 

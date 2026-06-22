@@ -291,6 +291,14 @@
           @update:model-value="maxDailyLossDirty = true"
         />
         <div class="field-hint">{{ $t('bot_create.max_daily_loss_hint') }}</div>
+        <template v-if="botType === 'grid' || botType === 'dca'">
+          <van-field
+            v-model.number="form.gridOobBufferPct"
+            type="number"
+            :label="$t('bot_create.grid_oob_buffer_pct')"
+          />
+          <div class="field-hint">{{ $t('bot_create.grid_oob_buffer_hint') }}</div>
+        </template>
       </van-cell-group>
     </div>
 
@@ -374,7 +382,7 @@
 
 <script>
 import { showToast } from 'vant'
-import { credentialsApi, strategyApi } from '@/api'
+import { credentialsApi, marketApi, strategyApi } from '@/api'
 import { useCredentialsStore } from '@/stores'
 import { generateBotScript } from './botScriptTemplates'
 import SymbolPicker from '@/components/SymbolPicker.vue'
@@ -387,7 +395,13 @@ const DEFAULT_PARAMS = () => ({
     amountPerGrid: 0,
     gridMode: 'arithmetic',
     gridDirection: 'neutral',
-    orderMode: 'maker'
+    orderMode: 'maker',
+    initialPositionPct: 0,
+    boundaryAction: 'pause',
+    adaptiveBounds: true,
+    adaptiveAtrMult: 2,
+    waterfallProtection: true,
+    waterfallDropPct: 3
   },
   martingale: {
     multiplier: 2,
@@ -395,14 +409,21 @@ const DEFAULT_PARAMS = () => ({
     priceDropPct: 3,
     takeProfitPct: 2,
     stopLossPct: 12,
-    direction: 'long'
+    direction: 'long',
+    trailingTpEnabled: false,
+    trailingTpCallbackPct: 0.8,
+    waterfallProtection: true,
+    waterfallDropPct: 4
   },
   trend: {
     maPeriod: 20,
     maType: 'EMA',
     confirmBars: 2,
     positionPct: 50,
-    direction: 'long'
+    direction: 'long',
+    trailingTpEnabled: false,
+    trailingTpActivationPct: 5,
+    trailingTpCallbackPct: 1
   },
   dca: {
     amountEach: 0,
@@ -436,7 +457,8 @@ export default {
         stopLossPct: 10,
         takeProfitPct: 20,
         maxPosition: 0,
-        maxDailyLoss: 0
+        maxDailyLoss: 0,
+        gridOobBufferPct: 5
       },
       p: DEFAULT_PARAMS(),
       showCredentialPicker: false,
@@ -460,7 +482,7 @@ export default {
       /** maxPosition 是否由用户手动改过（true 时不再自动与 initialCapital 联动） */
       maxPositionDirty: false,
       /** maxDailyLoss 是否由用户手动改过 */
-      maxDailyLossDirty: false
+    maxDailyLossDirty: false
     }
   },
   computed: {
@@ -478,6 +500,12 @@ export default {
     },
     credentialsStore() { return useCredentialsStore() },
     credentials() { return this.credentialsStore.items },
+    currentCredential() {
+      return this.credentials.find((i) => i.id === this.form.credentialId) || null
+    },
+    currentExchangeId() {
+      return String(this.currentCredential?.exchange_id || '').toLowerCase()
+    },
     credentialColumns() {
       // PC parity: show "<name> (<exchange> · <api_key_hint>)" so the
       // user can disambiguate two credentials on the same exchange.
@@ -660,6 +688,7 @@ export default {
   async mounted() {
     await this.loadCredentials()
     this.applyPreset()
+    await this.hydrateFromPresetQuery()
     await this.hydrateFromEditQuery()
     if (!this.form.credentialId && this.credentials.length > 0) {
       this.form.credentialId = this.credentials[0].id
@@ -703,6 +732,72 @@ export default {
       const top = el.getBoundingClientRect().top + window.pageYOffset - 56
       window.scrollTo({ top, behavior: 'smooth' })
     },
+    applyStrategyDetail(detail, { editId = null } = {}) {
+      if (!detail) return
+      if (editId) {
+        this.editId = editId
+        this.editing = detail
+      }
+      const tc = detail.trading_config || {}
+      const ec = detail.exchange_config || {}
+      this.form.botName = detail.strategy_name || detail.name || this.form.botName
+      if (ec.credential_id != null) this.form.credentialId = ec.credential_id
+      if (tc.symbol) this.form.symbol = tc.symbol
+      if (tc.timeframe) this.form.timeframe = tc.timeframe
+      if (tc.market_type) this.form.marketType = tc.market_type
+      if (tc.leverage) this.form.leverage = Number(tc.leverage) || this.form.leverage
+      if (tc.initial_capital) this.form.initialCapital = Number(tc.initial_capital) || this.form.initialCapital
+      if (tc.stop_loss_pct != null) {
+        this.form.stopLossPct = Number(tc.stop_loss_pct) || 0
+      }
+      if (tc.take_profit_pct != null) {
+        this.form.takeProfitPct = Number(tc.take_profit_pct) || 0
+      }
+      if (tc.max_position != null) {
+        this.form.maxPosition = Number(tc.max_position) || 0
+        this.maxPositionDirty = true
+      }
+      if (tc.max_daily_loss != null) {
+        this.form.maxDailyLoss = Number(tc.max_daily_loss) || 0
+        this.maxDailyLossDirty = true
+      }
+      if (tc.grid_oob_buffer_pct != null) {
+        this.form.gridOobBufferPct = Number(tc.grid_oob_buffer_pct) || 0
+      }
+      const inferredType = tc.bot_type || detail.bot_type
+      if (inferredType && DEFAULT_PARAMS()[inferredType]) {
+        this.botType = inferredType
+      }
+      const params = tc.bot_params || {}
+      const target = this.p[this.botType]
+      if (target && params && typeof params === 'object') {
+        Object.entries(params).forEach(([k, v]) => {
+          if (v != null && k in target) target[k] = v
+        })
+      }
+    },
+    async hydrateFromPresetQuery() {
+      if (this.$route.query?.edit) return
+      let presetId = Number(this.$route.query?.preset_strategy_id || this.$route.query?.strategy_id || 0)
+      if ((!presetId || !Number.isFinite(presetId)) && this.$route.query?.source_indicator_id) {
+        try {
+          const res = await marketApi.syncIndicator(this.$route.query.source_indicator_id)
+          presetId = Number(res?.data?.strategy_id || res?.data?.purchased_strategy_id || 0)
+        } catch {
+          presetId = 0
+        }
+      }
+      if (!presetId || !Number.isFinite(presetId)) return
+      try {
+        const res = await strategyApi.getDetail(presetId)
+        const detail = res?.data
+        if (!detail) return
+        this.applyStrategyDetail(detail)
+        this.aiReason = this.$t('bot_create.preset_loaded')
+      } catch (err) {
+        console.warn('Hydrate preset failed:', err)
+      }
+    },
     async hydrateFromEditQuery() {
       const editId = Number(this.$route.query?.edit)
       if (!editId || !Number.isFinite(editId)) return
@@ -710,42 +805,7 @@ export default {
         const res = await strategyApi.getDetail(editId)
         const detail = res?.data
         if (!detail) return
-        this.editId = editId
-        this.editing = detail
-        const tc = detail.trading_config || {}
-        const ec = detail.exchange_config || {}
-        this.form.botName = detail.strategy_name || detail.name || ''
-        if (ec.credential_id != null) this.form.credentialId = ec.credential_id
-        if (tc.symbol) this.form.symbol = tc.symbol
-        if (tc.timeframe) this.form.timeframe = tc.timeframe
-        if (tc.market_type) this.form.marketType = tc.market_type
-        if (tc.leverage) this.form.leverage = Number(tc.leverage) || this.form.leverage
-        if (tc.initial_capital) this.form.initialCapital = Number(tc.initial_capital) || this.form.initialCapital
-        if (tc.stop_loss_pct != null) {
-          this.form.stopLossPct = Number(tc.stop_loss_pct) || 0
-        }
-        if (tc.take_profit_pct != null) {
-          this.form.takeProfitPct = Number(tc.take_profit_pct) || 0
-        }
-        if (tc.max_position != null) {
-          this.form.maxPosition = Number(tc.max_position) || 0
-          this.maxPositionDirty = true
-        }
-        if (tc.max_daily_loss != null) {
-          this.form.maxDailyLoss = Number(tc.max_daily_loss) || 0
-          this.maxDailyLossDirty = true
-        }
-        const inferredType = tc.bot_type || detail.bot_type
-        if (inferredType && DEFAULT_PARAMS()[inferredType]) {
-          this.botType = inferredType
-        }
-        const params = tc.bot_params || {}
-        const target = this.p[this.botType]
-        if (target && params && typeof params === 'object') {
-          Object.entries(params).forEach(([k, v]) => {
-            if (v != null && k in target) target[k] = v
-          })
-        }
+        this.applyStrategyDetail(detail, { editId })
       } catch (err) {
         console.warn('Hydrate edit failed:', err)
       }
@@ -798,6 +858,7 @@ export default {
         }
       }
       if (!parsed) return
+      parsed = this.normalizeIncomingPreset(parsed)
 
       if (parsed.botType && DEFAULT_PARAMS()[parsed.botType]) {
         this.botType = parsed.botType
@@ -821,6 +882,7 @@ export default {
         this.form.maxDailyLoss = Number(risk.maxDailyLoss) || 0
         this.maxDailyLossDirty = true
       }
+      if (risk.gridOobBufferPct != null) this.form.gridOobBufferPct = Number(risk.gridOobBufferPct) || 0
       const sp = parsed.strategyParams || {}
       const target = this.p[this.botType]
       if (target && sp && typeof sp === 'object') {
@@ -859,6 +921,140 @@ export default {
         this.p.martingale.direction = 'long'
         this.p.trend.direction = 'long'
       }
+    },
+    normalizeIncomingPreset(raw) {
+      const source = raw || {}
+      const baseRaw = source.baseConfig || source.base_config || {}
+      const tc = source.trading_config || {}
+      const botType = this.normalizeBotType(
+        source.botType || source.bot_type || source.strategy_bot_type || tc.bot_type || 'grid'
+      )
+      const paramsRaw =
+        source.strategyParams ||
+        source.strategy_params ||
+        source.bot_params ||
+        tc.bot_params ||
+        source.params ||
+        {}
+      const riskRaw = source.riskConfig || source.risk_config || tc || {}
+      return {
+        botType,
+        botName: source.botName || source.strategyName || source.strategy_name || '',
+        reason: source.reason || source.analysis || source.ai_reason || source.summary || '',
+        baseConfig: {
+          symbol: baseRaw.symbol || source.symbol || tc.symbol || '',
+          timeframe: baseRaw.timeframe || source.timeframe || tc.timeframe || '',
+          marketType: baseRaw.marketType || baseRaw.market_type || source.marketType || source.market_type || tc.market_type || '',
+          leverage: baseRaw.leverage || source.leverage || tc.leverage,
+          initialCapital: baseRaw.initialCapital || baseRaw.initial_capital || source.initialCapital || source.initial_capital || tc.initial_capital
+        },
+        strategyParams: this.normalizeBotParams(botType, paramsRaw),
+        riskConfig: this.normalizeRiskConfig(riskRaw)
+      }
+    },
+    normalizeBotType(value) {
+      const raw = String(value || '').trim().toLowerCase()
+      const map = {
+        grid_bot: 'grid',
+        grid: 'grid',
+        martingale_bot: 'martingale',
+        martin: 'martingale',
+        martingale: 'martingale',
+        trend_bot: 'trend',
+        trend: 'trend',
+        trend_following: 'trend',
+        dca_bot: 'dca',
+        dca: 'dca'
+      }
+      return map[raw] || (DEFAULT_PARAMS()[raw] ? raw : 'grid')
+    },
+    normalizeRiskConfig(raw) {
+      const src = raw || {}
+      const aliases = {
+        stop_loss_pct: 'stopLossPct',
+        take_profit_pct: 'takeProfitPct',
+        max_position: 'maxPosition',
+        max_daily_loss: 'maxDailyLoss',
+        grid_oob_buffer_pct: 'gridOobBufferPct'
+      }
+      return this.normalizeKeys(src, aliases)
+    },
+    normalizeBotParams(type, raw) {
+      const aliases = {
+        upper_price: 'upperPrice',
+        lower_price: 'lowerPrice',
+        grid_count: 'gridCount',
+        amount_per_grid: 'amountPerGrid',
+        grid_mode: 'gridMode',
+        grid_direction: 'gridDirection',
+        order_mode: 'orderMode',
+        initial_position_pct: 'initialPositionPct',
+        boundary_action: 'boundaryAction',
+        adaptive_bounds: 'adaptiveBounds',
+        adaptive_atr_mult: 'adaptiveAtrMult',
+        waterfall_protection: 'waterfallProtection',
+        waterfall_drop_pct: 'waterfallDropPct',
+        initial_amount: 'initialAmount',
+        max_layers: 'maxLayers',
+        price_drop_pct: 'priceDropPct',
+        take_profit_pct: 'takeProfitPct',
+        stop_loss_pct: 'stopLossPct',
+        trailing_tp_enabled: 'trailingTpEnabled',
+        trailing_tp_activation_pct: 'trailingTpActivationPct',
+        trailing_tp_callback_pct: 'trailingTpCallbackPct',
+        ma_period: 'maPeriod',
+        ma_type: 'maType',
+        confirm_bars: 'confirmBars',
+        position_pct: 'positionPct',
+        amount_each: 'amountEach',
+        total_budget: 'totalBudget',
+        dip_buy_enabled: 'dipBuyEnabled',
+        dip_threshold: 'dipThreshold'
+      }
+      const normalized = this.normalizeKeys(raw || {}, aliases)
+      if (normalized.waterfallDropPct != null && normalized.waterfallDropPct !== '') {
+        normalized.waterfallDropPct = this.ratioOrPercentToUiPercent(normalized.waterfallDropPct)
+      }
+      const defaults = DEFAULT_PARAMS()[type] || {}
+      const out = {}
+      Object.keys(defaults).forEach((key) => {
+        if (normalized[key] != null) out[key] = normalized[key]
+      })
+      return out
+    },
+    normalizeKeys(raw, aliases) {
+      const out = {}
+      Object.entries(raw || {}).forEach(([key, val]) => {
+        const mapped = aliases[key] || key
+        out[mapped] = this.normalizeValue(mapped, val)
+      })
+      return out
+    },
+    normalizeValue(key, val) {
+      if (['adaptiveBounds', 'waterfallProtection', 'trailingTpEnabled', 'dipBuyEnabled'].includes(key)) {
+        if (typeof val === 'boolean') return val
+        return ['true', '1', 'yes', 'on'].includes(String(val).toLowerCase())
+      }
+      if (val === '' || val == null) return val
+      const numericKeys = [
+        'upperPrice', 'lowerPrice', 'gridCount', 'amountPerGrid', 'initialPositionPct',
+        'adaptiveAtrMult', 'waterfallDropPct', 'multiplier', 'maxLayers', 'priceDropPct',
+        'takeProfitPct', 'stopLossPct', 'trailingTpActivationPct', 'trailingTpCallbackPct',
+        'maPeriod', 'confirmBars', 'positionPct', 'amountEach', 'totalBudget', 'dipThreshold',
+        'stopLossPct', 'takeProfitPct', 'maxPosition', 'maxDailyLoss', 'gridOobBufferPct',
+        'leverage', 'initialCapital'
+      ]
+      if (numericKeys.includes(key)) {
+        const n = Number(val)
+        return Number.isFinite(n) ? n : val
+      }
+      return val
+    },
+    ratioOrPercentToUiPercent(value) {
+      const n = Number(value)
+      if (!Number.isFinite(n)) return value
+      if (n > 0 && n <= 1) return +(n * 100).toFixed(4)
+      return n
     },
     onTypeChange(val) {
       if (this.aiStrategyCode) return
@@ -900,7 +1096,7 @@ export default {
     },
     buildPayload() {
       const capital = Number(this.form.initialCapital) || 0
-      const sp = { ...this.p[this.botType] }
+      const sp = this.normalizeBotParams(this.botType, { ...this.p[this.botType] })
       const scriptParams = { ...sp }
       if (capital > 0) scriptParams._initialCapital = capital
 
@@ -938,7 +1134,8 @@ export default {
         market_category: 'Crypto',
         execution_mode: 'live',
         exchange_config: {
-          credential_id: this.form.credentialId
+          credential_id: this.form.credentialId,
+          exchange_id: this.currentExchangeId
         },
         trading_config: {
           symbol: this.form.symbol,
@@ -953,6 +1150,9 @@ export default {
           max_daily_loss: this.form.maxDailyLoss || 0,
           bot_type: this.botType,
           bot_params: sp,
+          ...((this.botType === 'grid' || this.botType === 'dca')
+            ? { grid_oob_buffer_pct: this.form.gridOobBufferPct ?? 5 }
+            : {}),
           order_mode: orderMode,
           entry_trigger_mode: 'immediate'
         },

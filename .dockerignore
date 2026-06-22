@@ -1,0 +1,44 @@
+# Dependencies and build output
+node_modules/
+dist/
+build/
+
+# Native app projects and signing material are not needed for the web image.
+android/
+ios/
+signing/
+resources/
+.capacitor/
+.capacitor.local.json
+
+# Local caches and generated files
+.cache/
+auto-imports.d.ts
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Local env files
+.env
+.env.local
+.env.*.local
+
+# Git and CI files
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Editor / OS junk
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Test output
+coverage/
+.nyc_output/

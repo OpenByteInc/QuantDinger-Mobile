@@ -25,6 +25,10 @@
         <van-icon name="chart-trending-o" />
         <span>{{ $t('watchlist.tap_to_select') }}</span>
       </div>
+      <div v-if="form.symbol" class="price-strip">
+        <span>{{ normalizeQuickTradeSymbol(form.symbol) }}</span>
+        <strong>{{ formatPrice(currentPrice) }}</strong>
+      </div>
     </div>
 
     <div class="panel-card">
@@ -47,14 +51,19 @@
       </div>
       <div class="balance-card">
         <div>
-          <span class="balance-label">{{ $t('quick_trade.available') }}</span>
-          <p class="balance-value">{{ formatNumber(balance?.available) }} {{ balance?.currency || 'USDT' }}</p>
+          <span class="balance-label">{{ isSwapMode ? $t('quick_trade.swap_available') : $t('quick_trade.spot_available') }}</span>
+          <p class="balance-value">{{ formatNumber(activeBalanceAvailable) }} {{ balance?.currency || 'USDT' }}</p>
         </div>
         <div class="balance-side">
           <span class="balance-label">{{ $t('quick_trade.total') }}</span>
           <p class="balance-sub">{{ formatNumber(balance?.total) }}</p>
         </div>
       </div>
+      <div class="balance-legs">
+        <span>{{ $t('quick_trade.swap_available') }} {{ formatNumber(swapBalanceAvailable) }}</span>
+        <span>{{ $t('quick_trade.spot_available') }} {{ formatNumber(spotBalanceAvailable) }}</span>
+      </div>
+      <p v-if="balanceErrorMessage" class="balance-error">{{ balanceErrorMessage }}</p>
       <van-button block plain @click="refreshTradeData">{{ $t('quick_trade.refresh_balance') }}</van-button>
     </div>
 
@@ -72,6 +81,17 @@
         type="number"
         :placeholder="$t('quick_trade.amount_placeholder')"
       />
+      <div class="quick-amounts">
+        <button
+          v-for="pct in quickAmountPcts"
+          :key="pct"
+          type="button"
+          :disabled="activeBalanceAvailable <= 0"
+          @click="setAmountByPercent(pct)"
+        >
+          {{ pct }}%
+        </button>
+      </div>
       <van-field
         v-if="form.order_type === 'limit'"
         v-model="form.price"
@@ -86,6 +106,30 @@
         type="number"
         :placeholder="$t('quick_trade.leverage_placeholder')"
       />
+      <div v-if="isSwapMode" class="market-toggle compact">
+        <span
+          v-for="item in marginModeOptions"
+          :key="item.value"
+          :class="['toggle-item', { active: form.margin_mode === item.value }]"
+          @click="form.margin_mode = item.value"
+        >
+          {{ item.label }}
+        </span>
+      </div>
+      <div class="tpsl-grid">
+        <van-field
+          v-model="form.tp_price"
+          :label="$t('quick_trade.tp_price')"
+          type="number"
+          :placeholder="$t('quick_trade.optional_price')"
+        />
+        <van-field
+          v-model="form.sl_price"
+          :label="$t('quick_trade.sl_price')"
+          type="number"
+          :placeholder="$t('quick_trade.optional_price')"
+        />
+      </div>
       <div class="market-toggle compact">
         <span
           v-for="item in orderTypeOptions"
@@ -96,20 +140,31 @@
           {{ item.label }}
         </span>
       </div>
-      <div class="action-row">
+      <div :class="['action-row', { single: !isSwapMode }]">
         <van-button type="success" block :loading="submitting" @click="submitOrder('buy')">
-          {{ $t('quick_trade.buy') }}
+          {{ isSwapMode ? $t('quick_trade.buy_long') : $t('quick_trade.buy') }}
         </van-button>
-        <van-button type="danger" block :loading="submitting" @click="submitOrder('sell')">
-          {{ $t('quick_trade.sell') }}
+        <van-button v-if="isSwapMode" type="danger" block :loading="submitting" @click="submitOrder('sell')">
+          {{ $t('quick_trade.sell_short') }}
         </van-button>
       </div>
+      <p v-if="!isSwapMode" class="mode-hint">{{ $t('quick_trade.spot_buy_only_hint') }}</p>
     </div>
 
     <div class="panel-card">
       <div class="section-head">
         <span class="panel-title">{{ $t('quick_trade.positions') }}</span>
         <span class="helper-text">{{ $t('quick_trade.positions_tip') }}</span>
+      </div>
+      <div v-if="isSwapMode && positions.length" class="market-toggle compact close-scope-toggle">
+        <span
+          v-for="item in closeScopeOptions"
+          :key="item.value"
+          :class="['toggle-item', { active: closeScope === item.value }]"
+          @click="closeScope = item.value"
+        >
+          {{ item.label }}
+        </span>
       </div>
       <div v-if="positions.length" class="list-wrap">
         <div v-for="position in positions" :key="position.symbol + position.side" class="list-row">
@@ -169,7 +224,7 @@
 
 <script>
 import { showConfirmDialog, showToast } from 'vant'
-import { credentialsApi, quickTradeApi, watchlistApi } from '@/api'
+import { credentialsApi, klineApi, quickTradeApi, watchlistApi } from '@/api'
 import { useCredentialsStore, useQuickTradeStore, useWatchlistStore } from '@/stores'
 import KlineChart from '@/components/KlineChart.vue'
 import SymbolPicker from '@/components/SymbolPicker.vue'
@@ -184,12 +239,19 @@ export default {
       showCredentialPicker: false,
       showSymbolPicker: false,
       submitting: false,
+      currentPrice: 0,
+      closeScope: 'full',
+      pollTimer: null,
+      quickAmountPcts: [10, 25, 50, 75, 100],
       form: {
         symbol: '',
         amount: '',
         price: '',
-        leverage: '1',
-        order_type: 'market'
+        leverage: '5',
+        order_type: 'market',
+        margin_mode: 'cross',
+        tp_price: '',
+        sl_price: ''
       }
     }
   },
@@ -205,6 +267,18 @@ export default {
       return [
         { label: this.$t('quick_trade.order_market'), value: 'market' },
         { label: this.$t('quick_trade.order_limit'), value: 'limit' }
+      ]
+    },
+    marginModeOptions() {
+      return [
+        { label: this.$t('quick_trade.cross_margin'), value: 'cross' },
+        { label: this.$t('quick_trade.isolated_margin'), value: 'isolated' }
+      ]
+    },
+    closeScopeOptions() {
+      return [
+        { label: this.$t('quick_trade.close_scope_full'), value: 'full' },
+        { label: this.$t('quick_trade.close_scope_system'), value: 'system_tracked' }
       ]
     },
     credentialsStore() {
@@ -230,6 +304,27 @@ export default {
     },
     balance() {
       return this.quickTradeStore.balance
+    },
+    isSwapMode() {
+      return this.marketType === 'swap'
+    },
+    swapBalanceAvailable() {
+      return Number(this.balance?.swap?.available ?? (this.isSwapMode ? this.balance?.available : 0) ?? 0)
+    },
+    spotBalanceAvailable() {
+      return Number(this.balance?.spot?.available ?? (!this.isSwapMode ? this.balance?.available : 0) ?? 0)
+    },
+    activeBalanceAvailable() {
+      return this.isSwapMode ? this.swapBalanceAvailable : this.spotBalanceAvailable
+    },
+    balanceErrorMessage() {
+      const err = this.balance?.error || ''
+      if (!err) return ''
+      if (this.balance?.error_hint_key) {
+        const translated = this.$te?.(this.balance.error_hint_key) ? this.$t(this.balance.error_hint_key) : ''
+        if (translated) return translated
+      }
+      return String(err).length > 120 ? `${String(err).slice(0, 120)}...` : String(err)
     },
     positions() {
       return this.quickTradeStore.positions
@@ -261,6 +356,12 @@ export default {
     },
     marketType() {
       this.refreshTradeData()
+    },
+    'form.symbol'(value) {
+      if (value) {
+        this.loadPrice()
+        this.refreshTradeData()
+      }
     }
   },
 
@@ -270,6 +371,15 @@ export default {
 
   activated() {
     this.loadWatchlist()
+    this.startPolling()
+  },
+
+  deactivated() {
+    this.stopPolling()
+  },
+
+  beforeUnmount() {
+    this.stopPolling()
   },
 
   methods: {
@@ -294,6 +404,10 @@ export default {
         if (!this.selectedCredentialId && this.credentials.length) {
           this.quickTradeStore.setSelectedCredential(this.credentials[0].id)
         }
+        if (this.form.symbol) {
+          await this.loadPrice()
+        }
+        this.startPolling()
       } catch (error) {
         console.error('Bootstrap quick trade failed:', error)
       }
@@ -322,6 +436,25 @@ export default {
       this.watchlistStore.setActive(item.symbol, item.market || 'Crypto')
     },
 
+    async loadPrice() {
+      if (!this.form.symbol) {
+        this.currentPrice = 0
+        return
+      }
+      try {
+        const res = await klineApi.getPrice({ market: 'Crypto', symbol: this.normalizeQuickTradeSymbol(this.form.symbol) })
+        const price = Number(res.data?.price || res.data?.last || res.data?.close || 0)
+        if (price > 0) {
+          this.currentPrice = price
+          if (!Number(this.form.price)) {
+            this.form.price = String(price)
+          }
+        }
+      } catch (error) {
+        console.warn('Load quick trade price failed:', error)
+      }
+    },
+
     shortSymbol(symbol) {
       if (!symbol) return ''
       const s = this.normalizeQuickTradeSymbol(symbol)
@@ -329,7 +462,7 @@ export default {
       return s.replace('USDT', '').replace('USD', '')
     },
 
-    /** API 需要 BTC/USDT；持仓列表可能显示为 BTC/USDT-SWAP（OKX instId 解析） */
+    /** The API expects BTC/USDT while some exchange position IDs may include BTC/USDT-SWAP. */
     normalizeQuickTradeSymbol(symbol) {
       let s = String(symbol || '').trim()
       if (!s) return ''
@@ -356,6 +489,9 @@ export default {
       this.quickTradeStore.setMarketType(value)
       if (value === 'spot') {
         this.form.leverage = '1'
+        this.closeScope = 'full'
+      } else if (value === 'swap' && Number(this.form.leverage || 1) <= 1) {
+        this.form.leverage = '5'
       }
     },
 
@@ -383,7 +519,7 @@ export default {
         if (this.form.symbol.trim()) {
           tasks.push(quickTradeApi.getPosition({
             credentialId: this.selectedCredentialId,
-            symbol: this.form.symbol.trim(),
+            symbol: this.normalizeQuickTradeSymbol(this.form.symbol),
             marketType: this.marketType
           }))
         }
@@ -393,6 +529,14 @@ export default {
         this.quickTradeStore.setPositions(positionRes?.status === 'fulfilled' ? (positionRes.value.data || []) : [])
       } catch (error) {
         console.error('Refresh quick trade data failed:', error)
+      }
+    },
+
+    async loadPositionWithRetry(maxRetries = 3, delayMs = 1800) {
+      for (let i = 0; i < maxRetries; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
+        await this.refreshTradeData()
+        if (this.positions.length) return
       }
     },
 
@@ -418,22 +562,30 @@ export default {
 
     async submitOrder(side) {
       if (!this.validateOrder()) return
+      if (!this.isSwapMode && side === 'sell') {
+        showToast({ message: this.$t('quick_trade.short_disabled_spot'), type: 'fail' })
+        return
+      }
       this.submitting = true
       try {
         await quickTradeApi.placeOrder({
           credential_id: this.selectedCredentialId,
-          symbol: this.form.symbol.trim(),
+          symbol: this.normalizeQuickTradeSymbol(this.form.symbol),
           side,
           order_type: this.form.order_type,
           amount: Number(this.form.amount),
-          price: Number(this.form.price || 0),
-          leverage: this.marketType === 'swap' ? Number(this.form.leverage || 1) : 1,
+          price: this.form.order_type === 'limit' ? Number(this.form.price || 0) : 0,
+          leverage: this.isSwapMode ? Number(this.form.leverage || 1) : 1,
           market_type: this.marketType,
+          margin_mode: this.isSwapMode ? this.form.margin_mode : undefined,
+          tp_price: Number(this.form.tp_price || 0),
+          sl_price: Number(this.form.sl_price || 0),
           source: 'manual'
         })
         const sideLabel = side === 'buy' ? this.$t('quick_trade.side_buy') : this.$t('quick_trade.side_sell')
         showToast({ message: this.$t('quick_trade.place_success', { side: sideLabel }), type: 'success' })
         await this.refreshTradeData()
+        await this.loadPositionWithRetry()
       } catch (error) {
         console.error('Submit quick trade failed:', error)
       } finally {
@@ -454,6 +606,7 @@ export default {
           credential_id: this.selectedCredentialId,
           symbol: this.normalizeQuickTradeSymbol(this.form.symbol || position.symbol),
           market_type: this.marketType,
+          close_scope: this.isSwapMode ? this.closeScope : 'full',
           position_side: position.side,
           source: 'manual'
         })
@@ -485,8 +638,23 @@ export default {
       return map[value] || (value || '-')
     },
 
+    setAmountByPercent(pct) {
+      const available = Number(this.activeBalanceAvailable || 0)
+      if (available <= 0) return
+      this.form.amount = String(Math.floor((available * pct / 100) * 100) / 100)
+    },
+
     formatNumber(value) {
       return Number(value || 0).toFixed(2)
+    },
+
+    formatPrice(value) {
+      const num = Number(value || 0)
+      if (!num) return '--'
+      if (Math.abs(num) >= 10000) return num.toLocaleString('en-US', { maximumFractionDigits: 0 })
+      if (Math.abs(num) >= 100) return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      if (Math.abs(num) >= 1) return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
+      return num.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 6 })
     },
 
     formatSigned(value) {
@@ -499,6 +667,21 @@ export default {
       const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value)
       if (Number.isNaN(date.getTime())) return '-'
       return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+    },
+
+    startPolling() {
+      this.stopPolling()
+      this.pollTimer = setInterval(() => {
+        if (this.form.symbol) this.loadPrice()
+        if (this.selectedCredentialId) this.refreshTradeData()
+      }, 10000)
+    },
+
+    stopPolling() {
+      if (this.pollTimer) {
+        clearInterval(this.pollTimer)
+        this.pollTimer = null
+      }
     }
   }
 }
@@ -514,6 +697,7 @@ export default {
 
 .watchlist-bar {
   margin-bottom: 12px;
+  padding-left: 54px;
   overflow: hidden;
 }
 .watchlist-scroll {
@@ -521,12 +705,15 @@ export default {
   gap: 8px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 2px 2px 6px;
+  min-height: 42px;
+  align-items: center;
+  padding: 0 2px 6px;
   scrollbar-width: none;
 }
 .watchlist-scroll::-webkit-scrollbar { display: none; }
 .wl-chip {
   flex-shrink: 0;
+  min-width: 56px;
   padding: 7px 13px;
   border-radius: 999px;
   font-size: 12px;
@@ -545,6 +732,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 38px;
   padding: 7px 10px;
   color: var(--accent);
   background: var(--accent-soft);
@@ -553,6 +741,25 @@ export default {
 
 .chart-wrap {
   margin-bottom: 14px;
+}
+
+.price-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.price-strip strong {
+  color: var(--text);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
 }
 .chart-placeholder {
   padding: 32px 16px;
@@ -621,6 +828,38 @@ export default {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
+.quick-amounts {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0 0 12px;
+}
+
+.quick-amounts button {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 7px 0;
+  color: var(--text-2);
+  background: var(--surface-raised);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.quick-amounts button:disabled {
+  opacity: 0.45;
+}
+
+.tpsl-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tpsl-grid :deep(.van-cell) {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
 .balance-card {
   position: relative;
   display: flex;
@@ -642,6 +881,27 @@ export default {
   background: radial-gradient(240px 160px at 0% 0%, var(--c-amber-soft), transparent 60%);
 }
 .balance-card > * { position: relative; }
+
+.balance-legs {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -6px 0 10px;
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.balance-error,
+.mode-hint {
+  margin: 8px 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--down);
+}
+
+.mode-hint {
+  color: var(--text-3);
+}
 
 .quick-trade-page :deep(.van-cell) {
   background: transparent;
@@ -687,6 +947,10 @@ export default {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 6px;
+}
+
+.action-row.single {
+  grid-template-columns: 1fr;
 }
 
 .action-row :deep(.van-button) {

@@ -1,28 +1,23 @@
 <template>
   <div class="home-page">
-    <!-- iOS Large-Title Nav -->
-    <div class="nav-header">
-      <div class="nav-row">
-        <div class="greeting-block">
-          <span class="greeting-time">{{ greetingText }}</span>
-          <span class="greeting-name">{{ displayName }}</span>
-        </div>
-        <div class="nav-actions">
-          <div class="nav-pill" @click="$router.push('/profile/notifications')">
-            <van-icon name="bell" />
-            <span v-if="unreadCount > 0" class="dot">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
-          </div>
-          <div class="nav-avatar" @click="$router.push('/profile')">
-            <img :src="avatarUrl" alt="avatar" referrerpolicy="no-referrer" @error="onAvatarError" />
-          </div>
+    <div class="dashboard-header">
+      <div class="header-copy">
+        <h1>{{ $t('home.data_center_title') }}</h1>
+      </div>
+      <div class="nav-actions">
+        <div class="nav-pill" @click="$router.push('/profile/notifications')">
+          <van-icon name="bell" />
+          <span v-if="unreadCount > 0" class="dot">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
         </div>
       </div>
     </div>
 
-    <!-- Asset Hero -->
     <div class="asset-hero" @click="refreshData">
       <div class="asset-top">
-        <span class="asset-label">{{ $t('home.total_assets') }}</span>
+        <div>
+          <span class="asset-label">{{ $t('home.total_assets') }}</span>
+          <p class="asset-note">{{ $t('home.asset_note') }}</p>
+        </div>
         <div class="eye-btn" @click.stop="showAsset = !showAsset">
           <van-icon :name="showAsset ? 'eye-o' : 'closed-eye'" />
         </div>
@@ -36,67 +31,51 @@
         {{ showAsset ? formatSignedMoney(totalPnl) : '••••' }}
         <span class="pnl-label">{{ $t('home.total_pnl') }}</span>
       </div>
-    </div>
-
-    <!-- Credentials setup prompt -->
-    <div v-if="!hasCredentials" class="setup-card" @click="$router.push('/profile/credentials/new')">
-      <div class="setup-icon"><van-icon name="shield-o" /></div>
-      <div class="setup-text">
-        <span class="setup-title">{{ $t('home.setup_title') }}</span>
-        <p class="setup-desc">{{ $t('home.setup_desc') }}</p>
+      <div class="asset-mini-grid">
+        <div>
+          <span>{{ $t('home.kpi_today_pnl') }}</span>
+          <strong :class="todayPnl >= 0 ? 'up' : 'down'">{{ formatSignedMoney(todayPnl) }}</strong>
+        </div>
+        <div>
+          <span>{{ $t('home.kpi_positions') }}</span>
+          <strong>{{ positionsCount }}</strong>
+        </div>
+        <div>
+          <span>{{ $t('home.status_running') }}</span>
+          <strong class="up">{{ strategyCounts.running }}</strong>
+        </div>
       </div>
-      <van-icon class="setup-arrow" name="arrow" />
     </div>
 
-    <!-- iOS app-icon grid quick actions (FIRST row for fast access) -->
+    <div class="overview-strip">
+      <div class="overview-card">
+        <div class="overview-icon green"><van-icon name="play-circle-o" /></div>
+        <span>{{ $t('home.status_running') }}</span>
+        <strong>{{ strategyCounts.running }}</strong>
+      </div>
+      <div class="overview-card">
+        <div class="overview-icon blue"><van-icon name="apps-o" /></div>
+        <span>{{ $t('home.total_strategies') }}</span>
+        <strong>{{ strategyCounts.total }}</strong>
+      </div>
+      <div class="overview-card">
+        <div class="overview-icon purple"><van-icon name="bar-chart-o" /></div>
+        <span>{{ $t('home.kpi_trades') }}</span>
+        <strong>{{ totalTrades }}</strong>
+      </div>
+      <div class="overview-card">
+        <div class="overview-icon amber"><van-icon name="warning-o" /></div>
+        <span>{{ $t('home.status_error') }}</span>
+        <strong>{{ strategyCounts.error }}</strong>
+      </div>
+    </div>
+
     <div class="ios-section">
-      <div class="ios-section-head">
-        <span class="ios-section-title">{{ $t('home.one_click') }}</span>
-      </div>
-      <div class="app-grid">
-        <div class="app-tile" @click="$router.push('/trading/create')">
-          <div class="app-icon primary"><van-icon name="plus" /></div>
-          <span>{{ $t('home.create_bot') }}</span>
+      <div class="section-head">
+        <div>
+          <span class="ios-section-title">{{ $t('home.live_overview') }}</span>
+          <small>{{ $t('home.performance_chart_note') }}</small>
         </div>
-        <div class="app-tile" @click="$router.push('/ai-analysis')">
-          <div class="app-icon crimson"><van-icon name="fire-o" /></div>
-          <span>{{ $t('home.ai_analysis') }}</span>
-        </div>
-        <div class="app-tile" @click="$router.push('/market')">
-          <div class="app-icon indigo"><van-icon name="bar-chart-o" /></div>
-          <span>{{ $t('home.indicator_market') }}</span>
-        </div>
-        <div class="app-tile" @click="$router.push('/quick-trade')">
-          <div class="app-icon green"><van-icon name="exchange" /></div>
-          <span>{{ $t('home.quick_trade') }}</span>
-        </div>
-        <div class="app-tile" @click="$router.push('/profile/credentials')">
-          <div class="app-icon blue"><van-icon name="shield-o" /></div>
-          <span>{{ $t('home.credential_manage') }}</span>
-        </div>
-        <div class="app-tile" @click="$router.push('/market/my-purchases')">
-          <div class="app-icon teal"><van-icon name="bag-o" /></div>
-          <span>{{ $t('market.my_purchases') }}</span>
-        </div>
-        <div class="app-tile" @click="$router.push('/profile/referral')">
-          <div class="app-icon pink"><van-icon name="friends-o" /></div>
-          <span>{{ $t('profile.referral') }}</span>
-        </div>
-        <div class="app-tile" @click="$router.push('/profile/credits')">
-          <div class="app-icon gold"><van-icon name="gold-coin-o" /></div>
-          <span>{{ $t('profile.credits') }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Live trading overview KPIs (PC parity) -->
-    <div class="ios-section">
-      <div class="ios-section-head">
-        <span class="ios-section-title">{{ $t('home.live_overview') }}</span>
-        <span class="ios-section-action" @click="$router.push('/trading')">
-          {{ $t('common.view_all') }}
-          <van-icon name="arrow" />
-        </span>
       </div>
       <div class="kpi-grid">
         <div class="kpi-cell">
@@ -126,84 +105,110 @@
       </div>
     </div>
 
-    <!-- Watchlist -->
     <div class="ios-section">
-      <div class="ios-section-head">
-        <span class="ios-section-title">{{ $t('home.watchlist') }}</span>
-        <span class="ios-section-action" @click="openWatchlistPicker">
-          {{ $t('home.watchlist_manage') }}
-          <van-icon name="arrow" />
-        </span>
+      <div class="section-head">
+        <div>
+          <span class="ios-section-title">{{ $t('home.pnl_trend') }}</span>
+          <small>{{ $t('home.pnl_trend_note') }}</small>
+        </div>
       </div>
-      <div v-if="watchlistItems.length" class="watchlist-strip">
-        <div
-          v-for="item in watchlistItems"
-          :key="`${item.market}-${item.symbol}`"
-          class="wl-card"
-          @click="openWatchlistItem(item)"
-        >
-          <div class="wl-head">
-            <span class="wl-sym">{{ shortSymbol(item.symbol) }}</span>
-            <span class="wl-market">{{ item.market || 'Crypto' }}</span>
+      <div class="chart-card">
+        <div v-if="pnlBars.length" class="pnl-bars">
+          <div v-for="bar in pnlBars" :key="bar.date" class="pnl-bar-cell">
+            <span
+              :class="['pnl-bar', bar.value >= 0 ? 'up' : 'down']"
+              :style="{ height: `${bar.height}px` }"
+            />
+            <small>{{ bar.label }}</small>
           </div>
-          <span class="wl-price">{{ formatPrice(priceMap[priceKey(item)]?.price) }}</span>
-          <span
-            v-if="priceMap[priceKey(item)]"
-            :class="['wl-change', (priceMap[priceKey(item)]?.changePercent || 0) >= 0 ? 'up' : 'down']"
-          >
-            {{ formatChangePct(priceMap[priceKey(item)]?.changePercent) }}
-          </span>
-          <span v-else class="wl-change muted">--</span>
         </div>
-        <div class="wl-card add-card" @click="openWatchlistPicker">
-          <van-icon name="plus" />
-          <span>{{ $t('home.watchlist_add') }}</span>
-        </div>
-      </div>
-      <div v-else class="watchlist-empty" @click="openWatchlistPicker">
-        <van-icon name="bookmark-o" />
-        <div class="we-copy">
-          <span class="we-title">{{ $t('home.watchlist_empty_title') }}</span>
-          <span class="we-desc">{{ $t('home.watchlist_empty_desc') }}</span>
-        </div>
-        <van-icon class="we-arrow" name="arrow" />
+        <div v-else class="data-empty compact">{{ $t('home.no_dashboard_data') }}</div>
       </div>
     </div>
 
-    <!-- Symbol picker popup for watchlist management -->
-    <SymbolPicker
-      v-model:show="showSymbolPicker"
-      :title="$t('watchlist.picker_title')"
-      @pick="onSymbolPicked"
-      @close="onSymbolPickerClose"
-    />
-
-    <!-- Strategy stat widget -->
     <div class="ios-section">
-      <div class="ios-section-head">
-        <span class="ios-section-title">{{ $t('home.strategy_status') }}</span>
-        <span class="ios-section-action" @click="$router.push('/trading')">
-          {{ $t('common.view_all') }}
-          <van-icon name="arrow" />
-        </span>
+      <div class="section-head">
+        <div>
+          <span class="ios-section-title">{{ $t('home.pnl_calendar') }}</span>
+          <small>{{ $t('home.pnl_calendar_note') }}</small>
+        </div>
       </div>
-      <div class="stat-widget">
-        <div class="stat-col" @click="goToTrading('all')">
-          <span class="stat-val">{{ strategyCounts.total }}</span>
-          <span class="stat-lab">{{ $t('home.status_total') }}</span>
+      <div v-if="calendarDays.length" class="calendar-grid">
+        <div
+          v-for="day in calendarDays"
+          :key="day.date"
+          :class="['calendar-day', Number(day.profit || 0) >= 0 ? 'up-day' : 'down-day']"
+        >
+          <span>{{ formatCalendarDay(day.date) }}</span>
+          <strong>{{ formatCompactSigned(day.profit) }}</strong>
         </div>
-        <div class="stat-col running" @click="goToTrading('running')">
-          <span class="stat-val">{{ strategyCounts.running }}</span>
-          <span class="stat-lab">{{ $t('home.status_running') }}</span>
-          <div class="pulse-dot"></div>
+      </div>
+      <div v-else class="data-empty">{{ $t('home.no_dashboard_data') }}</div>
+    </div>
+
+    <div class="ios-section">
+      <div class="section-head">
+        <div>
+          <span class="ios-section-title">{{ $t('home.strategy_distribution') }}</span>
+          <small>{{ $t('home.strategy_distribution_note') }}</small>
         </div>
-        <div class="stat-col error" @click="goToTrading('error')">
-          <span class="stat-val">{{ strategyCounts.error }}</span>
-          <span class="stat-lab">{{ $t('home.status_error') }}</span>
+      </div>
+      <div class="distribution-panel">
+        <div class="donut-chart" :style="{ background: strategyDonutGradient }">
+          <div class="donut-hole">
+            <strong>{{ strategyCounts.total }}</strong>
+            <span>{{ $t('home.total_strategies') }}</span>
+          </div>
         </div>
-        <div class="stat-col stopped" @click="goToTrading('stopped')">
-          <span class="stat-val">{{ strategyCounts.stopped }}</span>
-          <span class="stat-lab">{{ $t('home.status_stopped') }}</span>
+        <div class="donut-legend">
+          <div v-for="item in strategyLegend" :key="item.key" class="legend-row">
+            <span :class="['legend-dot', item.key]" />
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ios-section">
+      <div class="section-head">
+        <div>
+          <span class="ios-section-title">{{ $t('home.trade_quality') }}</span>
+          <small>{{ $t('home.trade_quality_note') }}</small>
+        </div>
+      </div>
+      <div class="quality-card">
+        <div class="quality-row">
+          <div>
+            <span>{{ $t('home.kpi_win_rate') }}</span>
+            <strong>{{ winRate.toFixed(1) }}%</strong>
+          </div>
+          <div class="quality-track">
+            <i :style="{ width: `${boundedWinRate}%` }" />
+          </div>
+        </div>
+        <div class="quality-row">
+          <div>
+            <span>{{ $t('home.max_drawdown') }}</span>
+            <strong class="down">{{ maxDrawdownPct.toFixed(1) }}%</strong>
+          </div>
+          <div class="quality-track danger">
+            <i :style="{ width: `${boundedDrawdown}%` }" />
+          </div>
+        </div>
+        <div class="quality-split">
+          <div>
+            <span>{{ $t('home.estimated_wins') }}</span>
+            <strong class="up">{{ estimatedWins }}</strong>
+          </div>
+          <div>
+            <span>{{ $t('home.estimated_losses') }}</span>
+            <strong class="down">{{ estimatedLosses }}</strong>
+          </div>
+          <div>
+            <span>{{ $t('home.kpi_profit_factor') }}</span>
+            <strong>{{ profitFactor.toFixed(2) }}</strong>
+          </div>
         </div>
       </div>
     </div>
@@ -218,7 +223,6 @@
           v-for="item in alertStrategies.slice(0, 3)"
           :key="item.id"
           class="ios-row"
-          @click="openStrategy(item.id)"
         >
           <div class="ios-row-icon err"><van-icon name="warning-o" /></div>
           <div class="ios-row-main">
@@ -255,39 +259,25 @@
       </div>
     </div>
 
-    <!-- 宏观速览 + 财经日历（自 AI 页移至首页底部） -->
-    <MacroCalendarPanel />
-
     <van-loading v-if="loading" class="page-loading" vertical>{{ $t('common.loading') }}</van-loading>
   </div>
 </template>
 
 <script>
-import { credentialsApi, dashboardApi, getBaseUrl, strategyApi, watchlistApi } from '@/api'
-import MacroCalendarPanel from '@/components/MacroCalendarPanel.vue'
+import { dashboardApi, strategyApi } from '@/api'
 import {
-  useCredentialsStore,
   useDashboardStore,
   useNotificationStore,
-  useStrategyStore,
-  useUserStore,
-  useWatchlistStore
+  useStrategyStore
 } from '@/stores'
-import logoUrl from '@/assets/logo.png'
-import SymbolPicker from '@/components/SymbolPicker.vue'
 
 export default {
   name: 'Home',
-  components: { SymbolPicker, MacroCalendarPanel },
 
   data() {
     return {
-      logoUrl,
       showAsset: true,
-      loading: false,
-      priceMap: {},
-      priceTimer: null,
-      showSymbolPicker: false
+      loading: false
     }
   },
 
@@ -298,41 +288,8 @@ export default {
     strategyStore() {
       return useStrategyStore()
     },
-    credentialsStore() {
-      return useCredentialsStore()
-    },
     notificationStore() {
       return useNotificationStore()
-    },
-    userStore() {
-      return useUserStore()
-    },
-    watchlistStore() {
-      return useWatchlistStore()
-    },
-    watchlistItems() {
-      return (this.watchlistStore.items || []).slice(0, 12)
-    },
-    userInfo() {
-      return this.userStore.userInfo || {}
-    },
-    displayName() {
-      return this.userInfo?.nickname || this.userInfo?.username || this.$t('home.default_user')
-    },
-    avatarUrl() {
-      const raw = (this.userInfo?.avatar || '').trim()
-      if (!raw) return this.logoUrl
-      if (/^(https?:|data:|blob:)/i.test(raw)) return raw
-      const base = getBaseUrl().replace(/\/$/, '')
-      if (raw.startsWith('/')) return `${base}${raw}`
-      return `${base}/${raw}`
-    },
-    greetingText() {
-      const hour = new Date().getHours()
-      if (hour < 6) return this.$t('home.greeting_night')
-      if (hour < 12) return this.$t('home.greeting_morning')
-      if (hour < 18) return this.$t('home.greeting_afternoon')
-      return this.$t('home.greeting_evening')
     },
     totalAssets() {
       return this.dashboardStore.totalAssets
@@ -358,20 +315,61 @@ export default {
     profitFactor() {
       return this.dashboardStore.profitFactor
     },
+    maxDrawdownPct() {
+      return this.dashboardStore.maxDrawdownPct
+    },
+    calendarDays() {
+      return (this.dashboardStore.dailyPnlChart || []).slice(-14)
+    },
+    pnlBars() {
+      const source = (this.dashboardStore.dailyPnlChart || []).slice(-12)
+      const maxAbs = Math.max(1, ...source.map((item) => Math.abs(Number(item.profit || 0))))
+      return source.map((item) => {
+        const value = Number(item.profit || 0)
+        return {
+          date: item.date,
+          value,
+          label: this.formatCalendarDay(item.date),
+          height: Math.max(10, Math.round((Math.abs(value) / maxAbs) * 72))
+        }
+      })
+    },
     strategyCounts() {
       return this.strategyStore.statusCounts
+    },
+    strategyLegend() {
+      return [
+        { key: 'running', label: this.$t('home.status_running'), value: this.strategyCounts.running || 0 },
+        { key: 'stopped', label: this.$t('home.status_stopped'), value: this.strategyCounts.stopped || 0 },
+        { key: 'error', label: this.$t('home.status_error'), value: this.strategyCounts.error || 0 }
+      ]
+    },
+    strategyDonutGradient() {
+      const total = Number(this.strategyCounts.total || 0)
+      if (!total) return 'conic-gradient(var(--surface-raised) 0 100%)'
+      const running = Math.round(((this.strategyCounts.running || 0) / total) * 100)
+      const stopped = Math.round(((this.strategyCounts.stopped || 0) / total) * 100)
+      const runningEnd = running
+      const stoppedEnd = Math.min(100, running + stopped)
+      return `conic-gradient(var(--up) 0 ${runningEnd}%, var(--c-blue) ${runningEnd}% ${stoppedEnd}%, var(--down) ${stoppedEnd}% 100%)`
+    },
+    boundedWinRate() {
+      return Math.max(0, Math.min(100, Number(this.winRate || 0)))
+    },
+    boundedDrawdown() {
+      return Math.max(0, Math.min(100, Math.abs(Number(this.maxDrawdownPct || 0))))
+    },
+    estimatedWins() {
+      return Math.round(Number(this.totalTrades || 0) * this.boundedWinRate / 100)
+    },
+    estimatedLosses() {
+      return Math.max(0, Number(this.totalTrades || 0) - this.estimatedWins)
     },
     alertStrategies() {
       return this.strategyStore.alertStrategies
     },
     recentTrades() {
       return this.dashboardStore.recentTrades
-    },
-    hasCredentials() {
-      return this.credentialsStore.hasCredentials
-    },
-    credentialCount() {
-      return this.credentialsStore.cryptoItems.length
     },
     unreadCount() {
       return this.notificationStore.unreadCount
@@ -380,35 +378,20 @@ export default {
 
   mounted() {
     this.loadData()
-    this.priceTimer = setInterval(() => {
-      this.refreshPrices()
-    }, 30000)
-  },
-
-  beforeUnmount() {
-    if (this.priceTimer) {
-      clearInterval(this.priceTimer)
-      this.priceTimer = null
-    }
   },
 
   methods: {
     async loadData() {
       this.loading = true
       try {
-        const [summaryRes, strategyRes, credentialsRes, unreadRes, watchlistRes] = await Promise.allSettled([
+        const [summaryRes, strategyRes, unreadRes] = await Promise.allSettled([
           dashboardApi.getSummary(),
           strategyApi.getList(),
-          credentialsApi.list(),
-          strategyApi.getUnreadNotificationCount(),
-          watchlistApi.getList()
+          strategyApi.getUnreadNotificationCount()
         ])
         this.dashboardStore.setSummary(summaryRes.status === 'fulfilled' ? (summaryRes.value.data || {}) : {})
         this.strategyStore.setStrategies(strategyRes.status === 'fulfilled' ? (strategyRes.value.data || []) : [])
-        this.credentialsStore.setItems(credentialsRes.status === 'fulfilled' ? (credentialsRes.value.data || []) : [])
         this.notificationStore.setUnreadCount(unreadRes.status === 'fulfilled' ? (unreadRes.value.data || 0) : 0)
-        this.watchlistStore.setItems(watchlistRes.status === 'fulfilled' ? (watchlistRes.value.data || []) : [])
-        await this.refreshPrices()
       } catch (error) {
         console.error('Load mobile overview failed:', error)
       } finally {
@@ -416,92 +399,8 @@ export default {
       }
     },
 
-    async refreshPrices() {
-      const list = this.watchlistItems.map((i) => ({ market: i.market || 'Crypto', symbol: i.symbol }))
-      if (!list.length) {
-        this.priceMap = {}
-        return
-      }
-      try {
-        const res = await watchlistApi.getPrices(list)
-        const map = {}
-        for (const row of res.data || []) {
-          if (row?.symbol) {
-            const key = `${row.market || 'Crypto'}-${row.symbol}`
-            map[key] = {
-              price: Number(row.price || 0),
-              change: Number(row.change || 0),
-              changePercent: Number(row.changePercent || 0)
-            }
-          }
-        }
-        this.priceMap = map
-      } catch (err) {
-        console.warn('Refresh watchlist prices failed:', err)
-      }
-    },
-
-    priceKey(item) {
-      return `${item.market || 'Crypto'}-${item.symbol}`
-    },
-
     async refreshData() {
       await this.loadData()
-    },
-
-    openWatchlistItem(item) {
-      this.watchlistStore.setActive(item.symbol, item.market || 'Crypto')
-      this.$router.push('/quick-trade')
-    },
-
-    openWatchlistPicker() {
-      this.showSymbolPicker = true
-    },
-
-    async onSymbolPicked(item) {
-      if (item?.symbol) {
-        this.watchlistStore.setActive(item.symbol, item.market || 'Crypto')
-      }
-      try {
-        const res = await watchlistApi.getList()
-        this.watchlistStore.setItems(res.data || [])
-        await this.refreshPrices()
-      } catch (err) {
-        console.warn('Refresh watchlist after pick failed:', err)
-      }
-    },
-
-    async onSymbolPickerClose() {
-      try {
-        const res = await watchlistApi.getList()
-        this.watchlistStore.setItems(res.data || [])
-        await this.refreshPrices()
-      } catch (err) {
-        console.warn('Refresh watchlist after close failed:', err)
-      }
-    },
-
-    shortSymbol(symbol) {
-      if (!symbol) return '--'
-      return String(symbol).replace('/USDT', '').replace('USDT', '').replace('/USD', '')
-    },
-
-    formatPrice(value) {
-      const num = Number(value || 0)
-      if (!num) return '--'
-      if (num >= 1000) {
-        return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(num)
-      }
-      if (num >= 1) {
-        return num.toFixed(3)
-      }
-      return num.toFixed(5)
-    },
-
-    formatChangePct(value) {
-      const num = Number(value || 0)
-      const sign = num > 0 ? '+' : ''
-      return `${sign}${num.toFixed(2)}%`
     },
 
     formatMoney(value) {
@@ -518,6 +417,19 @@ export default {
       return `${sign}${this.formatMoney(num)}`
     },
 
+    formatCompactSigned(value) {
+      const num = Number(value || 0)
+      const sign = num > 0 ? '+' : ''
+      if (Math.abs(num) >= 1000) return `${sign}${(num / 1000).toFixed(1)}k`
+      return `${sign}${num.toFixed(0)}`
+    },
+
+    formatCalendarDay(value) {
+      const d = new Date(value)
+      if (Number.isNaN(d.getTime())) return '--'
+      return `${d.getMonth() + 1}/${d.getDate()}`
+    },
+
     formatTradeMeta(trade) {
       const parts = [
         trade.side || trade.type || '-',
@@ -530,21 +442,6 @@ export default {
       const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value)
       if (Number.isNaN(date.getTime())) return '刚刚'
       return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
-    },
-
-    goToTrading(status) {
-      this.$router.push({ path: '/trading', query: { status } })
-    },
-
-    openStrategy(id) {
-      this.$router.push(`/trading/strategy/${id}`)
-    },
-
-    onAvatarError(event) {
-      const img = event?.target
-      if (img && img.src !== this.logoUrl) {
-        img.src = this.logoUrl
-      }
     }
   }
 }
@@ -553,37 +450,49 @@ export default {
 <style scoped>
 .home-page {
   min-height: 100vh;
-  padding: calc(12px + var(--safe-area-top, 0px)) 16px 120px;
+  padding: calc(12px + var(--safe-area-top, 0px)) 16px 72px;
   background: var(--bg);
   color: var(--text);
 }
 
-/* ===== Large-title nav ===== */
-.nav-header { margin-bottom: 18px; }
-.nav-row {
+.dashboard-header {
+  min-height: 46px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
 }
-.greeting-block { display: flex; flex-direction: column; gap: 2px; }
-.greeting-time {
-  font-size: 13px;
-  color: var(--text-3);
-  font-weight: 500;
+
+.header-copy {
+  min-width: 0;
+  padding-left: 56px;
 }
-.greeting-name {
-  font-size: 28px;
-  font-weight: 800;
+
+.header-copy h1 {
+  margin: 0;
   color: var(--text);
-  letter-spacing: -0.03em;
+  font-size: 23px;
+  font-weight: 950;
   line-height: 1.1;
+  letter-spacing: 0;
 }
-.nav-actions { display: flex; align-items: center; gap: 10px; }
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+}
+
 .nav-pill {
   position: relative;
-  width: 38px; height: 38px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
   background: var(--surface-raised);
   border: 1px solid var(--border);
   color: var(--text-2);
@@ -602,62 +511,66 @@ export default {
   display: flex; align-items: center; justify-content: center;
   border: 2px solid var(--bg);
 }
-.nav-avatar {
-  width: 38px; height: 38px;
-  border-radius: 12px;
-  overflow: hidden;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-}
-.nav-avatar img { width: 100%; height: 100%; object-fit: cover; }
-
-/* ===== Asset hero — flat solid panel ===== */
 .asset-hero {
   position: relative;
-  margin-bottom: 22px;
-  padding: 26px 22px 22px;
+  margin-bottom: 12px;
+  padding: 20px;
   border-radius: var(--radius-lg);
-  background: var(--bg-elevated);
+  background:
+    radial-gradient(260px 160px at 100% 0%, var(--accent-crimson-soft), transparent 68%),
+    linear-gradient(145deg, var(--bg-elevated), color-mix(in srgb, var(--bg-elevated) 72%, var(--surface-raised)));
   border: 1px solid var(--border);
   box-shadow: var(--shadow-card);
   overflow: hidden;
 }
-.asset-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(320px 220px at 100% 0%, var(--accent-crimson-soft), transparent 62%);
-}
+
 .asset-top {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
   position: relative;
 }
+
 .asset-label {
+  display: block;
+  margin-bottom: 4px;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-weight: 850;
+  letter-spacing: 0;
   color: var(--text-3);
 }
+
+.asset-note {
+  margin: 0;
+  color: var(--text-4);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .eye-btn {
-  width: 28px; height: 28px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
   background: var(--surface-raised);
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 15px;
 }
 .asset-value-row {
-  display: flex; align-items: baseline; gap: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   position: relative;
 }
 .asset-value {
-  font-size: 42px;
-  font-weight: 800;
+  font-size: clamp(32px, 10vw, 42px);
+  font-weight: 950;
   color: var(--text);
-  letter-spacing: -0.035em;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
   line-height: 1.02;
 }
@@ -667,7 +580,7 @@ export default {
   color: var(--text-3);
 }
 .asset-pnl {
-  margin-top: 12px;
+  margin-top: 10px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -689,132 +602,163 @@ export default {
 .pnl-arrow { font-size: 12px; }
 .pnl-label {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 650;
   opacity: 0.8;
   margin-left: 4px;
 }
 
-/* ===== Setup card — flat panel with colored icon ===== */
-.setup-card {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px;
-  margin-bottom: 22px;
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
-.setup-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(200px 150px at 0% 50%, var(--accent-crimson-soft), transparent 65%);
-}
-.setup-icon {
-  position: relative;
-  width: 44px; height: 44px;
-  flex-shrink: 0;
-  border-radius: 13px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--c-red);
-  color: #ffffff;
-  font-size: 20px;
-  border: 1px solid transparent;
-}
-.setup-text,
-.setup-arrow { position: relative; }
-.setup-text { flex: 1; min-width: 0; }
-.setup-title {
-  display: block;
-  font-size: 14px; font-weight: 700;
-  color: var(--text);
-  margin-bottom: 2px;
-}
-.setup-desc {
-  font-size: 11px;
-  color: var(--text-2);
-  line-height: 1.4;
-}
-.setup-arrow { color: var(--text-3); font-size: 14px; }
-
-/* ===== Section headers — bigger display-style ===== */
-.ios-section { margin-bottom: 24px; }
-.ios-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 4px;
-  margin-bottom: 12px;
-}
-.ios-section-title {
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--text);
-  letter-spacing: -0.02em;
-}
-.ios-section-action {
-  font-size: 13px;
-  color: var(--text-2);
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-
-/* ===== App grid — flat tiles with semantic color icons ===== */
-.app-grid {
+.asset-mini-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px 8px;
-  padding: 4px 2px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
 }
-.app-tile {
+
+.asset-mini-grid div {
+  min-width: 0;
+  padding-right: 8px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  transition: transform 0.15s;
+  gap: 4px;
 }
-.app-tile:active { transform: scale(0.94); }
-.app-icon {
-  width: 54px; height: 54px;
-  border-radius: 16px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 22px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+
+.asset-mini-grid span {
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.asset-mini-grid strong {
   color: var(--text);
-}
-.app-icon.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--text-on-accent);
-}
-.app-icon.gold    { color: var(--c-amber);  background: var(--c-amber-soft);  border-color: transparent; }
-.app-icon.crimson { color: var(--c-red);    background: var(--c-red-soft);    border-color: transparent; }
-.app-icon.blue    { color: var(--c-blue);   background: var(--c-blue-soft);   border-color: transparent; }
-.app-icon.teal    { color: var(--c-teal);   background: var(--c-teal-soft);   border-color: transparent; }
-.app-icon.green   { color: var(--c-green);  background: var(--c-green-soft);  border-color: transparent; }
-.app-icon.orange  { color: var(--c-orange); background: var(--c-orange-soft); border-color: transparent; }
-.app-icon.indigo  { color: var(--c-indigo); background: var(--c-indigo-soft); border-color: transparent; }
-.app-icon.pink    { color: var(--c-pink);   background: var(--c-pink-soft);   border-color: transparent; }
-.app-tile span {
-  font-size: 11px;
-  color: var(--text-2);
-  font-weight: 600;
-  text-align: center;
-  line-height: 1.25;
-  max-width: 72px;
-  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* ===== KPI grid (live overview from dashboard summary) ===== */
+.up { color: var(--up) !important; }
+.down { color: var(--down) !important; }
+
+.overview-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.overview-card {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  align-items: center;
+}
+
+.overview-icon {
+  grid-row: 1 / span 2;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 18px;
+}
+
+.overview-icon.green {
+  color: var(--up);
+  background: var(--up-soft);
+}
+
+.overview-icon.blue {
+  color: var(--c-blue);
+  background: var(--c-blue-soft);
+}
+
+.overview-icon.purple {
+  color: var(--c-indigo);
+  background: var(--c-indigo-soft);
+}
+
+.overview-icon.amber {
+  color: var(--c-amber);
+  background: var(--c-amber-soft);
+}
+
+.overview-card span {
+  display: block;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-card strong {
+  display: block;
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ios-section { margin-bottom: 22px; }
+
+.ios-section-head,
+.section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+  margin-bottom: 12px;
+}
+
+.section-head > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ios-section-title {
+  font-size: 18px;
+  font-weight: 950;
+  color: var(--text);
+  letter-spacing: 0;
+  line-height: 1.15;
+}
+
+.ios-section-note,
+.section-head small {
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.ios-section-action {
+  font-size: 13px;
+  color: var(--text-2);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -828,7 +772,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 14px 12px;
+  padding: 15px 12px;
   background: var(--bg-elevated);
 }
 .kpi-lab {
@@ -847,166 +791,300 @@ export default {
 .kpi-val.up { color: var(--up); }
 .kpi-val.down { color: var(--down); }
 
-/* ===== Watchlist strip ===== */
-.watchlist-strip {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  padding: 2px 2px 8px;
-  scrollbar-width: none;
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
 }
-.watchlist-strip::-webkit-scrollbar { display: none; }
-.wl-card {
-  flex: 0 0 auto;
+
+.calendar-day {
+  min-height: 48px;
+  padding: 7px 4px;
+  border-radius: 12px;
+  background: var(--surface-raised);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid transparent;
+}
+
+.calendar-day span {
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.calendar-day strong {
+  font-size: 12px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.calendar-day.up-day {
+  border-color: color-mix(in srgb, var(--up) 22%, transparent);
+}
+
+.calendar-day.up-day strong {
+  color: var(--up);
+}
+
+.calendar-day.down-day {
+  border-color: color-mix(in srgb, var(--down) 22%, transparent);
+}
+
+.calendar-day.down-day strong {
+  color: var(--down);
+}
+
+.data-empty {
+  min-height: 88px;
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--border-strong);
+  background: var(--bg-elevated);
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.data-empty.compact {
+  min-height: 112px;
+}
+
+.chart-card,
+.distribution-panel,
+.quality-card {
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.08);
+}
+
+.chart-card {
+  padding: 14px 12px 12px;
+}
+
+.pnl-bars {
+  height: 116px;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 7px;
+  align-items: end;
+}
+
+.pnl-bar-cell {
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.pnl-bar-cell small {
+  color: var(--text-4);
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+  transform: rotate(-28deg);
+}
+
+.pnl-bar {
+  width: 100%;
+  max-width: 14px;
+  min-height: 8px;
+  border-radius: 999px 999px 4px 4px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--up) 84%, #fff), var(--up));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--up) 28%, transparent);
+}
+
+.pnl-bar.down {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--down) 84%, #fff), var(--down));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--down) 22%, transparent);
+}
+
+.distribution-panel {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+}
+
+.donut-chart {
   width: 112px;
-  padding: 12px 12px 11px;
-  border-radius: var(--radius);
+  height: 112px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.donut-hole {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  transition: transform 0.15s, border-color 0.15s;
-}
-.wl-card:active {
-  transform: scale(0.97);
-  border-color: var(--accent);
-}
-.wl-head {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 2px;
 }
-.wl-sym {
-  font-size: 13px;
-  font-weight: 800;
+
+.donut-hole strong {
   color: var(--text);
-  letter-spacing: -0.02em;
+  font-size: 24px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+
+.donut-hole span {
+  max-width: 58px;
+  color: var(--text-4);
+  font-size: 9px;
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.donut-legend {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.legend-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.legend-row span:nth-child(2) {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.wl-market {
-  font-size: 9px;
-  color: var(--text-4);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.wl-price {
-  font-size: 15px;
-  font-weight: 700;
+
+.legend-row strong {
   color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-.wl-change {
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.wl-change.up { color: var(--up); }
-.wl-change.down { color: var(--down); }
-.wl-change.muted { color: var(--text-4); }
-.wl-card.add-card {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: row;
-  gap: 6px;
-  color: var(--text-2);
-  background: var(--surface-raised);
-  border-style: dashed;
-  font-size: 12px;
-  font-weight: 600;
-}
-.watchlist-empty {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  border-radius: var(--radius-lg);
-  background: var(--bg-elevated);
-  border: 1px dashed var(--border-strong);
-}
-.watchlist-empty .van-icon:first-child {
-  font-size: 24px;
-  color: var(--c-indigo);
-  width: 40px; height: 40px;
-  border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--c-indigo-soft);
-}
-.we-copy {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.we-title {
   font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-}
-.we-desc {
-  font-size: 11px;
-  color: var(--text-2);
-  line-height: 1.5;
-}
-.we-arrow {
-  color: var(--text-3);
-  font-size: 14px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ===== Strategy stat widget ===== */
-.stat-widget {
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--text-4);
+}
+
+.legend-dot.running { background: var(--up); }
+.legend-dot.stopped { background: var(--c-blue); }
+.legend-dot.error { background: var(--down); }
+
+.quality-card {
+  padding: 16px;
+}
+
+.quality-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 16px 4px;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
 }
-.stat-col {
-  position: relative;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 2px 6px;
+
+.quality-row > div:first-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
-.stat-col + .stat-col::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 20%; bottom: 20%;
-  width: 1px;
-  background: var(--hairline);
-}
-.stat-val {
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-.stat-lab {
-  font-size: 11px;
+
+.quality-row span,
+.quality-split span {
   color: var(--text-3);
+  font-size: 11px;
+  font-weight: 760;
 }
-.stat-col.running .stat-val { color: var(--up); }
-.stat-col.error .stat-val { color: var(--down); }
-.stat-col.stopped .stat-val { color: var(--text-2); }
-.pulse-dot {
-  position: absolute;
-  top: 10px; right: calc(50% - 18px);
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  background: var(--up);
-  box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.4);
-  animation: pulseDot 1.8s ease-out infinite;
+
+.quality-row strong {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
 }
-@keyframes pulseDot {
-  0% { box-shadow: 0 0 0 0 rgba(52,199,89,0.4); }
-  70% { box-shadow: 0 0 0 7px rgba(52,199,89,0); }
-  100% { box-shadow: 0 0 0 0 rgba(52,199,89,0); }
+
+.quality-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.quality-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--up), var(--c-teal));
+}
+
+.quality-track.danger i {
+  background: linear-gradient(90deg, var(--c-amber), var(--down));
+}
+
+.quality-split {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+.quality-split div {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--surface-raised);
+}
+
+.quality-split strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 360px) {
+  .distribution-panel {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .donut-legend {
+    width: 100%;
+  }
 }
 
 /* ===== Grouped list ===== */

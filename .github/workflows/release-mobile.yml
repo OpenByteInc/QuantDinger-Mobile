@@ -1,0 +1,123 @@
+name: Publish mobile image to GHCR
+
+# Build the QuantDinger mobile H5/PWA bundle and publish a multi-arch nginx
+# image to GitHub Container Registry. Version tags also create a GitHub Release
+# with a dist.tar.gz static bundle attached.
+#
+# Consumed as:
+#   ghcr.io/<owner>/quantdinger-mobile:<tag>
+#
+# Triggers:
+#   - push of a version tag matching `v*` (e.g. v4.0.1) -> semver + latest
+#     tags pushed AND a GitHub Release published
+#   - manual workflow_dispatch -> short-SHA tag only, no Release
+#
+# First-time setup: after the first successful run, visit
+#   https://github.com/users/<owner>/packages/container/quantdinger-mobile/settings
+# and set the package visibility to public if anonymous `docker pull` is desired.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: release-mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  publish:
+    name: Build & push mobile image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/quantdinger-mobile
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=sha,format=short
+
+      - name: Build and push mobile web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=mobile
+          cache-to: type=gha,mode=max,scope=mobile
+          build-args: |
+            APP_VERSION=${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+            GIT_TAG=${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+          provenance: false
+
+      - name: Extract dist tarball from just-pushed image
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/quantdinger-mobile:${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          docker pull --platform linux/amd64 "$IMAGE"
+          CID=$(docker create --platform linux/amd64 "$IMAGE")
+          mkdir -p _dist
+          docker cp "$CID:/usr/share/nginx/html/." _dist/
+          docker rm "$CID" > /dev/null
+          tar -czf dist.tar.gz -C _dist .
+          sha256sum dist.tar.gz | tee dist.tar.gz.sha256
+          du -h dist.tar.gz
+
+      - name: Create or update GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          append_body: true
+          files: |
+            dist.tar.gz
+            dist.tar.gz.sha256
+          body: |
+            ## QuantDinger Mobile ${{ github.ref_name }}
+
+            **Docker image (multi-arch, amd64 + arm64):**
+
+            ```bash
+            docker pull ghcr.io/${{ github.repository_owner }}/quantdinger-mobile:${{ github.ref_name }}
+            ```
+
+            Example:
+
+            ```bash
+            docker run -d --name quantdinger-mobile -p 8081:80 ghcr.io/${{ github.repository_owner }}/quantdinger-mobile:${{ github.ref_name }}
+            ```
+
+            **Static bundle:** `dist.tar.gz` can be extracted into any nginx/static host as `/usr/share/nginx/html/` (verify with `dist.tar.gz.sha256`).
+
+            ---

@@ -68,39 +68,10 @@
       </div>
     </div>
 
-    <!-- Trading -->
-    <div class="menu-section">
-      <span class="menu-section-title">{{ $t('profile.section_trading') }}</span>
-      <div class="menu-group">
-        <div class="menu-item" @click="$router.push('/profile/credentials')">
-          <div class="menu-icon c-blue"><van-icon name="shield-o" /></div>
-          <span class="label">{{ $t('profile.credentials') }}</span>
-          <span class="value">{{ credentialCount }}</span>
-          <van-icon name="arrow" class="arrow" />
-        </div>
-        <div class="menu-item" @click="$router.push('/market/my-purchases')">
-          <div class="menu-icon c-teal"><van-icon name="bag-o" /></div>
-          <span class="label">{{ $t('market.my_purchases') }}</span>
-          <van-icon name="arrow" class="arrow" />
-        </div>
-        <div class="menu-item" @click="$router.push('/ai-analysis/history')">
-          <div class="menu-icon c-red"><van-icon name="fire-o" /></div>
-          <span class="label">{{ $t('ai_analysis.history_title') }}</span>
-          <van-icon name="arrow" class="arrow" />
-        </div>
-      </div>
-    </div>
-
     <!-- Account -->
     <div class="menu-section">
       <span class="menu-section-title">{{ $t('profile.section_account') }}</span>
       <div class="menu-group">
-        <div class="menu-item" @click="$router.push('/profile/credits')">
-          <div class="menu-icon c-amber"><van-icon name="gold-coin-o" /></div>
-          <span class="label">{{ $t('profile.credits_recharge') }}</span>
-          <span class="value">{{ formatCredits(billing.credits) }}</span>
-          <van-icon name="arrow" class="arrow" />
-        </div>
         <div class="menu-item" @click="$router.push('/profile/referral')">
           <div class="menu-icon c-green"><van-icon name="friends-o" /></div>
           <span class="label">{{ $t('profile.referral') }}</span>
@@ -111,6 +82,16 @@
           <span class="label">{{ $t('profile.change_password') }}</span>
           <van-icon name="arrow" class="arrow" />
         </div>
+        <div class="menu-item" @click="$router.push('/profile/mfa')">
+          <div class="menu-icon c-blue"><van-icon name="shield-o" /></div>
+          <span class="label">{{ $t('profile.mfa_manage') }}</span>
+          <van-icon name="arrow" class="arrow" />
+        </div>
+        <div class="menu-item" @click="$router.push('/profile/login-logs')">
+          <div class="menu-icon c-teal"><van-icon name="clock-o" /></div>
+          <span class="label">{{ $t('profile.login_logs') }}</span>
+          <van-icon name="arrow" class="arrow" />
+        </div>
       </div>
     </div>
 
@@ -118,34 +99,14 @@
     <div class="menu-section">
       <span class="menu-section-title">{{ $t('profile.section_preferences') }}</span>
       <div class="menu-group">
-        <div class="menu-item" @click="$router.push('/profile/notifications')">
-          <div class="menu-icon c-red"><van-icon name="bell" /></div>
-          <span class="label">{{ $t('profile.notifications') }}</span>
-          <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
-          <van-icon name="arrow" class="arrow" />
-        </div>
         <div class="menu-item" @click="$router.push('/profile/notification-settings')">
-          <div class="menu-icon c-slate"><van-icon name="setting-o" /></div>
+          <div class="menu-icon c-orange"><van-icon name="setting-o" /></div>
           <span class="label">{{ $t('profile.notif_settings') }}</span>
           <van-icon name="arrow" class="arrow" />
         </div>
-        <div class="menu-item" @click="$router.push('/profile/language')">
-          <div class="menu-icon c-teal"><van-icon name="font-o" /></div>
-          <span class="label">{{ $t('profile.language') }}</span>
-          <span class="value">{{ localeLabel }}</span>
-          <van-icon name="arrow" class="arrow" />
-        </div>
         <div class="menu-item" @click="$router.push('/profile/about')">
-          <div class="menu-icon c-slate"><van-icon name="info-o" /></div>
+          <div class="menu-icon c-violet"><van-icon name="info-o" /></div>
           <span class="label">{{ $t('profile.about_us') }}</span>
-          <van-icon name="arrow" class="arrow" />
-        </div>
-        <div class="menu-item" @click="toggleTheme">
-          <div class="menu-icon c-orange">
-            <van-icon name="bulb-o" />
-          </div>
-          <span class="label">{{ $t('profile.appearance') }}</span>
-          <span class="value">{{ isLightTheme ? $t('profile.theme_light') : $t('profile.theme_dark') }}</span>
           <van-icon name="arrow" class="arrow" />
         </div>
       </div>
@@ -161,9 +122,9 @@
 
 <script>
 import { showConfirmDialog } from 'vant'
-import { authApi, credentialsApi, getBaseUrl, strategyApi, userApi } from '@/api'
-import { useCredentialsStore, useNotificationStore, useSettingsStore, useUserStore } from '@/stores'
-import logoUrl from '@/assets/logo.png'
+import { authApi, getBaseUrl, userApi } from '@/api'
+import { useUserStore } from '@/stores'
+import logoUrl from '@/assets/slogo.png'
 
 export default {
   name: 'Profile',
@@ -190,23 +151,8 @@ export default {
     userStore() {
       return useUserStore()
     },
-    credentialsStore() {
-      return useCredentialsStore()
-    },
-    notificationStore() {
-      return useNotificationStore()
-    },
-    settingsStore() {
-      return useSettingsStore()
-    },
     userInfo() {
       return this.userStore.userInfo
-    },
-    credentialCount() {
-      return this.credentialsStore.cryptoItems.length
-    },
-    unreadCount() {
-      return this.notificationStore.unreadCount
     },
     avatarUrl() {
       const raw = (this.userInfo?.avatar || '').trim()
@@ -228,17 +174,6 @@ export default {
       const role = this.userInfo?.role
       if (role === 'admin') return this.$t('profile.role_admin')
       return this.$t('profile.role_user')
-    },
-    localeLabel() {
-      const map = {
-        'zh-CN': this.$t('language.zh_cn'),
-        'zh-TW': this.$t('language.zh_tw'),
-        'en-US': this.$t('language.en_us')
-      }
-      return map[this.settingsStore.locale] || this.settingsStore.locale
-    },
-    isLightTheme() {
-      return this.settingsStore.theme === 'light'
     }
   },
 
@@ -249,10 +184,8 @@ export default {
   methods: {
     async loadData() {
       try {
-        const [profileRes, credentialsRes, unreadRes, referralRes] = await Promise.allSettled([
+        const [profileRes, referralRes] = await Promise.allSettled([
           userApi.getProfile(),
-          credentialsApi.list(),
-          strategyApi.getUnreadNotificationCount(),
           userApi.getMyReferrals({ page: 1, page_size: 1 })
         ])
         if (profileRes.status === 'fulfilled' && profileRes.value?.data) {
@@ -262,8 +195,6 @@ export default {
             this.billing = { ...this.billing, ...profile.billing }
           }
         }
-        this.credentialsStore.setItems(credentialsRes.status === 'fulfilled' ? (credentialsRes.value.data || []) : [])
-        this.notificationStore.setUnreadCount(unreadRes.status === 'fulfilled' ? (unreadRes.value.data || 0) : 0)
         if (referralRes.status === 'fulfilled' && referralRes.value?.data) {
           this.referralData = {
             total: referralRes.value.data.total || 0,
@@ -294,11 +225,6 @@ export default {
       const d = new Date(value)
       if (Number.isNaN(d.getTime())) return '-'
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    },
-
-    toggleTheme() {
-      const next = this.settingsStore.theme === 'light' ? 'dark' : 'light'
-      this.settingsStore.setTheme(next)
     },
 
     async handleLogout() {

@@ -261,7 +261,7 @@ const normalizeStrategy = (raw = {}) => {
 
 /** 登录/注册等「主动提交凭证」接口的 401 不应整页踢回登录（例如密码错误） */
 const isAuthCredentialRequest = (url) =>
-  /\/api\/auth\/(login|register|send-code|reset-password)(?:\?|$)/i.test(String(url || ''))
+  /\/api\/auth\/(login|login-code|register|send-code|reset-password|mfa\/verify-login)(?:\?|$)/i.test(String(url || ''))
 
 function clearAuthSession() {
   try {
@@ -371,6 +371,7 @@ http.interceptors.response.use(
 export const authApi = {
   login: (data) => http.post('/api/auth/login', data),
   loginWithCode: (data) => http.post('/api/auth/login-code', data),
+  verifyLoginMfa: (data) => http.post('/api/auth/mfa/verify-login', data),
   register: (data) => http.post('/api/auth/register', data),
   sendCode: (data) => http.post('/api/auth/send-code', data),
   resetPassword: (data) => http.post('/api/auth/reset-password', data),
@@ -535,7 +536,7 @@ export const strategyApi = {
 }
 
 export const quickTradeApi = {
-  getBalance: async (credentialId, marketType = 'spot') => {
+  getBalance: async (credentialId, marketType = 'swap') => {
     const res = await http.get('/api/quick-trade/balance', {
       params: {
         credential_id: credentialId,
@@ -547,7 +548,7 @@ export const quickTradeApi = {
       data: res.data || { available: 0, total: 0, currency: 'USDT' }
     }
   },
-  getPosition: async ({ credentialId, symbol, marketType = 'spot' }) => {
+  getPosition: async ({ credentialId, symbol, marketType = 'swap' }) => {
     const res = await http.get('/api/quick-trade/position', {
       params: {
         credential_id: credentialId,
@@ -606,6 +607,25 @@ export const aiAnalysisApi = {
     return {
       ...res,
       data: res.data || {}
+    }
+  }
+}
+
+export const scriptSourceApi = {
+  getList: async () => {
+    const res = await http.get('/api/strategies/script-sources')
+    return {
+      ...res,
+      data: unwrapItems(res.data, 'items')
+    }
+  },
+  getDetail: async (id) => {
+    const res = await http.get('/api/strategies/script-sources/detail', {
+      params: { id }
+    })
+    return {
+      ...res,
+      data: res.data || null
     }
   }
 }
@@ -712,12 +732,36 @@ export const klineApi = {
     }
   },
   getPrice: async ({ market = 'Crypto', symbol } = {}) => {
-    const res = await http.get('/api/indicator/price', { params: { market, symbol } })
+    const res = await http.get('/api/market/price', { params: { market, symbol } })
     return {
       ...res,
       data: res.data || null
     }
   }
+}
+
+export const aiChatApi = {
+  sendMessage: (payload) => http.post('/api/ai/chat/message', payload, { timeout: 180000 }),
+  saveLocalMessage: (payload) => http.post('/api/ai/chat/message/local', payload),
+  getSessions: async (params = {}) => {
+    const res = await http.get('/api/ai/chat/sessions', { params })
+    return {
+      ...res,
+      data: ensureArray(res.data)
+    }
+  },
+  getHistory: async (params = {}) => {
+    const res = await http.get('/api/ai/chat/history', { params })
+    const data = res.data || {}
+    return {
+      ...res,
+      data: {
+        session: data.session || null,
+        messages: ensureArray(data.messages || data)
+      }
+    }
+  },
+  deleteSession: (sessionId) => http.delete(`/api/ai/chat/sessions/${sessionId}`)
 }
 
 export const indicatorApi = {
@@ -751,6 +795,25 @@ export const userApi = {
   updateNotificationSettings: (data) => http.put('/api/users/notification-settings', data),
   testNotificationSettings: () => http.post('/api/users/notification-settings/test'),
   changePassword: (data) => http.post('/api/users/change-password', data),
+  getMfaStatus: () => http.get('/api/users/mfa/status'),
+  startMfaSetup: () => http.post('/api/users/mfa/setup/start', {}),
+  confirmMfaSetup: (data) => http.post('/api/users/mfa/setup/confirm', data),
+  disableMfa: (data) => http.post('/api/users/mfa/disable', data),
+  getLoginLogs: async (params = {}) => {
+    const res = await http.get('/api/users/login-logs', { params })
+    const items = ensureArray(res.data?.items || res.data?.list)
+    return {
+      ...res,
+      data: {
+        list: items,
+        items,
+        total: Number(res.data?.total || 0),
+        page: Number(res.data?.page || 1),
+        page_size: Number(res.data?.page_size || 20),
+        total_pages: Number(res.data?.total_pages || 0)
+      }
+    }
+  },
   getMyCreditsLog: async (params = {}) => {
     const res = await http.get('/api/users/my-credits-log', { params })
     const items = ensureArray(res.data?.items || res.data?.list)

@@ -17,6 +17,7 @@
           <span class="meta">
             <van-icon name="cart-o" /> {{ indicator.purchase_count || 0 }}
           </span>
+          <span class="meta asset-meta">{{ assetLabel }}</span>
         </div>
       </div>
 
@@ -80,7 +81,7 @@
 
     <div class="footer-bar" v-if="indicator">
       <div class="price-line">
-        <span class="price-label">{{ $t('ai_analysis.current_price') === '当前价' ? '价格' : 'Price' }}</span>
+        <span class="price-label">{{ $t('market.detail_price') }}</span>
         <span class="price-value">
           {{ indicator.pricing_type === 'paid' ? $t('market.price_credits', { price: indicator.price }) : $t('market.price_free') }}
         </span>
@@ -99,7 +100,7 @@
         round
         block
         @click="goCreateStrategy"
-      >{{ $t('market.detail_use') }}</van-button>
+      >{{ useLabel }}</van-button>
     </div>
   </div>
 </template>
@@ -107,6 +108,12 @@
 <script>
 import { showConfirmDialog, showToast } from 'vant'
 import { marketApi } from '@/api'
+import {
+  buildCreateRouteFromMarketAsset,
+  getAssetLabel,
+  getAssetType,
+  getUseLabel
+} from '@/utils/marketRoutes'
 
 export default {
   name: 'MarketDetail',
@@ -126,6 +133,15 @@ export default {
     },
     isPurchased() {
       return !!(this.indicator?.is_purchased || this.indicator?.owned)
+    },
+    assetType() {
+      return getAssetType(this.indicator || {})
+    },
+    assetLabel() {
+      return getAssetLabel(this.assetType, this.$t)
+    },
+    useLabel() {
+      return getUseLabel(this.assetType, this.$t)
     }
   },
   mounted() {
@@ -207,18 +223,7 @@ export default {
       }
     },
     goCreateStrategy() {
-      const localId =
-        this.indicator.local_copy_id ||
-        this.indicator.local_indicator_id ||
-        this.indicator.buyer_indicator_id
-      this.$router.push({
-        path: '/trading/create/indicator',
-        query: {
-          indicator_id: localId || '',
-          source_indicator_id: this.indicatorId,
-          name: this.indicator.name
-        }
-      })
+      this.$router.push(buildCreateRouteFromMarketAsset(this.indicator, this.indicatorId))
     }
   }
 }
@@ -247,7 +252,14 @@ export default {
   pointer-events: none;
 }
 .hero-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 10px; position: relative; }
-.hero-meta { display: flex; gap: 12px; align-items: center; font-size: 12px; color: var(--text-2); position: relative; }
+.hero-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--text-2); position: relative; }
+.asset-meta {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--accent);
+  border: 1px solid var(--border);
+}
 .card {
   margin: 0 16px 14px;
   padding: 16px 18px;

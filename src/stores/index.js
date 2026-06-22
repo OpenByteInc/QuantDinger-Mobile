@@ -296,7 +296,7 @@ export const useWatchlistStore = defineStore('watchlist', {
 export const useQuickTradeStore = defineStore('quickTrade', {
   state: () => ({
     selectedCredentialId: null,
-    marketType: 'spot',
+    marketType: 'swap',
     balance: null,
     positions: [],
     history: [],
@@ -309,7 +309,7 @@ export const useQuickTradeStore = defineStore('quickTrade', {
     },
 
     setMarketType(type) {
-      this.marketType = type || 'spot'
+      this.marketType = type || 'swap'
     },
 
     setBalance(data) {

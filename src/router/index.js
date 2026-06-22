@@ -5,7 +5,7 @@ import { t } from '@/locales'
 const routes = [
   {
     path: '/',
-    redirect: '/home'
+    redirect: '/ai'
   },
   {
     path: '/login',
@@ -54,6 +54,12 @@ const routes = [
     name: 'BotCreateIndicator',
     component: () => import('@/views/trading/BotFromIndicator.vue'),
     meta: { titleKey: 'indicator_bot.title', showTabbar: false }
+  },
+  {
+    path: '/trading/create/script',
+    name: 'BotCreateScript',
+    component: () => import('@/views/trading/CreateScriptStrategy.vue'),
+    meta: { titleKey: 'script_strategy.title', showTabbar: false }
   },
   {
     path: '/ai',
@@ -132,6 +138,18 @@ const routes = [
     name: 'ProfileSecurity',
     component: () => import('@/views/profile/Security.vue'),
     meta: { titleKey: 'profile.change_password', showTabbar: false }
+  },
+  {
+    path: '/profile/mfa',
+    name: 'ProfileMfa',
+    component: () => import('@/views/profile/Mfa.vue'),
+    meta: { titleKey: 'profile.mfa_manage', showTabbar: false }
+  },
+  {
+    path: '/profile/login-logs',
+    name: 'ProfileLoginLogs',
+    component: () => import('@/views/profile/LoginLogs.vue'),
+    meta: { titleKey: 'profile.login_logs', showTabbar: false }
   },
   {
     path: '/profile/referral',

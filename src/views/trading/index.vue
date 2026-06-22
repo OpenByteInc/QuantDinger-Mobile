@@ -151,10 +151,6 @@
       </div>
     </van-pull-refresh>
 
-    <div class="fab" @click="$router.push('/trading/create')">
-      <van-icon name="plus" />
-    </div>
-
     <van-loading v-if="loading" class="page-loading" vertical>{{ $t('common.loading') }}</van-loading>
   </div>
 </template>
@@ -381,7 +377,19 @@ export default {
       return ['grid', 'martingale', 'trend', 'dca', 'ai'].includes(type)
     },
 
+    isScriptStrategy(strategy) {
+      const strategyType = String(strategy?.strategy_type || strategy?.type || '').toLowerCase()
+      const strategyMode = String(strategy?.strategy_mode || '').toLowerCase()
+      const tc = strategy?.trading_config || {}
+      const fixedType = String(strategy?.bot_type || tc.bot_type || '').toLowerCase()
+      return (
+        (strategyType.includes('script') || strategyMode === 'script') &&
+        !['grid', 'martingale', 'trend', 'dca'].includes(fixedType)
+      ) || !!tc.script_source_id || !!tc.scriptSourceId
+    },
+
     indicatorLabelKey(strategy) {
+      if (this.isScriptStrategy(strategy)) return this.$t('market.asset_script_template')
       if (this.isBotMode(strategy)) {
         const key = 'trading.bot_type'
         const text = this.$t(key)
@@ -395,6 +403,9 @@ export default {
       const indName = strategy?.indicator?.name || strategy?.indicator_name || ic?.indicator_name || ic?.name || ic?.display_name
       if (this.isBotMode(strategy)) {
         return this.modeLabel(strategy)
+      }
+      if (this.isScriptStrategy(strategy)) {
+        return this.$t('market.asset_script_template')
       }
       return indName || '-'
     },
@@ -436,7 +447,9 @@ export default {
       if (strategy.status === 'running') return
       const type = this.botType(strategy)
       const isFixedTemplate = ['grid', 'martingale', 'trend', 'dca'].includes(type)
-      const path = isFixedTemplate ? '/trading/create/manual' : '/trading/create/indicator'
+      const path = isFixedTemplate
+        ? '/trading/create/manual'
+        : (this.isScriptStrategy(strategy) ? '/trading/create/script' : '/trading/create/indicator')
       this.$router.push({ path, query: { edit: strategy.id } })
     },
 
@@ -842,20 +855,4 @@ export default {
   color: var(--text);
 }
 
-.fab {
-  position: fixed;
-  right: 18px;
-  bottom: 88px;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent-grad);
-  color: var(--on-accent);
-  font-size: 24px;
-  box-shadow: 0 10px 24px var(--accent-soft);
-  z-index: 100;
-}
 </style>

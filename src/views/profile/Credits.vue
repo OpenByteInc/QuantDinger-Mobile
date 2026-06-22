@@ -1,6 +1,6 @@
 <template>
   <div class="credits-page">
-    <van-nav-bar :title="$t('profile.credits_recharge')" left-arrow @click-left="$router.back()" />
+    <van-nav-bar :title="$t('profile.credits_recharge')" :border="false" />
 
     <div class="balance-card">
       <div class="balance-label">{{ $t('profile.credits') }}</div>
@@ -537,15 +537,11 @@ export default {
 <style scoped>
 .credits-page {
   min-height: 100vh;
-  padding-bottom: 40px;
+  padding: 0 0 40px;
 }
 
-:deep(.van-nav-bar) { background: transparent; }
-:deep(.van-nav-bar .van-nav-bar__title),
-:deep(.van-nav-bar .van-icon) { color: var(--text); }
-
 .balance-card {
-  margin: 18px 16px 16px;
+  margin: 10px 16px 16px;
   padding: 24px 22px;
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);

@@ -7,11 +7,22 @@
     </van-nav-bar>
 
     <div class="hero">
-      <div class="hero-title">{{ $t('market.title') }}</div>
-      <p class="hero-desc">{{ $t('market.subtitle') }}</p>
+      <div class="hero-title">{{ assetTitle }}</div>
+      <p class="hero-desc">{{ assetDesc }}</p>
     </div>
 
     <div class="toolbar">
+      <div class="asset-tabs">
+        <div
+          v-for="opt in assetOptions"
+          :key="opt.value"
+          :class="['asset-tab', { active: assetType === opt.value }]"
+          @click="setAssetType(opt.value)"
+        >
+          <van-icon :name="opt.icon" />
+          <span>{{ opt.label }}</span>
+        </div>
+      </div>
       <van-search
         v-model="keyword"
         shape="round"
@@ -90,6 +101,7 @@
 
 <script>
 import { marketApi } from '@/api'
+import { ASSET_TYPES, getAssetLabel, normalizeAssetType } from '@/utils/marketRoutes'
 
 export default {
   name: 'Market',
@@ -98,6 +110,7 @@ export default {
       items: [],
       keyword: '',
       pricing: '',
+      assetType: ASSET_TYPES.INDICATOR,
       sort: 'score',
       page: 1,
       pageSize: 12,
@@ -108,6 +121,24 @@ export default {
     }
   },
   computed: {
+    assetOptions() {
+      return [
+        { value: ASSET_TYPES.INDICATOR, label: this.$t('market.asset_indicator'), icon: 'bar-chart-o' },
+        { value: ASSET_TYPES.SCRIPT_TEMPLATE, label: this.$t('market.asset_script_template'), icon: 'description' },
+        { value: ASSET_TYPES.BOT_PRESET, label: this.$t('market.asset_bot_preset'), icon: 'apps-o' }
+      ]
+    },
+    assetTitle() {
+      return getAssetLabel(this.assetType, this.$t)
+    },
+    assetDesc() {
+      const map = {
+        [ASSET_TYPES.INDICATOR]: this.$t('market.asset_indicator_desc'),
+        [ASSET_TYPES.SCRIPT_TEMPLATE]: this.$t('market.asset_script_template_desc'),
+        [ASSET_TYPES.BOT_PRESET]: this.$t('market.asset_bot_preset_desc')
+      }
+      return map[this.assetType] || this.$t('market.subtitle')
+    },
     filterOptions() {
       return [
         { value: '', label: this.$t('market.filter_all') },
@@ -131,6 +162,9 @@ export default {
     }
   },
   mounted() {
+    if (this.$route.query?.asset_type) {
+      this.assetType = normalizeAssetType(this.$route.query.asset_type)
+    }
     this.reload()
   },
   methods: {
@@ -149,6 +183,7 @@ export default {
           page_size: this.pageSize,
           keyword: this.keyword || undefined,
           pricing_type: this.pricing || undefined,
+          asset_type: this.assetType,
           sort_by: this.sort
         })
         const list = res.data?.items || []
@@ -168,6 +203,13 @@ export default {
     setPricing(val) {
       if (this.pricing === val) return
       this.pricing = val
+      this.reload()
+    },
+    setAssetType(val) {
+      const next = normalizeAssetType(val)
+      if (this.assetType === next) return
+      this.assetType = next
+      this.$router.replace({ path: '/market', query: { ...this.$route.query, asset_type: next } })
       this.reload()
     },
     onSortSelect(payload) {
@@ -193,7 +235,7 @@ export default {
       return str.slice(0, 2)
     },
     typeLabel(item) {
-      return item.indicator_type || item.type || item.language || 'Indicator'
+      return getAssetLabel(item.asset_type, this.$t)
     },
     coverStyle(item) {
       const palettes = [
@@ -244,6 +286,41 @@ export default {
 .hero-title { font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 6px; letter-spacing: -0.02em; }
 .hero-desc { font-size: 12px; color: var(--text-2); }
 .toolbar { padding: 0 8px; }
+.asset-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 8px 8px;
+}
+.asset-tab {
+  min-height: 58px;
+  padding: 9px 6px;
+  border-radius: 16px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.asset-tab .van-icon {
+  font-size: 18px;
+}
+.asset-tab.active {
+  color: #eaf7ff;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(56, 189, 248, 0.26), transparent 42%),
+    linear-gradient(135deg, rgba(37, 99, 235, 0.34), rgba(20, 184, 166, 0.18)),
+    var(--surface-raised);
+  border-color: rgba(56, 189, 248, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 24px rgba(14, 165, 233, 0.18);
+}
 :deep(.van-search) { background: transparent; padding: 8px; }
 :deep(.van-search__content) { background: var(--surface-raised); }
 :deep(.van-field__control) { color: var(--text); }

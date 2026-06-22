@@ -20,6 +20,15 @@
         is-link
         @click="showExchangePicker = true"
       />
+      <div v-if="selectedExchangeDocsUrl" class="api-doc-card">
+        <div class="api-doc-copy">
+          <span class="api-doc-title">{{ $t('credentials.api_doc_title') }}</span>
+          <p>{{ $t('credentials.api_doc_desc', { exchange: selectedExchangeLabel }) }}</p>
+        </div>
+        <button type="button" class="api-doc-action" @click="openDocs">
+          {{ $t('credentials.api_doc_action') }}
+        </button>
+      </div>
       <van-field
         v-model="form.api_key"
         label="API Key"
@@ -32,18 +41,11 @@
         :placeholder="$t('credentials.secret_key_placeholder')"
       />
       <van-field
+        v-if="needsPassphrase"
         v-model="form.passphrase"
         label="Passphrase"
         :placeholder="$t('credentials.passphrase_placeholder')"
       />
-
-      <div class="switch-row">
-        <div>
-          <span class="switch-title">{{ $t('credentials.demo_enable') }}</span>
-          <p class="switch-desc">{{ $t('credentials.demo_desc') }}</p>
-        </div>
-        <van-switch v-model="form.enable_demo_trading" size="20px" />
-      </div>
 
       <van-button block type="primary" :loading="saving" @click="submit">
         {{ $t('credentials.save') }}
@@ -63,7 +65,10 @@
 <script>
 import { showToast } from 'vant'
 import { credentialsApi } from '@/api'
-import { EXCHANGE_OPTIONS } from '@/constants/exchanges'
+import { EXCHANGE_BRANDS, EXCHANGE_OPTIONS } from '@/constants/exchanges'
+import { openExternal } from '@/utils/external'
+
+const PASSPHRASE_EXCHANGES = ['okx', 'bitget', 'kucoin']
 
 export default {
   name: 'CredentialCreate',
@@ -77,8 +82,7 @@ export default {
         exchange_id: '',
         api_key: '',
         secret_key: '',
-        passphrase: '',
-        enable_demo_trading: false
+        passphrase: ''
       }
     }
   },
@@ -92,6 +96,15 @@ export default {
     },
     selectedExchangeLabel() {
       return EXCHANGE_OPTIONS.find((item) => item.value === this.form.exchange_id)?.label || ''
+    },
+    selectedExchangeMeta() {
+      return EXCHANGE_BRANDS[this.form.exchange_id] || null
+    },
+    selectedExchangeDocsUrl() {
+      return this.selectedExchangeMeta?.docsUrl || ''
+    },
+    needsPassphrase() {
+      return PASSPHRASE_EXCHANGES.includes(this.form.exchange_id)
     }
   },
 
@@ -99,7 +112,16 @@ export default {
     onSelectExchange(payload) {
       const selected = payload?.selectedOptions?.[0] || payload?.selectedOption || payload?.[0] || payload
       this.form.exchange_id = selected?.value || ''
+      if (!this.needsPassphrase) {
+        this.form.passphrase = ''
+      }
       this.showExchangePicker = false
+    },
+
+    openDocs() {
+      if (this.selectedExchangeDocsUrl) {
+        openExternal(this.selectedExchangeDocsUrl)
+      }
     },
 
     validate() {
@@ -115,6 +137,10 @@ export default {
         showToast({ message: this.$t('credentials.keys_required'), type: 'fail' })
         return false
       }
+      if (this.needsPassphrase && !this.form.passphrase.trim()) {
+        showToast({ message: this.$t('credentials.passphrase_required'), type: 'fail' })
+        return false
+      }
       return true
     },
 
@@ -127,8 +153,7 @@ export default {
           exchange_id: this.form.exchange_id,
           api_key: this.form.api_key.trim(),
           secret_key: this.form.secret_key.trim(),
-          passphrase: this.form.passphrase.trim(),
-          enable_demo_trading: this.form.enable_demo_trading
+          passphrase: this.needsPassphrase ? this.form.passphrase.trim() : ''
         })
         showToast({ message: this.$t('credentials.saved'), type: 'success' })
         this.$router.replace('/profile/credentials')
@@ -169,6 +194,48 @@ export default {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-bottom: 10px;
+}
+
+.api-doc-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+}
+
+.api-doc-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.api-doc-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.api-doc-copy p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.api-doc-action {
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 11px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-on-accent);
+  background: var(--accent);
 }
 
 .switch-row {

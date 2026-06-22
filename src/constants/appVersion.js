@@ -1,6 +1,12 @@
-/** Injected by Vite `define` from package.json version */
+import pkg from '../../package.json'
+
+/** Dev reads package.json live; production can still be stamped by CI tag. */
+const injectedVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : ''
+
 export const APP_BUILD_VERSION =
-  typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0'
+  import.meta.env.DEV
+    ? (pkg.version || injectedVersion || '1.0.0')
+    : (injectedVersion || pkg.version || '1.0.0')
 
 /** Compare semver-like a.b.c; true if remote > local */
 export function isRemoteVersionNewer(remote, local) {
