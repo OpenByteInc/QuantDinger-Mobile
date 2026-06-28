@@ -61,16 +61,30 @@
                 <van-icon :name="item.pricing_type === 'paid' ? 'gold-coin-o' : 'gift-o'" />
                 {{ item.pricing_type === 'paid' ? $t('market.filter_paid') : $t('market.filter_free') }}
               </span>
-              <span v-if="item.vip_free" class="cover-vip">VIP</span>
+              <span class="cover-score">{{ $t('market.score_short') }} {{ formatScore(item.score) }}</span>
             </div>
             <div class="cover-bottom">
               <span class="cover-initials">{{ initialsOf(item.name) }}</span>
-              <span class="cover-type">{{ typeLabel(item) }}</span>
+              <span class="cover-return" :class="valueTone(item.total_return)">
+                {{ $t('market.total_return_short') }} {{ formatPercent(item.total_return, true) }}
+              </span>
             </div>
           </div>
           <div class="ind-body">
-            <div class="ind-title">{{ item.name }}</div>
+            <div class="ind-heading">
+              <div class="ind-title">{{ item.name }}</div>
+              <span class="asset-pill">{{ typeLabel(item) }}</span>
+            </div>
             <p class="ind-desc">{{ shortDesc(item.description) }}</p>
+            <div class="metric-grid">
+              <div v-for="metric in cardMetrics(item)" :key="metric.key" class="metric-cell">
+                <span class="metric-label">{{ metric.label }}</span>
+                <span :class="['metric-value', metric.tone]">{{ metric.value }}</span>
+              </div>
+            </div>
+            <div v-if="applicableTags(item).length" class="tag-row">
+              <span v-for="tag in applicableTags(item)" :key="tag" class="mini-tag">{{ tag }}</span>
+            </div>
             <div class="ind-stats">
               <span class="stat">
                 <van-icon name="star" /> {{ Number(item.avg_rating || 0).toFixed(1) }}
@@ -224,6 +238,66 @@ export default {
     shortDesc(text) {
       if (!text) return ''
       return text.length > 80 ? `${text.slice(0, 80)}...` : text
+    },
+    asNumber(value) {
+      const num = Number(value)
+      return Number.isFinite(num) ? num : 0
+    },
+    formatScore(value) {
+      return this.asNumber(value).toFixed(0)
+    },
+    formatPercent(value, signed = false) {
+      const num = this.asNumber(value)
+      const sign = signed && num > 0 ? '+' : ''
+      return `${sign}${num.toFixed(Math.abs(num) >= 100 ? 0 : 1)}%`
+    },
+    formatDrawdown(value) {
+      const num = this.asNumber(value)
+      if (num === 0) return '0.0%'
+      return `${num > 0 ? '-' : ''}${Math.abs(num).toFixed(1)}%`
+    },
+    formatRatio(value) {
+      const num = this.asNumber(value)
+      return num ? num.toFixed(2) : '-'
+    },
+    valueTone(value) {
+      const num = this.asNumber(value)
+      if (num > 0) return 'up'
+      if (num < 0) return 'down'
+      return ''
+    },
+    cardMetrics(item) {
+      return [
+        {
+          key: 'win',
+          label: this.$t('market.perf_win_rate'),
+          value: this.formatPercent(item.win_rate_backtest),
+          tone: this.asNumber(item.win_rate_backtest) >= 50 ? 'up' : ''
+        },
+        {
+          key: 'drawdown',
+          label: this.$t('market.max_drawdown_short'),
+          value: this.formatDrawdown(item.max_drawdown),
+          tone: 'risk'
+        },
+        {
+          key: 'annual',
+          label: this.$t('market.annual_return_short'),
+          value: this.formatPercent(item.annual_return, true),
+          tone: this.valueTone(item.annual_return)
+        },
+        {
+          key: 'sample',
+          label: this.$t('market.sample_size_short'),
+          value: this.asNumber(item.sample_size).toFixed(0),
+          tone: ''
+        }
+      ]
+    },
+    applicableTags(item) {
+      const symbols = Array.isArray(item.applicable_symbols) ? item.applicable_symbols : []
+      const timeframes = Array.isArray(item.applicable_timeframes) ? item.applicable_timeframes : []
+      return symbols.concat(timeframes).filter(Boolean).slice(0, 4)
     },
     initialsOf(name) {
       if (!name) return 'IN'
@@ -402,14 +476,14 @@ export default {
   font-weight: 600;
   letter-spacing: 0.02em;
 }
-.cover-vip {
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: var(--c-amber);
-  color: #0a0a0d;
-  font-size: 10px;
+.cover-score {
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(6, 14, 24, 0.42);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  backdrop-filter: blur(10px);
 }
 .cover-initials {
   font-size: 30px;
@@ -417,17 +491,39 @@ export default {
   letter-spacing: 0.02em;
   text-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
-.cover-type {
+.cover-return {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.34);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 11px;
-  opacity: 0.85;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-weight: 800;
 }
+.cover-return.up { color: #34d399; }
+.cover-return.down { color: #fb7185; }
 .ind-body { padding: 14px 16px 16px; }
+.ind-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
 .ind-title {
   color: var(--text);
   font-weight: 700;
   font-size: 15px;
+  line-height: 1.35;
+  min-width: 0;
+}
+.asset-pill {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  font-size: 10px;
+  font-weight: 700;
 }
 .ind-desc {
   margin-top: 8px;
@@ -435,6 +531,57 @@ export default {
   line-height: 1.6;
   color: var(--text-2);
   min-height: 36px;
+}
+.metric-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.metric-cell {
+  padding: 8px 6px;
+  border-radius: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--hairline);
+  min-width: 0;
+}
+.metric-label {
+  display: block;
+  color: var(--text-3);
+  font-size: 10px;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.metric-value {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.metric-value.up { color: var(--up); }
+.metric-value.down { color: var(--down); }
+.metric-value.risk { color: var(--c-amber); }
+.tag-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.mini-tag {
+  max-width: 96px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--text-2);
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid var(--hairline);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ind-stats {
   margin-top: 12px;
