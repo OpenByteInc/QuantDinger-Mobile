@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="assets-page">
     <!-- 总资产卡片 -->
     <div class="total-card">
@@ -132,7 +132,7 @@ export default {
     },
     
     getBrokerIcon(broker) {
-      const icons = { 'MT5': '📊', 'IBKR': '🏦', 'Binance': '₿', 'OKX': '🔶' }
+      const icons = { 'IBKR': '🏦', 'Binance': '₿', 'OKX': '🔶' }
       return icons[broker] || '💹'
     },
     
@@ -300,3 +300,4 @@ export default {
   color: var(--text);
 }
 </style>
+

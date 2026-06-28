@@ -194,18 +194,6 @@
             <button type="button" class="icon-action image" @click="triggerImageUpload" :aria-label="text.uploadImage">
               <van-icon name="photo-o" />
             </button>
-            <button
-              type="button"
-              :class="['icon-action', 'voice', { listening: voiceListening }]"
-              @pointerdown.prevent="startVoiceInput"
-              @pointerup.prevent="stopVoiceInput"
-              @pointercancel.prevent="stopVoiceInput"
-              @lostpointercapture="stopVoiceInput"
-              @contextmenu.prevent
-              :aria-label="text.voiceInput"
-            >
-              <van-icon name="volume-o" />
-            </button>
           </div>
           <button type="button" class="send-action" :disabled="sending || !canSend" @click="sendMessage">
             <van-loading v-if="sending" size="16" />
@@ -335,24 +323,16 @@ import { normalizeAiBotRecommendation } from '@/views/trading/botScriptTemplates
 
 const COPY = {
   'zh-CN': {
-    title: 'QuantDinger',
+    title: 'AI Copilot',
     welcomeTitle: '你的专属 AI 量化操作系统',
     welcomeDesc: '用一句话完成行情诊断、策略参数和交易研究。',
     sessions: '历史',
     currentSymbol: '当前标的',
     selectSymbol: '选择标的',
     emptyTitle: '你的专属 AI 量化操作系统',
-    emptyDesc: '把行情、策略和交易研究交给 QuantDinger。',
+    emptyDesc: '把行情、策略和交易研究交给 AI Copilot。',
     placeholder: '例如：帮我诊断 BTC/USDT 1 小时趋势，或者上传 K 线图问是否适合开仓...',
     uploadImage: '上传图片',
-    voiceInput: '按住说话',
-    voiceListening: '松开结束',
-    voiceUnsupported: '当前浏览器不支持语音输入',
-    voiceError: '语音识别失败',
-    voiceNoSpeech: '没听到声音，请按住后再说话',
-    voicePermissionDenied: '请允许浏览器使用麦克风',
-    voiceMicMissing: '没有检测到可用麦克风',
-    voiceNetworkError: '语音服务网络不可用',
     quickTools: '快捷工具',
     hideTools: '收起工具',
     copy: '复制',
@@ -388,24 +368,16 @@ const COPY = {
     taskRadarDesc: '扫描未来 24 小时触发条件'
   },
   'zh-TW': {
-    title: 'QuantDinger',
+    title: 'AI Copilot',
     welcomeTitle: '你的專屬 AI 量化操作系統',
     welcomeDesc: '用一句話完成行情診斷、策略參數和交易研究。',
     sessions: '歷史',
     currentSymbol: '目前標的',
     selectSymbol: '選擇標的',
     emptyTitle: '你的專屬 AI 量化操作系統',
-    emptyDesc: '把行情、策略和交易研究交給 QuantDinger。',
+    emptyDesc: '把行情、策略和交易研究交給 AI Copilot。',
     placeholder: '例如：幫我診斷 BTC/USDT 1 小時趨勢，或上傳 K 線圖問是否適合開倉...',
     uploadImage: '上傳圖片',
-    voiceInput: '按住說話',
-    voiceListening: '放開結束',
-    voiceUnsupported: '目前瀏覽器不支援語音輸入',
-    voiceError: '語音辨識失敗',
-    voiceNoSpeech: '沒有聽到聲音，請按住後再說話',
-    voicePermissionDenied: '請允許瀏覽器使用麥克風',
-    voiceMicMissing: '沒有偵測到可用麥克風',
-    voiceNetworkError: '語音服務網路不可用',
     quickTools: '快捷工具',
     hideTools: '收起工具',
     copy: '複製',
@@ -441,24 +413,16 @@ const COPY = {
     taskRadarDesc: '掃描未來 24 小時觸發條件'
   },
   'en-US': {
-    title: 'QuantDinger',
+    title: 'AI Copilot',
     welcomeTitle: 'Your personal AI quant operating system',
     welcomeDesc: 'Diagnose markets, shape strategy parameters, and research trades in one sentence.',
     sessions: 'History',
     currentSymbol: 'Current symbol',
     selectSymbol: 'Select symbol',
     emptyTitle: 'Your personal AI quant operating system',
-    emptyDesc: 'Let QuantDinger handle market diagnosis, strategy thinking, and trade research.',
+    emptyDesc: 'Let AI Copilot handle market diagnosis, strategy thinking, and trade research.',
     placeholder: 'Example: diagnose BTC/USDT 1H trend, or upload a chart and ask whether entry risk is acceptable...',
     uploadImage: 'Upload image',
-    voiceInput: 'Hold to talk',
-    voiceListening: 'Release to finish',
-    voiceUnsupported: 'Voice input is not supported by this browser',
-    voiceError: 'Voice recognition failed',
-    voiceNoSpeech: 'No speech detected. Hold the button while speaking.',
-    voicePermissionDenied: 'Allow microphone access in the browser',
-    voiceMicMissing: 'No available microphone detected',
-    voiceNetworkError: 'Voice service network is unavailable',
     quickTools: 'Quick tools',
     hideTools: 'Hide tools',
     copy: 'Copy',
@@ -494,24 +458,16 @@ const COPY = {
     taskRadarDesc: 'Scan triggers for the next 24 hours'
   },
   'ja-JP': {
-    title: 'QuantDinger',
+    title: 'AI Copilot',
     welcomeTitle: 'あなただけの AI クオンツ OS',
     welcomeDesc: '一文で相場診断、戦略パラメータ、取引リサーチを進められます。',
     sessions: '履歴',
     currentSymbol: '現在の銘柄',
     selectSymbol: '銘柄を選択',
     emptyTitle: 'あなただけの AI クオンツ OS',
-    emptyDesc: '相場、戦略、取引リサーチを QuantDinger に任せましょう。',
+    emptyDesc: '相場、戦略、取引リサーチを AI Copilot に任せましょう。',
     placeholder: '例：BTC/USDT の1時間足を診断、またはチャート画像をアップロードしてエントリー可否を確認...',
     uploadImage: '画像',
-    voiceInput: '長押しで話す',
-    voiceListening: '離して終了',
-    voiceUnsupported: 'このブラウザは音声入力に対応していません',
-    voiceError: '音声認識に失敗しました',
-    voiceNoSpeech: '音声が検出されませんでした。押したまま話してください',
-    voicePermissionDenied: 'ブラウザのマイク権限を許可してください',
-    voiceMicMissing: '利用可能なマイクが見つかりません',
-    voiceNetworkError: '音声サービスのネットワークを利用できません',
     quickTools: 'クイックツール',
     hideTools: 'ツールを閉じる',
     copy: 'コピー',
@@ -547,24 +503,16 @@ const COPY = {
     taskRadarDesc: '24時間の発火条件を確認'
   },
   'ko-KR': {
-    title: 'QuantDinger',
+    title: 'AI Copilot',
     welcomeTitle: '나만의 AI 퀀트 운영체제',
     welcomeDesc: '한 문장으로 시장 진단, 전략 파라미터, 거래 리서치를 진행하세요.',
     sessions: '기록',
     currentSymbol: '현재 종목',
     selectSymbol: '종목 선택',
     emptyTitle: '나만의 AI 퀀트 운영체제',
-    emptyDesc: '시장, 전략, 거래 리서치를 QuantDinger에게 맡기세요.',
+    emptyDesc: '시장, 전략, 거래 리서치를 AI Copilot에게 맡기세요.',
     placeholder: '예: BTC/USDT 1시간 추세를 진단하거나 차트 이미지를 올려 진입 가능성을 확인...',
     uploadImage: '이미지',
-    voiceInput: '길게 눌러 말하기',
-    voiceListening: '놓으면 종료',
-    voiceUnsupported: '현재 브라우저는 음성 입력을 지원하지 않습니다',
-    voiceError: '음성 인식 실패',
-    voiceNoSpeech: '음성이 감지되지 않았습니다. 누른 상태로 말하세요',
-    voicePermissionDenied: '브라우저의 마이크 권한을 허용하세요',
-    voiceMicMissing: '사용 가능한 마이크를 찾을 수 없습니다',
-    voiceNetworkError: '음성 서비스 네트워크를 사용할 수 없습니다',
     quickTools: '빠른 도구',
     hideTools: '도구 닫기',
     copy: '복사',
@@ -624,12 +572,6 @@ export default {
       sessions: [],
       loadingSessions: false,
       showQuickTools: false,
-      voiceListening: false,
-      voiceBaseText: '',
-      voiceDraft: '',
-      voiceStopRequested: false,
-      voiceHadResult: false,
-      speechRecognition: null,
       showHistoryDrawer: false,
       showSymbolPicker: false,
       recommendation: null,
@@ -671,14 +613,6 @@ export default {
         `Research recent news and events for ${label}, separating facts from interpretation.`,
         `Suggest a template strategy parameter plan for ${label}. Do not write code.`
       ]
-    }
-  },
-  beforeUnmount() {
-    if (this.speechRecognition) {
-      this.speechRecognition.onresult = null
-      this.speechRecognition.onerror = null
-      this.speechRecognition.onend = null
-      this.speechRecognition.stop()
     }
   },
   methods: {
@@ -1179,95 +1113,6 @@ export default {
     triggerImageUpload() {
       this.$refs.fileInput?.click()
     },
-    startVoiceInput() {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-      if (!SpeechRecognition) {
-        showToast({ message: this.text.voiceUnsupported, type: 'fail' })
-        return
-      }
-      if (this.voiceListening) return
-      const recognition = new SpeechRecognition()
-      recognition.lang = this.voiceLocale()
-      recognition.interimResults = true
-      recognition.continuous = true
-      recognition.maxAlternatives = 1
-      recognition.onresult = (event) => {
-        let transcript = ''
-        for (let i = 0; i < event.results.length; i += 1) {
-          transcript += event.results[i]?.[0]?.transcript || ''
-        }
-        this.voiceDraft = transcript.trim()
-        if (this.voiceDraft) {
-          this.voiceHadResult = true
-          this.composer = this.mergeVoiceText(this.voiceBaseText, this.voiceDraft)
-        }
-      }
-      recognition.onerror = (event) => {
-        const message = this.voiceErrorMessage(event?.error)
-        if (message) showToast({ message, type: 'fail' })
-      }
-      recognition.onend = () => {
-        this.voiceListening = false
-        this.speechRecognition = null
-        this.voiceBaseText = ''
-        this.voiceDraft = ''
-        this.voiceStopRequested = false
-        this.voiceHadResult = false
-      }
-      this.voiceBaseText = this.composer || ''
-      this.voiceDraft = ''
-      this.voiceStopRequested = false
-      this.voiceHadResult = false
-      this.speechRecognition = recognition
-      this.voiceListening = true
-      showToast(this.text.voiceListening)
-      try {
-        recognition.start()
-      } catch (err) {
-        this.voiceListening = false
-        this.speechRecognition = null
-        this.voiceStopRequested = false
-        this.voiceHadResult = false
-        showToast({ message: this.text.voiceError, type: 'fail' })
-      }
-    },
-    stopVoiceInput() {
-      if (!this.voiceListening || !this.speechRecognition) return
-      this.voiceStopRequested = true
-      try {
-        this.speechRecognition.stop()
-      } catch (err) {
-        this.voiceListening = false
-        this.speechRecognition = null
-        this.voiceBaseText = ''
-        this.voiceDraft = ''
-        this.voiceStopRequested = false
-        this.voiceHadResult = false
-      }
-    },
-    voiceErrorMessage(error) {
-      if (error === 'aborted') return ''
-      if (error === 'no-speech') return this.voiceStopRequested ? '' : this.text.voiceNoSpeech
-      if (error === 'not-allowed' || error === 'service-not-allowed') return this.text.voicePermissionDenied
-      if (error === 'audio-capture') return this.text.voiceMicMissing
-      if (error === 'network') return this.text.voiceNetworkError
-      return this.voiceHadResult ? '' : this.text.voiceError
-    },
-    mergeVoiceText(base, draft) {
-      const cleanBase = String(base || '')
-      const cleanDraft = String(draft || '').trim()
-      if (!cleanDraft) return cleanBase
-      const separator = cleanBase && !/\s$/.test(cleanBase) ? ' ' : ''
-      return `${cleanBase}${separator}${cleanDraft}`.trimStart()
-    },
-    voiceLocale() {
-      const locale = this.$i18n?.locale || 'zh-CN'
-      if (locale.startsWith('zh-TW')) return 'zh-TW'
-      if (locale.startsWith('zh')) return 'zh-CN'
-      if (locale.startsWith('ja')) return 'ja-JP'
-      if (locale.startsWith('ko')) return 'ko-KR'
-      return 'en-US'
-    },
     onImageSelected(event) {
       const file = event.target.files?.[0]
       event.target.value = ''
@@ -1728,7 +1573,8 @@ export default {
   min-height: 300px;
   max-height: none;
   overflow-y: auto;
-  padding: 14px 12px;
+  padding: 14px 12px calc(92px + var(--safe-area-bottom, 0px));
+  scroll-padding-bottom: calc(92px + var(--safe-area-bottom, 0px));
 }
 
 .message-row {
@@ -2206,28 +2052,6 @@ export default {
 
 .icon-action.image {
   --tool-color: #38bdf8;
-}
-
-.icon-action.voice {
-  --tool-color: #a78bfa;
-}
-
-.icon-action.listening {
-  color: var(--on-accent);
-  border-color: transparent;
-  background: linear-gradient(135deg, #8b5cf6, #ec4899);
-  box-shadow: 0 10px 24px rgba(168, 85, 247, 0.28);
-  transform: scale(1.06);
-  animation: voicePulse 1s ease-in-out infinite;
-}
-
-@keyframes voicePulse {
-  0%, 100% {
-    box-shadow: 0 10px 24px rgba(168, 85, 247, 0.24);
-  }
-  50% {
-    box-shadow: 0 10px 30px rgba(236, 72, 153, 0.42);
-  }
 }
 
 .send-action {

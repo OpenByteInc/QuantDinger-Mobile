@@ -11,7 +11,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const pkgVersion = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8')).version
 const appVersion = process.env.APP_VERSION || process.env.GIT_TAG || pkgVersion
 
-const apiTarget = 'https://api.quantdinger.com'
+const apiTarget =
+  process.env.VITE_DEV_API_TARGET ||
+  process.env.BACKEND_URL ||
+  'http://localhost:5000'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -37,7 +40,6 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
-    // 代理后端 API（与 PC 端共用 5000 端口）
     proxy: {
       '/api': {
         target: apiTarget,

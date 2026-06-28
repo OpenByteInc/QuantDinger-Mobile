@@ -117,7 +117,7 @@ export default {
       submitting: false,
       indicators: [],
       timeframes: ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1', 'W1'],
-      brokers: ['MT5', 'IBKR', 'Binance', 'OKX']
+      brokers: ['IBKR', 'Binance', 'OKX']
     }
   },
   

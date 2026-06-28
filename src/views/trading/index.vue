@@ -3,13 +3,13 @@
     <!-- iOS Large Title Nav -->
     <div class="nav-header">
       <div class="nav-row">
-        <div>
+        <div class="nav-copy">
           <span class="nav-eyebrow">{{ $t('trading.hero_eyebrow') }}</span>
           <h1 class="nav-title">{{ $t('trading.hero_title') }}</h1>
         </div>
-        <div class="nav-plus" @click="$router.push('/trading/create')">
+        <button class="nav-plus" type="button" @click="$router.push('/trading/create')">
           <van-icon name="plus" />
-        </div>
+        </button>
       </div>
     </div>
 
@@ -517,41 +517,66 @@ export default {
 }
 
 .nav-header {
-  padding: calc(14px + var(--safe-area-top, 0px)) 16px 10px;
+  padding: calc(12px + var(--safe-area-top, 0px)) 16px 12px 66px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04), transparent),
+    var(--bg);
+  border-bottom: 1px solid var(--border);
 }
 .nav-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
+  gap: 14px;
+  min-height: 58px;
+}
+.nav-copy {
+  min-width: 0;
+  flex: 1;
 }
 .nav-eyebrow {
   display: inline-block;
-  padding: 4px 10px;
-  margin-bottom: 8px;
+  max-width: 100%;
+  padding: 3px 9px;
+  margin-bottom: 6px;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--text-2);
-  background: transparent;
+  background: var(--surface-raised);
   border: 1px solid var(--border-strong);
   border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .nav-title {
-  font-size: 34px;
+  font-size: 30px;
   font-weight: 800;
   color: var(--text);
-  letter-spacing: -0.035em;
+  letter-spacing: 0;
   line-height: 1.05;
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .nav-plus {
-  width: 42px; height: 42px;
-  border-radius: 13px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--text);
-  color: var(--bg);
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-raised);
+  color: var(--text);
   font-size: 22px;
+  box-shadow: var(--shadow-card);
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .kpi-row {
@@ -593,7 +618,7 @@ export default {
   font-weight: 800;
   color: var(--text);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -735,7 +760,7 @@ export default {
   font-size: 16px;
   font-weight: 700;
   color: var(--text);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 

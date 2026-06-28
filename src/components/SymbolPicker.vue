@@ -74,6 +74,7 @@
           shape="round"
           :placeholder="$t('watchlist.search_placeholder')"
           @update:model-value="debouncedSearch"
+          @search="doSearch"
         />
         <div v-if="searching" class="loading"><van-loading color="#7c5cff" size="20" /></div>
         <template v-else>
@@ -142,11 +143,13 @@ export default {
   computed: {
     marketOptions() {
       return [
-        { value: 'Crypto', label: 'Crypto' },
-        { value: 'USStock', label: 'US' },
-        { value: 'HKStock', label: 'HK' },
-        { value: 'Forex', label: 'Forex' },
-        { value: 'Futures', label: 'Futures' }
+        { value: 'Crypto', label: this.$t('watchlist.market_crypto') },
+        { value: 'USStock', label: this.$t('watchlist.market_usstock') },
+        { value: 'ChinaStock', label: this.$t('watchlist.market_chinastock') },
+        { value: 'HKStock', label: this.$t('watchlist.market_hkstock') },
+        { value: 'Forex', label: this.$t('watchlist.market_forex') },
+        { value: 'Futures', label: this.$t('watchlist.market_futures') },
+        { value: 'MOEX', label: this.$t('watchlist.market_moex') }
       ]
     },
     watchlistStore() {
@@ -166,6 +169,7 @@ export default {
         this.mode = 'mine'
         this.keyword = ''
         this.searchResults = []
+        this.searchMarketInner = this.searchMarket || this.defaultMarket || 'Crypto'
         this.load()
       }
     }
@@ -207,12 +211,17 @@ export default {
       this.searchTimer = setTimeout(() => this.doSearch(kw), 300)
     },
     async doSearch(kw) {
+      const keyword = String(kw || '').trim()
+      if (!keyword) {
+        this.searchResults = []
+        return
+      }
       this.searching = true
       try {
         const market = this.onlyCrypto ? 'Crypto' : this.searchMarketInner
         const res = await watchlistApi.search({
           market,
-          keyword: kw.trim(),
+          keyword,
           limit: 30
         })
         this.searchResults = res.data || []

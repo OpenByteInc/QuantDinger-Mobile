@@ -12,7 +12,7 @@
 
 ---
 
-**QuantDinger Mobile** 是 [QuantDinger](https://github.com/brokermr810/QuantDinger) 量化平台的官方**移动端与轻量 Web 客户端**。项目基于 **Vue 3**、**Vite** 与 **Capacitor 6**：同一套前端既可封装为 **Android / iOS** 原生壳，也可将构建产物 **`dist/`** 单独部署为 **H5**。只需在应用内配置可访问的 **API 根地址**，即可对接**自托管**后端或**官方托管**环境。
+**QuantDinger Mobile** 是 [QuantDinger](https://github.com/brokermr810/QuantDinger) 量化平台的官方**移动端与轻量 Web 客户端**。QuantDinger 是 **Open Byte Inc** 的产品。项目基于 **Vue 3**、**Vite** 与 **Capacitor 6**：同一套前端既可封装为 **Android / iOS** 原生壳，也可将构建产物 **`dist/`** 单独部署为 **H5**。只需在应用内配置可访问的 **API 根地址**，即可对接**自托管**后端或**官方托管**环境。
 
 本仓库许可条款与桌面端 [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) **一致**，均采用 **Source-Available** 授权（详见根目录 [`LICENSE`](LICENSE)）。使用、分发或商用前请务必完整阅读许可正文。
 
@@ -110,7 +110,7 @@ quantdinger-mobile/
 
 ## 环境要求
 
-- **Node.js** 18 及以上（推荐 20 / 22 LTS）。
+- **Node.js** 20.19+ 或 22.12+（推荐 Node 22 LTS）。Vite 7 在 Node 18 下会报 `crypto.hash is not a function` 一类错误。
 - **npm**（或兼容的包管理器）。
 - 打包或调试 **Android** 需安装 **Android Studio** 与对应 SDK。
 - **iOS** 需在 **macOS** 上使用 **Xcode**，并具备 Apple 开发者侧账号与签名能力。
@@ -133,6 +133,29 @@ npx cap add android    # 若尚未生成 android 目录
 npx cap add ios        # 仅在 macOS 上执行
 npm run build
 npx cap sync
+```
+
+---
+
+## Docker 一键部署
+
+QuantDinger 主仓库的 Docker Compose 栈已包含移动端 H5 服务。安装整套系统后，可直接打开 **`http://localhost:8889`** 使用移动端：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/brokermr810/QuantDinger/main/install.sh | bash
+```
+
+手机访问时请使用宿主机局域网 IP，例如 `http://192.168.1.10:8889`。该容器会把 `/api` 反代到同一套后端，因此默认 Compose 部署下无需手动配置服务器地址。
+
+主仓库 `.env` 可覆盖镜像标签和端口：
+
+```ini
+IMAGE_TAG=4.0.3
+MOBILE_TAG=4.0.3
+MOBILE_PORT=8889
+# 仅在单独运行移动端镜像、不使用主仓 Compose 栈时需要。
+# 默认 Compose 栈中保持 http://backend:5000 即可。
+BACKEND_URL=http://host.docker.internal:5000
 ```
 
 ---
@@ -164,6 +187,19 @@ npx cap sync
 | 仅暴露后端 API（须在服务端放行 CORS） | `http://192.168.1.10:5000` |
 
 修改后务必使用 **测试连接**；若失败，依次检查网络、TLS、防火墙、后端监听地址及端口映射。
+
+### 到底应该改哪个配置？
+
+| 运行方式 | 如何指向自己的后端 |
+|------|------|
+| 主仓 Docker 一键部署 | 通常不用改。移动端容器在 `MOBILE_PORT` 提供 H5，并把 `/api` 自动反代到同一套后端。 |
+| 单独运行移动端 Docker 镜像 | 启动容器时传 `-e BACKEND_URL=http://host.docker.internal:5000`，或换成你的真实后端地址。这个变量控制容器内 Nginx 的 `/api/` 反代目标。 |
+| `npm run dev` 本地开发 | 启动前设置 `VITE_DEV_API_TARGET=http://127.0.0.1:5000`。浏览器里看到的请求仍会是开发服务器上的 `/api/...`，由 Vite 转发到后端。 |
+| 自己部署静态 H5 | 推荐同源反代：例如前端是 `https://m.example.com`，就把 `https://m.example.com/api/` 反代到后端。 |
+| Android / iOS 原生壳 | 在 App 设置里填写手机能访问到的服务地址，例如 `http://192.168.1.10:5000` 或 `https://api.example.com`。 |
+| 想给新安装用户预置默认地址 | 构建时设置 `VITE_DEFAULT_SERVER_URL=https://api.example.com`。用户仍可在设置页覆盖。 |
+
+如果开发者工具里看到 `http://localhost:5173/api/...`，这在本地 H5 开发中是正常的：浏览器先请求 Vite，Vite 再按 `VITE_DEV_API_TARGET` 转发到真正后端。
 
 ---
 
@@ -249,6 +285,7 @@ OAUTH_ALLOWED_REDIRECTS=https://m.example.com,https://m.example.com/login,https:
 | 接口报 CORS 或网络错误 | 优先改为同源 `/api/` 反代；或在后端显式放行 H5 Origin。 |
 | OAuth 跳错站点或参数丢失 | 后端 `OAUTH_ALLOWED_REDIRECTS`、`FRONTEND_URL` 是否与当前域名一致；镜像是否已更新。 |
 | HTTPS 握手失败 | 证书链、Nginx TLS 版本（建议 TLS 1.2+）、配置语法 `nginx -t`。 |
+| Vite 提示需要 Node 20.19+ 或 22.12+ | 移动端仓库建议切到 Node 22 LTS。PC 前端也可以使用 Node 22，因此本地开发一套 Node 22 即可覆盖两个前端。 |
 
 ---
 
@@ -264,10 +301,10 @@ OAUTH_ALLOWED_REDIRECTS=https://m.example.com,https://m.example.com/login,https:
 
 ## 许可协议
 
-本软件适用 **QuantDinger Frontend Source-Available License v1.0**（全文见 [`LICENSE`](LICENSE)），与 [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) **同一份法律文本**。
+本软件适用 **QuantDinger Frontend Source-Available License v1.0**（全文见 [`LICENSE`](LICENSE)），与 [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) **同一份法律文本**。QuantDinger 是 **Open Byte Inc** 的产品。
 
 - **非商业用途**及**符合资格的非营利 / 教育等用途**，在遵守条款的前提下**免费**使用。  
-- **商业用途**须另行取得版权方的**书面商业授权**。  
+- **商业用途**须另行取得 Open Byte Inc 的**书面商业授权**。  
 - 须按许可第 3.1 条**保留**版权声明、许可证全文及应用中的 **QuantDinger** 相关署名或品牌展示，未经许可不得删除或恶意篡改。
 
 项目级商标与品牌规则见主仓库：[`TRADEMARKS.md`](https://github.com/brokermr810/QuantDinger/blob/master/TRADEMARKS.md)。
@@ -277,4 +314,4 @@ OAUTH_ALLOWED_REDIRECTS=https://m.example.com,https://m.example.com/login,https:
 ## 联系方式
 
 - 官网：[quantdinger.com](https://quantdinger.com)  
-- 商业授权与合作：见 [`LICENSE`](LICENSE) **第六节**中的邮箱与说明。
+- 商业授权与合作：[support@quantdinger.com](mailto:support@quantdinger.com)。

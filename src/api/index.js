@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { showToast } from 'vant'
-import { DEFAULT_SERVER_URL } from '@/config'
+import { resolveServerUrl } from '@/config'
 import router from '@/router'
 import { useUserStore } from '@/stores'
 
@@ -12,11 +12,7 @@ const http = axios.create({
 })
 
 export const getBaseUrl = () => {
-  const serverUrl = localStorage.getItem('serverUrl')?.trim()
-  if (serverUrl) {
-    return serverUrl.replace(/\/$/, '')
-  }
-  return DEFAULT_SERVER_URL
+  return resolveServerUrl(localStorage.getItem('serverUrl'))
 }
 
 const ensureArray = (value) => Array.isArray(value) ? value : []

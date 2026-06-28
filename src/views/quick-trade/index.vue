@@ -229,6 +229,18 @@ import { useCredentialsStore, useQuickTradeStore, useWatchlistStore } from '@/st
 import KlineChart from '@/components/KlineChart.vue'
 import SymbolPicker from '@/components/SymbolPicker.vue'
 
+const QUICK_TRADE_EXCHANGE_IDS = new Set([
+  'binance',
+  'okx',
+  'bitget',
+  'bybit',
+  'coinbaseexchange',
+  'coinbase_exchange',
+  'kraken',
+  'gate',
+  'htx'
+])
+
 export default {
   name: 'QuickTrade',
 
@@ -294,7 +306,9 @@ export default {
       return this.watchlistStore.items.filter((i) => (i.market || '').toLowerCase() === 'crypto')
     },
     credentials() {
-      return this.credentialsStore.cryptoItems
+      return this.credentialsStore.items.filter((item) => (
+        QUICK_TRADE_EXCHANGE_IDS.has(String(item.exchange_id || '').trim().toLowerCase())
+      ))
     },
     selectedCredentialId() {
       return this.quickTradeStore.selectedCredentialId
@@ -403,6 +417,8 @@ export default {
         }
         if (!this.selectedCredentialId && this.credentials.length) {
           this.quickTradeStore.setSelectedCredential(this.credentials[0].id)
+        } else if (this.selectedCredentialId && !this.selectedCredential) {
+          this.quickTradeStore.setSelectedCredential(null)
         }
         if (this.form.symbol) {
           await this.loadPrice()
@@ -497,20 +513,24 @@ export default {
 
     onSelectCredential(payload) {
       const selected = payload?.selectedOptions?.[0] || payload?.selectedOption || payload?.[0] || payload
+      if (!this.credentials.some((item) => item.id === selected?.value)) {
+        showToast({ message: this.$t('quick_trade.no_crypto_credential'), type: 'fail' })
+        return
+      }
       this.quickTradeStore.setSelectedCredential(selected?.value)
       this.showCredentialPicker = false
     },
 
     openCredentialPicker() {
       if (!this.credentialActions.length) {
-        showToast({ message: this.$t('quick_trade.no_credential'), type: 'fail' })
+        showToast({ message: this.$t('quick_trade.no_crypto_credential'), type: 'fail' })
         return
       }
       this.showCredentialPicker = true
     },
 
     async refreshTradeData() {
-      if (!this.selectedCredentialId) return
+      if (!this.selectedCredentialId || !this.selectedCredential) return
       try {
         const tasks = [
           quickTradeApi.getBalance(this.selectedCredentialId, this.marketType),
@@ -543,6 +563,10 @@ export default {
     validateOrder() {
       if (!this.selectedCredentialId) {
         showToast({ message: this.$t('quick_trade.need_credential'), type: 'fail' })
+        return false
+      }
+      if (!this.selectedCredential) {
+        showToast({ message: this.$t('quick_trade.no_crypto_credential'), type: 'fail' })
         return false
       }
       if (!this.form.symbol.trim()) {

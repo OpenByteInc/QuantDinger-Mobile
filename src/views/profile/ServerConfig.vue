@@ -18,8 +18,9 @@
       </van-cell-group>
       
       <div class="hint">
-        <p>• 官方后端默认地址：{{ defaultServerUrl }}</p>
-        <p>• 如需切换测试环境，可改成你自己的 API 地址</p>
+        <p>• 当前默认地址：{{ defaultServerUrl }}</p>
+        <p>• Docker / H5 部署默认使用当前站点地址</p>
+        <p>• 如需连接其它后端，可改成你的 API 地址</p>
         <p>• 保存后登录、行情和策略请求都会走这里</p>
       </div>
       
@@ -45,15 +46,15 @@
 import { showToast } from 'vant'
 import { useSettingsStore } from '@/stores'
 import axios from 'axios'
-import { DEFAULT_SERVER_URL } from '@/config'
+import { resolveServerUrl } from '@/config'
 
 export default {
   name: 'ServerConfig',
   
   data() {
     return {
-      serverUrl: DEFAULT_SERVER_URL,
-      defaultServerUrl: DEFAULT_SERVER_URL,
+      serverUrl: resolveServerUrl(),
+      defaultServerUrl: resolveServerUrl(),
       testing: false,
       connectionStatus: null
     }
@@ -66,7 +67,7 @@ export default {
   },
   
   mounted() {
-    this.serverUrl = this.settingsStore.serverUrl || DEFAULT_SERVER_URL
+    this.serverUrl = this.settingsStore.serverUrl || resolveServerUrl()
   },
   
   methods: {

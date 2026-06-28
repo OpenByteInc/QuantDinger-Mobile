@@ -22,11 +22,14 @@ FROM ${NGINX_IMAGE}
 
 RUN apk add --no-cache curl
 
-COPY deploy/nginx-mobile.conf /etc/nginx/conf.d/default.conf
+ENV NGINX_ENVSUBST_FILTER=BACKEND_URL \
+    BACKEND_URL=http://backend:5000
+
+COPY deploy/nginx-mobile.conf /etc/nginx/templates/default.conf.template
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD curl -fsS http://127.0.0.1/ >/dev/null || exit 1
+  CMD curl -fsS http://127.0.0.1/health >/dev/null || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

@@ -1,8 +1,30 @@
 import { createPinia, defineStore } from 'pinia'
-import { DEFAULT_SERVER_URL, DEFAULT_THEME } from '@/config'
+import { DEFAULT_THEME, resolveServerUrl, shouldResetSavedServerUrl } from '@/config'
 import { initialLocale, setLocale as applyLocale } from '@/locales'
 
 export const pinia = createPinia()
+
+const getInitialServerUrl = () => {
+  const savedUrl = localStorage.getItem('serverUrl')
+  if (shouldResetSavedServerUrl(savedUrl)) {
+    localStorage.removeItem('serverUrl')
+  }
+  return resolveServerUrl(savedUrl)
+}
+
+const CRYPTO_EXCHANGE_IDS = new Set([
+  'binance',
+  'okx',
+  'bitget',
+  'bybit',
+  'coinbaseexchange',
+  'coinbase_exchange',
+  'kraken',
+  'kucoin',
+  'gate',
+  'bitfinex',
+  'htx'
+])
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -83,7 +105,9 @@ export const useCredentialsStore = defineStore('credentials', {
 
   getters: {
     hasCredentials: (state) => state.items.length > 0,
-    cryptoItems: (state) => state.items.filter((item) => !['ibkr', 'mt5'].includes(item.exchange_id))
+    cryptoItems: (state) => state.items.filter((item) => (
+      CRYPTO_EXCHANGE_IDS.has(String(item.exchange_id || '').trim().toLowerCase())
+    ))
   },
 
   actions: {
@@ -145,7 +169,7 @@ export const useDashboardStore = defineStore('dashboard', {
 
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
-    serverUrl: localStorage.getItem('serverUrl') || DEFAULT_SERVER_URL,
+    serverUrl: getInitialServerUrl(),
     theme: localStorage.getItem('theme') || DEFAULT_THEME,
     locale: initialLocale
   }),
