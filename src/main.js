@@ -28,8 +28,8 @@ const applyThemeAttr = (theme) => {
 
 const getNativeThemeChrome = (theme) => (
   theme === 'light'
-    ? { statusBarStyle: Style.Dark, backgroundColor: '#ffffff' }
-    : { statusBarStyle: Style.Light, backgroundColor: '#000000' }
+    ? { statusBarStyle: Style.Light, backgroundColor: '#ffffff' }
+    : { statusBarStyle: Style.Dark, backgroundColor: '#000000' }
 )
 
 const syncStatusBar = async (theme) => {

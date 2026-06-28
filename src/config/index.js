@@ -1,33 +1,49 @@
+import { Capacitor } from '@capacitor/core'
+
 export const OFFICIAL_SERVER_URL = 'https://api.quantdinger.com'
 
-const webOrigin =
-  typeof window !== 'undefined' &&
-  window.location &&
-  /^https?:$/i.test(window.location.protocol)
-    ? window.location.origin
-    : ''
-
-export const DEFAULT_SERVER_URL =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DEFAULT_SERVER_URL) ||
-  webOrigin ||
-  OFFICIAL_SERVER_URL
+const isNativeRuntime =
+  typeof Capacitor !== 'undefined' &&
+  typeof Capacitor.isNativePlatform === 'function' &&
+  Capacitor.isNativePlatform()
 
 const normalizeServerUrl = (value) => String(value || '').trim().replace(/\/$/, '')
 
-const isOfficialServerUrl = (value) => {
-  const normalized = normalizeServerUrl(value).toLowerCase()
-  return normalized === OFFICIAL_SERVER_URL.toLowerCase()
+const getWebOrigin = () => {
+  if (isNativeRuntime || typeof window === 'undefined' || !window.location) {
+    return ''
+  }
+  return /^https?:$/i.test(window.location.protocol) ? window.location.origin : ''
 }
 
+const webOrigin = getWebOrigin()
+
+export const DEFAULT_SERVER_URL =
+  normalizeServerUrl(
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DEFAULT_SERVER_URL) ||
+      (isNativeRuntime ? OFFICIAL_SERVER_URL : webOrigin) ||
+      OFFICIAL_SERVER_URL
+  )
+
+const isOfficialServerUrl = (value) =>
+  normalizeServerUrl(value).toLowerCase() === OFFICIAL_SERVER_URL.toLowerCase()
+
 const isOfficialWebOrigin = (value) => {
-  const hostname = (() => {
-    try {
-      return new URL(value).hostname.toLowerCase()
-    } catch (_) {
-      return ''
-    }
-  })()
-  return hostname === 'm.quantdinger.com' || hostname === 'app.quantdinger.com'
+  try {
+    const hostname = new URL(value).hostname.toLowerCase()
+    return hostname === 'm.quantdinger.com' || hostname === 'app.quantdinger.com'
+  } catch (_) {
+    return false
+  }
+}
+
+const isLocalRuntimeUrl = (value) => {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase()
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0'
+  } catch (_) {
+    return false
+  }
 }
 
 export const shouldResetSavedServerUrl = (savedUrl) =>
@@ -35,16 +51,16 @@ export const shouldResetSavedServerUrl = (savedUrl) =>
 
 export const resolveServerUrl = (savedUrl) => {
   const normalizedSavedUrl = normalizeServerUrl(savedUrl)
+  if (isNativeRuntime && isLocalRuntimeUrl(normalizedSavedUrl)) {
+    return DEFAULT_SERVER_URL
+  }
   if (shouldResetSavedServerUrl(normalizedSavedUrl)) {
     return normalizeServerUrl(webOrigin)
   }
-  if (normalizedSavedUrl && !shouldResetSavedServerUrl(normalizedSavedUrl)) {
-    return normalizedSavedUrl
-  }
-  return normalizeServerUrl(DEFAULT_SERVER_URL)
+  return normalizedSavedUrl || DEFAULT_SERVER_URL
 }
 
-/** 邀请注册等对外分享的 H5 根地址（勿用 capacitor localhost / file 源） */
+// Public H5 origin for invitation and external sharing links.
 export const PUBLIC_WEB_BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PUBLIC_WEB_BASE_URL) ||
   'https://m.quantdinger.com'
