@@ -7,6 +7,8 @@ pnpm-lock.yaml
 # Build outputs
 dist/
 build/
+*.apk
+*.aab
 *.local
 
 # IDE
@@ -33,9 +35,17 @@ lerna-debug.log*
 
 # Capacitor
 .capacitor/
-android/
 ios/
 .capacitor.local.json
+android/.gradle/
+android/**/build/
+android/local.properties
+android/app/src/main/assets/public/
+
+# Signing credentials
+signing/*.jks
+signing/*.keystore
+signing/keystore.properties
 
 # Auto-generated files
 auto-imports.d.ts

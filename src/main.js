@@ -26,17 +26,19 @@ const applyThemeAttr = (theme) => {
   document.documentElement.setAttribute('data-theme', theme || 'dark')
 }
 
+const getNativeThemeChrome = (theme) => (
+  theme === 'light'
+    ? { statusBarStyle: Style.Dark, backgroundColor: '#ffffff' }
+    : { statusBarStyle: Style.Light, backgroundColor: '#000000' }
+)
+
 const syncStatusBar = async (theme) => {
   if (!Capacitor.isNativePlatform()) return
   try {
+    const { statusBarStyle, backgroundColor } = getNativeThemeChrome(theme)
     await StatusBar.setOverlaysWebView({ overlay: false })
-    if (theme === 'light') {
-      await StatusBar.setStyle({ style: Style.Light })
-      await StatusBar.setBackgroundColor({ color: '#ffffff' })
-    } else {
-      await StatusBar.setStyle({ style: Style.Dark })
-      await StatusBar.setBackgroundColor({ color: '#000000' })
-    }
+    await StatusBar.setStyle({ style: statusBarStyle })
+    await StatusBar.setBackgroundColor({ color: backgroundColor })
   } catch (e) {
     console.warn('StatusBar not available:', e)
   }
