@@ -12,6 +12,7 @@ import { App as CapApp } from '@capacitor/app'
 import { Browser } from '@capacitor/browser'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import { SplashScreen } from '@capacitor/splash-screen'
+import { showToast } from 'vant'
 import { parseOAuthReturnUrl } from '@/utils/oauthRedirect'
 
 const app = createApp(App)
@@ -21,6 +22,8 @@ app.use(i18n)
 app.use(router)
 
 const settingsStore = useSettingsStore()
+const exitRoutePaths = new Set(['/ai', '/trading', '/quick-trade', '/profile', '/home', '/login'])
+let lastBackPressedAt = 0
 
 const applyThemeAttr = (theme) => {
   document.documentElement.setAttribute('data-theme', theme || 'dark')
@@ -77,12 +80,21 @@ const initCapacitor = async () => {
     console.warn('SplashScreen not available:', e)
   }
 
-  CapApp.addListener('backButton', ({ canGoBack }) => {
-    if (canGoBack) {
+  CapApp.addListener('backButton', () => {
+    const currentPath = router.currentRoute.value.path
+    if (!exitRoutePaths.has(currentPath)) {
       router.back()
-    } else {
-      CapApp.exitApp()
+      return
     }
+
+    const now = Date.now()
+    if (now - lastBackPressedAt < 1800) {
+      CapApp.exitApp()
+      return
+    }
+
+    lastBackPressedAt = now
+    showToast(i18n.global.t('common.press_again_exit'))
   })
 
   CapApp.addListener('appUrlOpen', ({ url }) => {

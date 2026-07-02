@@ -738,6 +738,63 @@ export const klineApi = {
 
 export const aiChatApi = {
   sendMessage: (payload) => http.post('/api/ai/chat/message', payload, { timeout: 180000 }),
+  streamMessage: async (payload, onEvent) => {
+    const language = payload?.language || 'zh-CN'
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept-Language': language,
+      'X-App-Lang': language,
+      'Cache-Control': 'no-cache'
+    }
+    const token = localStorage.getItem('token')
+    if (token) headers.Authorization = `Bearer ${token}`
+
+    const response = await fetch(`${getBaseUrl()}/api/ai/chat/message/stream`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    })
+    if (!response.ok || !response.body) {
+      let message = `Stream API ${response.status}`
+      try {
+        const errorBody = await response.json()
+        message = errorBody?.msg || errorBody?.message || message
+      } catch (_) {}
+      throw new Error(message)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+    const handlePart = async (part) => {
+      const lines = String(part || '').split(/\r?\n/)
+      let event = 'message'
+      const dataLines = []
+      lines.forEach((line) => {
+        if (line.startsWith('event:')) event = line.slice(6).trim()
+        else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim())
+      })
+      if (!dataLines.length) return
+      let data = dataLines.join('\n')
+      try {
+        data = JSON.parse(data)
+      } catch (_) {}
+      if (typeof onEvent === 'function') await onEvent(event, data)
+    }
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const parts = buffer.split(/\r?\n\r?\n/)
+      buffer = parts.pop() || ''
+      for (const part of parts) {
+        await handlePart(part)
+      }
+    }
+    if (buffer.trim()) await handlePart(buffer)
+  },
   saveLocalMessage: (payload) => http.post('/api/ai/chat/message/local', payload),
   getSessions: async (params = {}) => {
     const res = await http.get('/api/ai/chat/sessions', { params })

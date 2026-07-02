@@ -127,7 +127,6 @@ const navGroups = computed(() => ([
     title: t('sidebar.workspace'),
     items: [
       { name: 'ai', label: t('sidebar.ai_analysis'), icon: 'cluster-o', path: '/ai' },
-      { name: 'home', label: t('sidebar.market_data'), icon: 'bar-chart-o', path: '/home' },
       { name: 'indicator-market', label: t('sidebar.indicator_market'), icon: 'chart-trending-o', path: '/market' },
       { name: 'create-bot', label: t('sidebar.create_bot'), icon: 'plus', path: '/trading/create' },
       { name: 'trading', label: t('sidebar.strategy_lab'), icon: 'apps-o', path: '/trading' },

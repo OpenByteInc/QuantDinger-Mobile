@@ -1,15 +1,21 @@
 <template>
   <div class="trading-page">
-    <!-- iOS Large Title Nav -->
+    <!-- Compact page header -->
     <div class="nav-header">
       <div class="nav-row">
         <div class="nav-copy">
           <span class="nav-eyebrow">{{ $t('trading.hero_eyebrow') }}</span>
           <h1 class="nav-title">{{ $t('trading.hero_title') }}</h1>
         </div>
-        <button class="nav-plus" type="button" @click="$router.push('/trading/create')">
-          <van-icon name="plus" />
-        </button>
+        <div class="nav-actions">
+          <button class="nav-stat" type="button" @click="$router.push('/home')">
+            <van-icon name="bar-chart-o" />
+            <span>{{ $t('trading.stats_entry') }}</span>
+          </button>
+          <button class="nav-plus" type="button" @click="$router.push('/trading/create')">
+            <van-icon name="plus" />
+          </button>
+        </div>
       </div>
     </div>
 
@@ -525,42 +531,69 @@ export default {
 }
 .nav-row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  min-height: 58px;
+  gap: 12px;
+  min-height: 48px;
 }
 .nav-copy {
   min-width: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nav-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 .nav-eyebrow {
   display: inline-block;
-  max-width: 100%;
-  padding: 3px 9px;
-  margin-bottom: 6px;
+  width: max-content;
+  max-width: 92px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0;
-  text-transform: uppercase;
-  color: var(--text-2);
-  background: var(--surface-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  color: var(--accent);
+  background: transparent;
+  border: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .nav-title {
-  font-size: 30px;
-  font-weight: 800;
+  font-size: 20px;
+  font-weight: 900;
   color: var(--text);
   letter-spacing: 0;
-  line-height: 1.05;
+  line-height: 1.2;
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.nav-stat {
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: var(--shadow-card);
+  appearance: none;
+  -webkit-appearance: none;
+}
+.nav-stat .van-icon {
+  font-size: 16px;
+  color: var(--accent);
 }
 .nav-plus {
   width: 42px;

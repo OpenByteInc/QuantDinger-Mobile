@@ -13,6 +13,10 @@
               <van-tag :type="indicator.pricing_type === 'paid' ? 'warning' : 'success'" plain>
                 {{ indicator.pricing_type === 'paid' ? $t('market.filter_paid') : $t('market.filter_free') }}
               </van-tag>
+              <span v-if="isVipFree" class="vip-free-pill">
+                <van-icon name="gem-o" />
+                {{ $t('market.vip_free') }}
+              </span>
               <span class="meta">
                 <van-icon name="star" /> {{ Number(indicator.avg_rating || 0).toFixed(1) }}
               </span>
@@ -106,7 +110,7 @@
       <div class="price-line">
         <span class="price-label">{{ $t('market.detail_price') }}</span>
         <span class="price-value">
-          {{ indicator.pricing_type === 'paid' ? $t('market.price_credits', { price: indicator.price }) : $t('market.price_free') }}
+          {{ priceText }}
         </span>
       </div>
       <van-button
@@ -117,13 +121,21 @@
         :loading="purchasing"
         @click="handlePurchase"
       >{{ $t('market.detail_purchase') }}</van-button>
-      <van-button
-        v-else
-        type="primary"
-        round
-        block
-        @click="goCreateStrategy"
-      >{{ useLabel }}</van-button>
+      <div v-else class="footer-actions">
+        <van-button
+          plain
+          round
+          block
+          :loading="syncing"
+          @click="syncCode"
+        >{{ $t('market.sync_code') }}</van-button>
+        <van-button
+          type="primary"
+          round
+          block
+          @click="goCreateStrategy"
+        >{{ useLabel }}</van-button>
+      </div>
     </div>
   </div>
 </template>
@@ -144,6 +156,7 @@ export default {
     return {
       loading: false,
       purchasing: false,
+      syncing: false,
       indicator: null,
       comments: { items: [], total: 0, page: 1, page_size: 10 },
       commentsLoading: false,
@@ -156,6 +169,15 @@ export default {
     },
     isPurchased() {
       return !!(this.indicator?.is_purchased || this.indicator?.owned)
+    },
+    isVipFree() {
+      return !!this.indicator?.vip_free
+    },
+    priceText() {
+      const base = this.indicator?.pricing_type === 'paid'
+        ? this.$t('market.price_credits', { price: this.indicator.price })
+        : this.$t('market.price_free')
+      return this.isVipFree ? `${this.$t('market.vip_free')} / ${base}` : base
     },
     assetType() {
       return getAssetType(this.indicator || {})
@@ -342,6 +364,35 @@ export default {
         this.purchasing = false
       }
     },
+    async syncCode() {
+      if (!this.indicatorId) return
+      try {
+        await showConfirmDialog({
+          title: this.$t('market.sync_code_confirm_title'),
+          message: this.$t('market.sync_code_confirm_desc')
+        })
+      } catch {
+        return
+      }
+      this.syncing = true
+      try {
+        const res = await marketApi.syncIndicator(this.indicatorId)
+        showToast({ message: this.syncMessage(res?.msg), type: 'success' })
+        await this.load()
+      } catch {
+        showToast({ message: this.$t('market.sync_fail'), type: 'fail' })
+      } finally {
+        this.syncing = false
+      }
+    },
+    syncMessage(code) {
+      const map = {
+        success: 'market.sync_success',
+        restored: 'market.sync_restored',
+        already_latest: 'market.sync_already_latest'
+      }
+      return this.$t(map[code] || 'market.sync_success')
+    },
     goCreateStrategy() {
       this.$router.push(buildCreateRouteFromMarketAsset(this.indicator, this.indicatorId))
     }
@@ -386,6 +437,18 @@ export default {
   background: var(--surface-raised);
   color: var(--accent);
   border: 1px solid var(--border);
+}
+.vip-free-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #1f1300;
+  background: linear-gradient(135deg, #fde68a, #f59e0b);
+  border: 1px solid rgba(245, 158, 11, 0.36);
+  font-size: 11px;
+  font-weight: 900;
 }
 .hero-score {
   flex: none;
@@ -592,4 +655,11 @@ export default {
 .price-line { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; }
 .price-label { color: var(--text-3); }
 .price-value { color: var(--accent); font-weight: 700; }
+.footer-actions {
+  display: flex;
+  gap: 10px;
+}
+.footer-actions :deep(.van-button) {
+  min-width: 0;
+}
 </style>

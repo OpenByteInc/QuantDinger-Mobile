@@ -20,8 +20,8 @@ export const getAssetType = (item = {}) => {
 export const getAssetLabel = (type, t) => {
   const labels = {
     [ASSET_TYPES.INDICATOR]: t ? t('market.asset_indicator') : 'Indicator Strategy',
-    [ASSET_TYPES.SCRIPT_TEMPLATE]: t ? t('market.asset_script_template') : 'Script Strategy',
-    [ASSET_TYPES.BOT_PRESET]: t ? t('market.asset_bot_preset') : 'Bot Preset'
+    [ASSET_TYPES.SCRIPT_TEMPLATE]: t ? t('market.asset_script_template') : 'Trading Script',
+    [ASSET_TYPES.BOT_PRESET]: t ? t('market.asset_bot_preset') : 'Strategy Template'
   }
   return labels[normalizeAssetType(type)]
 }
@@ -29,8 +29,8 @@ export const getAssetLabel = (type, t) => {
 export const getUseLabel = (type, t) => {
   const labels = {
     [ASSET_TYPES.INDICATOR]: t ? t('market.use_indicator') : 'Create Strategy',
-    [ASSET_TYPES.SCRIPT_TEMPLATE]: t ? t('market.use_script_template') : 'Configure Script',
-    [ASSET_TYPES.BOT_PRESET]: t ? t('market.use_bot_preset') : 'Configure Preset'
+    [ASSET_TYPES.SCRIPT_TEMPLATE]: t ? t('market.use_script_template') : 'Configure Trading Script',
+    [ASSET_TYPES.BOT_PRESET]: t ? t('market.use_bot_preset') : 'Configure Template'
   }
   return labels[normalizeAssetType(type)]
 }

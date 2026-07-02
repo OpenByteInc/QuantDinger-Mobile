@@ -22,16 +22,6 @@
             <span>{{ text.emptyTitle }}</span>
             <em>{{ text.emptyDesc }}</em>
           </div>
-          <div class="example-list">
-            <button
-              v-for="example in examples"
-              :key="example"
-              type="button"
-              @click="composer = example"
-            >
-              {{ example }}
-            </button>
-          </div>
         </div>
 
         <div v-else ref="messageList" class="message-list">
@@ -47,10 +37,22 @@
             <div class="bubble-wrap">
               <div :class="['bubble', { 'report-bubble': msg.report || msg.reportLoading || msg.reportError }]">
                 <div v-if="msg.attachments?.length" class="attachment-preview">
-                  <span v-for="att in msg.attachments" :key="att.name || att.data_url">
-                    <van-icon name="photo-o" />
-                    {{ att.name || text.imageAttached }}
-                  </span>
+                  <button
+                    v-for="att in msg.attachments"
+                    :key="att.name || att.data_url"
+                    type="button"
+                    class="attachment-card"
+                    @click="previewAttachment(att)"
+                  >
+                    <img v-if="isImageAttachment(att)" :src="att.data_url" :alt="att.name || text.imageAttached" />
+                    <span class="attachment-fallback" v-else>
+                      <van-icon name="photo-o" />
+                    </span>
+                    <em>
+                      <van-icon name="photo-o" />
+                      {{ att.name || text.imageAttached }}
+                    </em>
+                  </button>
                 </div>
                 <div
                   v-if="msg.report || msg.reportLoading || msg.reportError"
@@ -143,21 +145,34 @@
         </div>
       </div>
 
-      <div v-if="!messages.length || showQuickTools" class="quick-task-grid">
-        <button
-          v-for="task in mobileTasks"
-          :key="task.key"
-          type="button"
-          :class="['task-card', `tone-${task.tone || 'amber'}`]"
-          @click="handleTask(task)"
-        >
-          <span class="task-icon">
-            <van-icon :name="task.icon" />
-          </span>
-          <span class="task-copy">
-            <strong>{{ task.label }}</strong>
-          </span>
-        </button>
+      <div class="bottom-suggestions">
+        <div v-if="!messages.length" class="example-list">
+          <button
+            v-for="example in examples"
+            :key="example"
+            type="button"
+            @click="composer = example"
+          >
+            {{ example }}
+          </button>
+        </div>
+
+        <div v-if="!messages.length || showQuickTools" class="quick-task-grid">
+          <button
+            v-for="task in mobileTasks"
+            :key="task.key"
+            type="button"
+            :class="['task-card', `tone-${task.tone || 'amber'}`]"
+            @click="handleTask(task)"
+          >
+            <span class="task-icon">
+              <van-icon :name="task.icon" />
+            </span>
+            <span class="task-copy">
+              <strong>{{ task.label }}</strong>
+            </span>
+          </button>
+        </div>
       </div>
 
       <div class="ask-card">
@@ -178,7 +193,10 @@
           v-model="composer"
           :placeholder="text.placeholder"
           rows="2"
-          @keydown.enter.exact.prevent="sendMessage"
+          @compositionstart="isComposerComposing = true"
+          @compositionend="isComposerComposing = false"
+          @input="composerTask = null"
+          @keydown="handleComposerKeydown"
         />
 
         <div v-if="attachments.length" class="pending-attachments">
@@ -199,7 +217,6 @@
             <van-loading v-if="sending" size="16" />
             <template v-else>
               <van-icon name="guide-o" />
-              {{ text.send }}
             </template>
           </button>
         </div>
@@ -243,71 +260,30 @@
             <span>{{ text.noSessions }}</span>
           </div>
           <template v-else>
-            <button
+            <div
               v-for="session in sessions"
               :key="session.id"
-              type="button"
               :class="['session-row', { active: Number(session.id) === Number(sessionId) }]"
-              @click="loadSession(session)"
             >
-              <span>
+              <button type="button" class="session-main" @click="loadSession(session)">
                 <strong>{{ session.title || text.newChat }}</strong>
                 <em>{{ session.context_market || context.market }}:{{ session.context_symbol || '--' }}</em>
-              </span>
-              <small>{{ formatTime(session.updated_at || session.created_at) }}</small>
-            </button>
+              </button>
+              <div class="session-meta">
+                <small>{{ formatTime(session.updated_at || session.created_at) }}</small>
+                <button
+                  type="button"
+                  class="session-delete-btn"
+                  :disabled="deletingSessionId === session.id"
+                  :aria-label="text.deleteSession"
+                  @click.stop="deleteSession(session)"
+                >
+                  <van-loading v-if="deletingSessionId === session.id" size="13" />
+                  <van-icon v-else name="delete-o" />
+                </button>
+              </div>
+            </div>
           </template>
-        </div>
-      </div>
-    </van-popup>
-
-    <van-popup
-      v-model:show="showRecommend"
-      position="bottom"
-      round
-      teleport="body"
-      :style="{ maxHeight: '82vh' }"
-      class="recommend-popup"
-    >
-      <div v-if="recommendation" class="recommend-sheet">
-        <div class="recommend-head">
-          <div>
-            <span>{{ text.templateStrategy }}</span>
-            <strong>{{ recommendation.botName || recommendation.strategyName || typeLabel(recommendation.botType) }}</strong>
-          </div>
-          <van-icon name="cross" @click="showRecommend = false" />
-        </div>
-        <div class="recommend-body">
-          <div class="recommend-badges">
-            <span>{{ typeLabel(recommendation.botType) }}</span>
-            <span v-if="recommendation.baseConfig?.symbol">{{ recommendation.baseConfig.symbol }}</span>
-            <span v-if="recommendation.baseConfig?.timeframe">{{ recommendation.baseConfig.timeframe }}</span>
-          </div>
-          <p v-if="recommendation.reason || recommendation.analysis" class="recommend-reason">
-            {{ recommendation.reason || recommendation.analysis }}
-          </p>
-          <div v-if="recommendation.strategyParams && Object.keys(recommendation.strategyParams).length" class="param-block">
-            <h3>{{ text.strategyParams }}</h3>
-            <div class="param-grid">
-              <div v-for="(val, key) in recommendation.strategyParams" :key="'sp_' + key">
-                <em>{{ key }}</em>
-                <strong>{{ val }}</strong>
-              </div>
-            </div>
-          </div>
-          <div v-if="recommendation.riskConfig && Object.keys(recommendation.riskConfig).length" class="param-block">
-            <h3>{{ text.riskParams }}</h3>
-            <div class="param-grid">
-              <div v-for="(val, key) in recommendation.riskConfig" :key="'rk_' + key">
-                <em>{{ key }}</em>
-                <strong>{{ val }}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="recommend-actions">
-          <van-button plain round block @click="showRecommend = false">{{ text.cancel }}</van-button>
-          <van-button type="primary" round block @click="applyRecommendAndEdit">{{ text.applyAndEdit }}</van-button>
         </div>
       </div>
     </van-popup>
@@ -315,21 +291,20 @@
 </template>
 
 <script>
-import { showToast } from 'vant'
-import { aiAnalysisApi, aiChatApi, strategyApi } from '@/api'
+import { showConfirmDialog, showImagePreview, showToast } from 'vant'
+import { aiAnalysisApi, aiChatApi } from '@/api'
 import { useAiAnalysisStore } from '@/stores'
 import SymbolPicker from '@/components/SymbolPicker.vue'
-import { normalizeAiBotRecommendation } from '@/views/trading/botScriptTemplates'
 
 const COPY = {
   'zh-CN': {
     title: 'AI Copilot',
-    welcomeTitle: '你的专属 AI 量化操作系统',
+    welcomeTitle: '你的专属 AI 自动化交易系统',
     welcomeDesc: '用一句话完成行情诊断、策略参数和交易研究。',
     sessions: '历史',
     currentSymbol: '当前标的',
     selectSymbol: '选择标的',
-    emptyTitle: '你的专属 AI 量化操作系统',
+    emptyTitle: '你的专属 AI 自动化交易系统',
     emptyDesc: '把行情、策略和交易研究交给 AI Copilot。',
     placeholder: '例如：帮我诊断 BTC/USDT 1 小时趋势，或者上传 K 线图问是否适合开仓...',
     uploadImage: '上传图片',
@@ -338,14 +313,14 @@ const COPY = {
     copy: '复制',
     copied: '已复制',
     copyFailed: '复制失败',
+    deleteSession: '删除记录',
+    deleteSessionConfirm: '确定删除这条聊天记录吗？相关图片也会一起删除。',
+    deleteSessionSuccess: '已删除',
     send: '发送',
     loading: '加载中',
     noSessions: '暂无会话历史',
     newChat: '新会话',
     imageAttached: '图片已添加',
-    templateStrategy: '模板策略',
-    strategyParams: '策略参数',
-    riskParams: '风控参数',
     cancel: '取消',
     applyAndEdit: '应用并编辑',
     sending: 'AI 正在思考...',
@@ -358,8 +333,6 @@ const COPY = {
     taskDiagnoseDesc: '趋势、量能、支撑阻力和风险',
     taskChart: '看图诊断',
     taskChartDesc: '上传 K 线图判断入场和失效位',
-    taskTemplate: '模板策略',
-    taskTemplateDesc: '推荐网格/趋势/DCA 等参数',
     taskNews: '新闻事件',
     taskNewsDesc: '检索资产和宏观事件影响',
     taskMacro: '宏观数据',
@@ -369,12 +342,12 @@ const COPY = {
   },
   'zh-TW': {
     title: 'AI Copilot',
-    welcomeTitle: '你的專屬 AI 量化操作系統',
+    welcomeTitle: '你的專屬 AI 自動化交易系統',
     welcomeDesc: '用一句話完成行情診斷、策略參數和交易研究。',
     sessions: '歷史',
     currentSymbol: '目前標的',
     selectSymbol: '選擇標的',
-    emptyTitle: '你的專屬 AI 量化操作系統',
+    emptyTitle: '你的專屬 AI 自動化交易系統',
     emptyDesc: '把行情、策略和交易研究交給 AI Copilot。',
     placeholder: '例如：幫我診斷 BTC/USDT 1 小時趨勢，或上傳 K 線圖問是否適合開倉...',
     uploadImage: '上傳圖片',
@@ -383,14 +356,14 @@ const COPY = {
     copy: '複製',
     copied: '已複製',
     copyFailed: '複製失敗',
+    deleteSession: '刪除記錄',
+    deleteSessionConfirm: '確定刪除這條聊天記錄嗎？相關圖片也會一起刪除。',
+    deleteSessionSuccess: '已刪除',
     send: '發送',
     loading: '載入中',
     noSessions: '暫無會話歷史',
     newChat: '新會話',
     imageAttached: '圖片已加入',
-    templateStrategy: '模板策略',
-    strategyParams: '策略參數',
-    riskParams: '風控參數',
     cancel: '取消',
     applyAndEdit: '套用並編輯',
     sending: 'AI 正在思考...',
@@ -403,8 +376,6 @@ const COPY = {
     taskDiagnoseDesc: '趨勢、量能、支撐阻力和風險',
     taskChart: '看圖診斷',
     taskChartDesc: '上傳 K 線圖判斷入場和失效位',
-    taskTemplate: '模板策略',
-    taskTemplateDesc: '推薦網格/趨勢/DCA 等參數',
     taskNews: '新聞事件',
     taskNewsDesc: '檢索資產和宏觀事件影響',
     taskMacro: '宏觀資料',
@@ -414,12 +385,12 @@ const COPY = {
   },
   'en-US': {
     title: 'AI Copilot',
-    welcomeTitle: 'Your personal AI quant operating system',
+    welcomeTitle: 'Your personal AI automated trading system',
     welcomeDesc: 'Diagnose markets, shape strategy parameters, and research trades in one sentence.',
     sessions: 'History',
     currentSymbol: 'Current symbol',
     selectSymbol: 'Select symbol',
-    emptyTitle: 'Your personal AI quant operating system',
+    emptyTitle: 'Your personal AI automated trading system',
     emptyDesc: 'Let AI Copilot handle market diagnosis, strategy thinking, and trade research.',
     placeholder: 'Example: diagnose BTC/USDT 1H trend, or upload a chart and ask whether entry risk is acceptable...',
     uploadImage: 'Upload image',
@@ -428,14 +399,14 @@ const COPY = {
     copy: 'Copy',
     copied: 'Copied',
     copyFailed: 'Copy failed',
+    deleteSession: 'Delete',
+    deleteSessionConfirm: 'Delete this chat history? Related images will be removed too.',
+    deleteSessionSuccess: 'Deleted',
     send: 'Send',
     loading: 'Loading',
     noSessions: 'No chat history',
     newChat: 'New chat',
     imageAttached: 'Image attached',
-    templateStrategy: 'Template Strategy',
-    strategyParams: 'Strategy Params',
-    riskParams: 'Risk Params',
     cancel: 'Cancel',
     applyAndEdit: 'Apply & edit',
     sending: 'AI is thinking...',
@@ -448,8 +419,6 @@ const COPY = {
     taskDiagnoseDesc: 'Trend, volume, levels, and risk',
     taskChart: 'Chart review',
     taskChartDesc: 'Upload a chart for entry and invalidation',
-    taskTemplate: 'Template strategy',
-    taskTemplateDesc: 'Recommend grid/trend/DCA parameters',
     taskNews: 'News/events',
     taskNewsDesc: 'Research asset and macro drivers',
     taskMacro: 'Macro data',
@@ -473,14 +442,14 @@ const COPY = {
     copy: 'コピー',
     copied: 'コピーしました',
     copyFailed: 'コピーに失敗しました',
+    deleteSession: '削除',
+    deleteSessionConfirm: 'このチャット履歴を削除しますか？関連画像も削除されます。',
+    deleteSessionSuccess: '削除しました',
     send: '送信',
     loading: '読み込み中',
     noSessions: 'チャット履歴なし',
     newChat: '新規チャット',
     imageAttached: '画像を追加しました',
-    templateStrategy: 'テンプレート戦略',
-    strategyParams: '戦略パラメータ',
-    riskParams: 'リスク管理',
     cancel: 'キャンセル',
     applyAndEdit: '適用して編集',
     sending: 'AI が考えています...',
@@ -493,8 +462,6 @@ const COPY = {
     taskDiagnoseDesc: 'トレンド、出来高、重要水準、リスク',
     taskChart: 'チャート診断',
     taskChartDesc: '画像からエントリーと無効条件を確認',
-    taskTemplate: 'テンプレ戦略',
-    taskTemplateDesc: 'グリッド/トレンド/DCA パラメータ',
     taskNews: 'ニュース',
     taskNewsDesc: '資産とマクロ材料を調査',
     taskMacro: 'マクロデータ',
@@ -518,14 +485,14 @@ const COPY = {
     copy: '복사',
     copied: '복사됨',
     copyFailed: '복사 실패',
+    deleteSession: '삭제',
+    deleteSessionConfirm: '이 채팅 기록을 삭제할까요? 관련 이미지도 함께 삭제됩니다.',
+    deleteSessionSuccess: '삭제됨',
     send: '전송',
     loading: '로딩 중',
     noSessions: '채팅 기록 없음',
     newChat: '새 채팅',
     imageAttached: '이미지 추가됨',
-    templateStrategy: '템플릿 전략',
-    strategyParams: '전략 파라미터',
-    riskParams: '리스크 설정',
     cancel: '취소',
     applyAndEdit: '적용 후 편집',
     sending: 'AI가 생각 중...',
@@ -538,8 +505,6 @@ const COPY = {
     taskDiagnoseDesc: '추세, 거래량, 레벨, 리스크',
     taskChart: '차트 진단',
     taskChartDesc: '이미지로 진입과 무효 조건 판단',
-    taskTemplate: '템플릿 전략',
-    taskTemplateDesc: '그리드/추세/DCA 파라미터 추천',
     taskNews: '뉴스/이벤트',
     taskNewsDesc: '자산과 매크로 이슈 조사',
     taskMacro: '매크로 데이터',
@@ -571,11 +536,12 @@ export default {
       sessionId: null,
       sessions: [],
       loadingSessions: false,
+      deletingSessionId: null,
       showQuickTools: false,
       showHistoryDrawer: false,
       showSymbolPicker: false,
-      recommendation: null,
-      showRecommend: false
+      isComposerComposing: false,
+      composerTask: null
     }
   },
   computed: {
@@ -590,7 +556,6 @@ export default {
       return [
         { key: 'diagnose', icon: 'chart-trending-o', label: this.text.taskDiagnose, desc: this.text.taskDiagnoseDesc, mode: 'analysis', tone: 'amber' },
         { key: 'chart', icon: 'photo-o', label: this.text.taskChart, desc: this.text.taskChartDesc, mode: 'image', tone: 'blue' },
-        { key: 'template', icon: 'cluster-o', label: this.text.taskTemplate, desc: this.text.taskTemplateDesc, mode: 'template', tone: 'green' },
         { key: 'news', icon: 'description', label: this.text.taskNews, desc: this.text.taskNewsDesc, mode: 'chat', tone: 'violet' },
         { key: 'macro', icon: 'bar-chart-o', label: this.text.taskMacro, desc: this.text.taskMacroDesc, mode: 'chat', tone: 'cyan' },
         { key: 'radar', icon: 'location-o', label: this.text.taskRadar, desc: this.text.taskRadarDesc, mode: 'chat', tone: 'rose' },
@@ -605,13 +570,13 @@ export default {
         return [
           `请诊断 ${label} 趋势，给出关键支撑阻力和失效条件。`,
           `请检索 ${label} 最近新闻和事件，区分事实、解读和不确定性。`,
-          `帮我为 ${label} 设计一个模板策略参数方案，不要写代码。`
+          `帮我扫描 ${label} 未来 24 小时机会和风险，给出触发条件。`
         ]
       }
       return [
         `Diagnose ${label}: trend, levels, and invalidation.`,
         `Research recent news and events for ${label}, separating facts from interpretation.`,
-        `Suggest a template strategy parameter plan for ${label}. Do not write code.`
+        `Scan ${label} for opportunities and risks in the next 24 hours, with triggers.`
       ]
     }
   },
@@ -754,7 +719,6 @@ export default {
         ? {
             diagnose: `请诊断 ${label}。从趋势、量能、支撑阻力、资金面、风险回报比和失效条件给出可执行判断。`,
             chart: '我会上传一张 K 线图。请结合图形结构、趋势位置、量能、支撑阻力和风险回报比，判断目前是否适合进场，并给出止损、止盈和失效条件。',
-            template: `请为 ${label} 推荐一个手机端可配置的模板策略方案。只输出模板类型、适用市场、参数、风控、什么时候不要运行，不要生成代码。`,
             news: `请检索 ${label} 最近的新闻和事件，优先使用可靠且最新的来源，区分事实、市场解读和不确定性。`,
             macro: `请检查 CPI、FOMC、利率、GDP、PCE、就业、流动性等宏观数据，说明对 ${label} 的潜在影响和关键风险。`,
             radar: `请扫描 ${label} 未来 24 小时可能出现的机会，重点给出触发条件、确认信号、失效位和主要风险。`
@@ -762,12 +726,17 @@ export default {
         : {
             diagnose: `Diagnose ${label}: trend, momentum, support/resistance, liquidity, risk/reward, and invalidation.`,
             chart: 'I will upload a chart image. Judge structure, trend, volume, support/resistance, risk/reward, entry, stop loss, take profit, and invalidation.',
-            template: `Recommend a mobile-configurable template strategy plan for ${label}. Return template type, market fit, parameters, risk controls, and when not to run it. Do not generate code.`,
             news: `Search recent news and events for ${label}. Prioritize reliable recent sources and separate facts, interpretation, and uncertainty.`,
             macro: `Analyze the macro backdrop for ${label}: CPI, FOMC, rates, GDP, PCE, employment, liquidity, and market impact.`,
             radar: `Scan ${label} for likely opportunities in the next 24 hours, with triggers, confirmation, invalidation, and risks.`
           }
       return prompts[task.key] || prompts.diagnose
+    },
+    handleComposerKeydown(event) {
+      if (event.key !== 'Enter' || event.shiftKey) return
+      if (this.isComposerComposing || event.isComposing || event.keyCode === 229) return
+      event.preventDefault()
+      this.sendMessage()
     },
     handleTask(task) {
       if (task.mode === 'route' && task.route) {
@@ -779,12 +748,10 @@ export default {
         return
       }
       this.composer = this.taskPrompt(task)
+      this.composerTask = task
       if (task.mode === 'image') {
         this.triggerImageUpload()
         return
-      }
-      if (task.mode === 'template') {
-        this.generateTemplateStrategy()
       }
       if (this.messages.length) this.showQuickTools = false
     },
@@ -795,6 +762,8 @@ export default {
       }
       const content = (this.composer || '').trim()
       const outboundAttachments = this.attachments.slice()
+      const task = this.composerTask
+      this.composerTask = null
       const userMsg = {
         localId: `u-${Date.now()}`,
         role: 'user',
@@ -813,30 +782,120 @@ export default {
       this.sending = true
       this.scrollToBottom()
       try {
-        const res = await aiChatApi.sendMessage({
-          session_id: this.sessionId,
-          message: content,
-          attachments: outboundAttachments,
-          language: this.$i18n?.locale || 'zh-CN',
-          context: {
-            market: this.context.market,
-            symbol: this.context.symbol,
-            timeframe: this.context.timeframe,
-            mobile: true,
-            unsupported_mobile_workflows: ['code_editing', 'backtest']
+        if (task?.mode === 'analysis') {
+          pendingMsg.content = ''
+          pendingMsg.loading = false
+          pendingMsg.reportLoading = true
+          pendingMsg.reportTarget = this.analysisTarget()
+          pendingMsg.report = await this.fetchProfessionalAnalysis(pendingMsg.reportTarget)
+          pendingMsg.reportError = ''
+        } else {
+          const payload = {
+            session_id: this.sessionId,
+            message: content,
+            attachments: outboundAttachments,
+            language: this.$i18n?.locale || 'zh-CN',
+            context: {
+              ...this.buildChatContext(),
+              selected_task: task?.key || null
+            }
           }
-        })
-        const data = res?.data || {}
-        this.sessionId = data.session_id || this.sessionId
-        pendingMsg.id = data.message_id
-        pendingMsg.content = data.reply || ''
-        pendingMsg.actions = this.filterMobileActions(data.actions || [])
+          await this.sendMessageStream(payload, pendingMsg)
+        }
       } catch (err) {
-        pendingMsg.content = err?.message || this.text.generateFailed
+        if (pendingMsg.reportLoading) {
+          pendingMsg.reportError = err?.response?.data?.msg || err?.message || this.text.generateFailed
+        } else {
+          this.updatePendingMessage(pendingMsg, {
+            content: err?.message || this.text.generateFailed,
+            loading: false
+          })
+        }
       } finally {
-        pendingMsg.loading = false
+        this.updatePendingMessage(pendingMsg, { loading: false, reportLoading: false })
         this.sending = false
         this.scrollToBottom()
+      }
+    },
+    sleep(ms) {
+      return new Promise((resolve) => window.setTimeout(resolve, ms))
+    },
+    extractStreamText(data) {
+      if (typeof data === 'string') return data
+      if (!data || typeof data !== 'object') return ''
+      return String(
+        data.text ??
+        data.delta ??
+        data.content ??
+        data.message ??
+        data.answer ??
+        ''
+      )
+    },
+    updatePendingMessage(pendingMsg, patch) {
+      const index = this.messages.findIndex((msg) =>
+        msg.localId === pendingMsg.localId || (pendingMsg.id && msg.id === pendingMsg.id)
+      )
+      if (index < 0) {
+        Object.assign(pendingMsg, patch)
+        return pendingMsg
+      }
+      const nextMsg = { ...this.messages[index], ...patch }
+      this.messages.splice(index, 1, nextMsg)
+      Object.assign(pendingMsg, nextMsg)
+      return nextMsg
+    },
+    async revealStreamText(pendingMsg, text) {
+      const value = String(text || '')
+      if (!value) return
+      const step = value.length > 160 ? 14 : value.length > 60 ? 8 : 3
+      for (let i = 0; i < value.length; i += step) {
+        this.updatePendingMessage(pendingMsg, {
+          content: `${pendingMsg.content || ''}${value.slice(i, i + step)}`,
+          loading: false
+        })
+        await this.$nextTick()
+        this.scrollToBottom()
+        await this.sleep(16)
+      }
+    },
+    async sendMessageStream(payload, pendingMsg) {
+      let hasContent = false
+      await aiChatApi.streamMessage(payload, async (event, data) => {
+        if (event === 'meta') {
+          this.sessionId = data?.session_id || this.sessionId
+          return
+        }
+        if (['delta', 'message', 'content'].includes(event)) {
+          const text = this.extractStreamText(data)
+          if (!text) return
+          if (!hasContent) {
+            this.updatePendingMessage(pendingMsg, { content: '', loading: false })
+            hasContent = true
+          }
+          await this.revealStreamText(pendingMsg, text)
+          return
+        }
+        if (event === 'done') {
+          this.sessionId = data?.session_id || this.sessionId
+          this.updatePendingMessage(pendingMsg, { id: data?.message_id || pendingMsg.id })
+          const finalText = this.extractStreamText(data)
+          if (finalText && !hasContent) {
+            this.updatePendingMessage(pendingMsg, { content: '', loading: false })
+            hasContent = true
+            await this.revealStreamText(pendingMsg, finalText)
+          }
+          if (data?.actions) {
+            this.updatePendingMessage(pendingMsg, { actions: this.filterMobileActions(data.actions || []) })
+          }
+          return
+        }
+        if (event === 'error') {
+          throw new Error(data?.msg || data?.message || this.text.generateFailed)
+        }
+      })
+      if (!hasContent && pendingMsg.content === this.text.sending) {
+        throw new Error(this.text.generateFailed)
       }
     },
     filterMobileActions(actions) {
@@ -847,9 +906,7 @@ export default {
     },
     handleCopilotAction(action) {
       const type = String(action.type || '').toLowerCase()
-      if (type.includes('strategy') || type.includes('trading_bot')) {
-        this.generateTemplateStrategy()
-      } else if (type.includes('analysis')) {
+      if (type.includes('analysis')) {
         this.runProfessionalAnalysis()
       } else {
         this.composer = action.payload?.prompt || action.label || ''
@@ -1062,53 +1119,16 @@ export default {
         minimumFractionDigits: 0
       })
     },
-    async generateTemplateStrategy() {
-      const prompt = (this.composer || this.taskPrompt({ key: 'template' })).trim()
-      if (!prompt) {
-        showToast({ message: this.text.strategyPromptNeeded, type: 'fail' })
-        return
-      }
-      this.sending = true
-      try {
-        const res = await strategyApi.aiGenerate({
-          intent: 'bot_recommend',
-          prompt,
-          user_prompt: prompt,
-          language: this.$i18n?.locale || 'zh-CN',
-          context: {
-            market: this.context.market,
-            symbol: this.context.symbol,
-            timeframe: this.context.timeframe
-          }
-        })
-        const rec = normalizeAiBotRecommendation(res?.data || res)
-        if (!rec) throw new Error(this.text.generateFailed)
-        if (!rec.baseConfig) rec.baseConfig = {}
-        if (!rec.baseConfig.symbol) rec.baseConfig.symbol = this.context.symbol
-        if (!rec.baseConfig.timeframe) rec.baseConfig.timeframe = this.context.timeframe
-        this.recommendation = rec
-        this.showRecommend = true
-      } catch (err) {
-        showToast({ message: err?.message || this.text.generateFailed, type: 'fail' })
-      } finally {
-        this.sending = false
-      }
+    isImageAttachment(att) {
+      return typeof att?.data_url === 'string' && att.data_url.startsWith('data:image/')
     },
-    applyRecommendAndEdit() {
-      const rec = this.recommendation
-      if (!rec) return
-      const preset = {
-        botType: rec.botType || 'grid',
-        botName: rec.botName || rec.strategyName || '',
-        reason: rec.reason || rec.analysis || '',
-        baseConfig: rec.baseConfig || {},
-        strategyParams: rec.strategyParams || {},
-        riskConfig: rec.riskConfig || {}
-      }
-      sessionStorage.setItem('qd_ai_strategy_preset', JSON.stringify(preset))
-      sessionStorage.removeItem('qd_ai_strategy_code')
-      this.showRecommend = false
-      this.$router.push({ path: '/trading/create/manual', query: { fromAi: '1' } })
+    previewAttachment(att) {
+      if (!this.isImageAttachment(att)) return
+      showImagePreview({
+        images: [att.data_url],
+        closeable: true,
+        showIndex: false
+      })
     },
     triggerImageUpload() {
       this.$refs.fileInput?.click()
@@ -1177,6 +1197,33 @@ export default {
         showToast({ message: err?.message || this.text.generateFailed, type: 'fail' })
       }
     },
+    async deleteSession(session) {
+      if (!session?.id || this.deletingSessionId) return
+      try {
+        await showConfirmDialog({
+          title: this.text.deleteSession,
+          message: this.text.deleteSessionConfirm,
+          confirmButtonText: this.text.deleteSession,
+          confirmButtonColor: '#ef4444'
+        })
+      } catch {
+        return
+      }
+      this.deletingSessionId = session.id
+      try {
+        await aiChatApi.deleteSession(session.id)
+        this.sessions = this.sessions.filter((item) => Number(item.id) !== Number(session.id))
+        if (Number(this.sessionId) === Number(session.id)) {
+          this.sessionId = null
+          this.messages = []
+        }
+        showToast({ message: this.text.deleteSessionSuccess, type: 'success' })
+      } catch (err) {
+        showToast({ message: err?.message || this.text.generateFailed, type: 'fail' })
+      } finally {
+        this.deletingSessionId = null
+      }
+    },
     onSymbolPicked(item) {
       this.context.market = item.market || 'Crypto'
       this.context.symbol = item.symbol || this.context.symbol
@@ -1187,15 +1234,6 @@ export default {
         const el = this.$refs.messageList
         if (el) el.scrollTop = el.scrollHeight
       })
-    },
-    typeLabel(type) {
-      const keyMap = {
-        grid: 'Grid',
-        martingale: 'Martingale',
-        dca: 'DCA',
-        trend: 'Trend'
-      }
-      return keyMap[type] || String(type || '--')
     },
     formatTime(val) {
       if (!val) return ''
@@ -1305,9 +1343,9 @@ export default {
 .ask-card {
   position: relative;
   z-index: 5;
-  padding: 10px;
-  border-radius: 18px;
-  margin-top: auto;
+  padding: 8px 9px 9px;
+  border-radius: 16px;
+  margin-top: 0;
   margin-bottom: 0;
   background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
   backdrop-filter: blur(18px);
@@ -1318,7 +1356,7 @@ export default {
   max-width: 100%;
   min-width: 0;
   flex: 1;
-  height: 34px;
+  height: 31px;
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -1337,7 +1375,7 @@ export default {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .context-chip strong {
@@ -1376,18 +1414,27 @@ export default {
 
 .ask-card textarea {
   width: 100%;
-  min-height: 64px;
+  min-height: 42px;
+  max-height: 92px;
   resize: none;
   border: 0;
   outline: none;
   background: transparent;
   color: var(--text);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 12.5px;
+  line-height: 1.45;
 }
 
 .ask-card textarea::placeholder {
   color: var(--text-3);
+}
+
+.bottom-suggestions {
+  margin-top: auto;
+}
+
+.bottom-suggestions .example-list {
+  margin-bottom: 8px;
 }
 
 .task-copy em,
@@ -1399,10 +1446,10 @@ export default {
 
 .quick-task-grid {
   display: flex;
-  gap: 8px;
+  gap: 7px;
   overflow-x: auto;
-  padding: 2px 0 12px;
-  margin: 0 -2px 8px;
+  padding: 0 0 6px;
+  margin: 4px -2px 6px;
   scrollbar-width: none;
 }
 
@@ -1411,12 +1458,12 @@ export default {
 }
 
 .task-card {
-  min-width: 122px;
-  min-height: 44px;
+  min-width: 116px;
+  min-height: 34px;
   display: flex;
-  gap: 7px;
+  gap: 6px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 5px 9px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-raised) 78%, transparent);
@@ -1430,8 +1477,8 @@ export default {
 }
 
 .task-icon {
-  width: 26px;
-  height: 26px;
+  width: 21px;
+  height: 21px;
   flex-shrink: 0;
   border-radius: 50%;
   display: flex;
@@ -1479,7 +1526,7 @@ export default {
 
 .task-copy strong {
   color: var(--text);
-  font-size: 12px;
+  font-size: 10.5px;
   font-weight: 900;
   white-space: nowrap;
 }
@@ -1548,18 +1595,18 @@ export default {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
 }
 
 .example-list button {
-  padding: 10px 12px;
-  border-radius: 14px;
+  padding: 8px 11px;
+  border-radius: 13px;
   border: 1px solid transparent;
   color: var(--text-2);
   background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
   text-align: left;
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .example-list button:active {
@@ -1591,18 +1638,23 @@ export default {
   width: 30px;
   height: 30px;
   flex-shrink: 0;
-  border-radius: 11px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text);
-  background: var(--surface-deep);
+  color: var(--text-2);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  font-size: 12px;
 }
 
 .message-row.assistant .avatar {
-  color: #08111f;
-  background: linear-gradient(135deg, #38bdf8, #a78bfa);
-  box-shadow: 0 8px 22px rgba(56, 189, 248, 0.22);
+  color: #d8f4ff;
+  border-color: color-mix(in srgb, #38bdf8 36%, var(--border));
+  background:
+    linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(167, 139, 250, 0.18)),
+    var(--surface-raised);
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.12);
 }
 
 .ai-avatar-mark {
@@ -1961,17 +2013,53 @@ export default {
 .attachment-preview {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 8px;
-  font-size: 11px;
+  gap: 7px;
+  margin-bottom: 10px;
 }
 
-.attachment-preview span {
-  display: inline-flex;
+.attachment-card {
+  width: min(210px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.attachment-card img,
+.attachment-fallback {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.attachment-card img {
+  display: block;
+  object-fit: cover;
+}
+
+.attachment-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.attachment-card em {
+  min-width: 0;
+  display: flex;
   align-items: center;
   gap: 5px;
-  color: inherit;
-  opacity: 0.8;
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.35;
+  opacity: 0.82;
+  word-break: break-all;
 }
 
 .action-strip {
@@ -2016,7 +2104,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .left-actions {
@@ -2030,24 +2118,20 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 38px;
-  border-radius: 13px;
+  height: 36px;
+  border-radius: 50%;
   font-weight: 900;
   font-size: 13px;
 }
 
 .icon-action {
-  width: 42px;
-  height: 42px;
-  border-radius: 15px;
-  border: 1px solid transparent;
+  width: 36px;
+  height: 36px;
+  border: 1px solid color-mix(in srgb, var(--tool-color) 34%, var(--border));
   color: var(--tool-color);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--tool-color) 18%, transparent), transparent),
-    var(--surface-raised);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tool-color) 20%, transparent);
-  font-size: 17px;
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tool-color) 10%, transparent);
+  font-size: 16px;
 }
 
 .icon-action.image {
@@ -2055,13 +2139,15 @@ export default {
 }
 
 .send-action {
-  min-width: 104px;
-  height: 42px;
-  border-radius: 15px;
+  min-width: 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   color: var(--on-accent);
   border: 0;
   background: linear-gradient(135deg, #f2b632 0%, #ff6b35 58%, #e34848 100%);
-  box-shadow: 0 12px 28px rgba(255, 107, 53, 0.24);
+  box-shadow: 0 8px 18px rgba(255, 107, 53, 0.2);
+  font-size: 15px;
 }
 
 .send-action:disabled {
@@ -2111,7 +2197,8 @@ export default {
   width: 100%;
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
   padding: 12px;
   margin-bottom: 8px;
   border-radius: 14px;
@@ -2126,23 +2213,65 @@ export default {
   background: var(--accent-soft);
 }
 
-.session-row span {
+.session-main {
   min-width: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 3px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
 }
 
-.session-row strong {
+.session-main strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.session-row small {
+.session-main em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-meta {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-meta small {
   color: var(--text-3);
   font-size: 11px;
+}
+
+.session-delete-btn {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  color: var(--text-3);
+  background: transparent;
+  font-size: 15px;
+}
+
+.session-delete-btn:active {
+  color: #fb7185;
+  border-color: color-mix(in srgb, #fb7185 35%, transparent);
+  background: rgba(251, 113, 133, 0.1);
+}
+
+.session-delete-btn:disabled {
+  opacity: 0.7;
 }
 
 .recommend-sheet {

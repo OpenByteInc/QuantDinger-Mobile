@@ -1,123 +1,84 @@
-# QuantDinger 移动端
+# QuantDinger 手机端
 
 <p align="right"><a href="README.md">English</a></p>
 
-## 页面展示
-
 <p align="center">
-  <a href="banner.png" title="查看原图"><img src="banner.png" alt="QuantDinger 移动端 — 宣传海报与界面展示" width="720" /></a>
+  <a href="banner.png" title="查看完整海报"><img src="banner.png" alt="QuantDinger 手机端预览" width="720" /></a>
 </p>
 
-<p align="center"><sub><strong>海报：</strong> QuantDinger 移动端品牌与应用界面亮点；点击图片可在仓库中查看完整 <code>banner.png</code>。</sub></p>
+**QuantDinger Mobile** 是 [QuantDinger](https://github.com/brokermr810/QuantDinger) 的手机端和 H5 客户端。QuantDinger 是 **Open Byte Inc** 推出的开源 **AI Trading OS**，面向自动化交易、AI 分析、策略工作流和账户运营。
 
----
+手机端主要服务于随身查看和轻量操作：查看行情与 AI 分析、管理策略和交易机器人、进行闪电交易、调整账户设置、维护交易所 API 等。它不是另一套独立系统，而是同一套后端之上的移动界面。
 
-**QuantDinger Mobile** 是 [QuantDinger](https://github.com/brokermr810/QuantDinger) 量化平台的官方**移动端与轻量 Web 客户端**。QuantDinger 是 **Open Byte Inc** 的产品。项目基于 **Vue 3**、**Vite** 与 **Capacitor 6**：同一套前端既可封装为 **Android / iOS** 原生壳，也可将构建产物 **`dist/`** 单独部署为 **H5**。只需在应用内配置可访问的 **API 根地址**，即可对接**自托管**后端或**官方托管**环境。
+同一套 Vue 3 代码可以发布为：
 
-本仓库许可条款与桌面端 [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) **一致**，均采用 **Source-Available** 授权（详见根目录 [`LICENSE`](LICENSE)）。使用、分发或商用前请务必完整阅读许可正文。
+- Docker 或静态站点托管的 H5 应用
+- 通过 Capacitor 打包的 Android 应用
+- 在 macOS + Xcode 环境下打包的 iOS 应用
 
----
+## 推荐部署方式
 
-## 目录
+大多数用户建议直接跟随主仓库部署整套 QuantDinger。主仓库 Compose 会自动拉取手机端镜像，并把 `/api/` 转发到后端，不需要手动配置前后端连接。
 
-- [页面展示](#页面展示)
-- [定位与边界](#定位与边界)
-- [能力概览](#能力概览)
-- [与后端的协作方式](#与后端的协作方式)
-- [仓库结构](#仓库结构)
-- [技术栈](#技术栈)
-- [环境要求](#环境要求)
-- [快速开始](#快速开始)
-- [npm 脚本说明](#npm-脚本说明)
-- [配置 API 根地址](#配置-api-根地址)
-- [Android 与 iOS 构建](#android-与-ios-构建)
-- [H5 部署要点](#h5-部署要点)
-- [OAuth 与后端环境变量](#oauth-与后端环境变量)
-- [常见问题](#常见问题)
-- [相关仓库](#相关仓库)
-- [许可协议](#许可协议)
-- [联系方式](#联系方式)
+Linux 或 macOS：
 
----
-
-## 定位与边界
-
-QuantDinger 的**主力操作界面**是功能完整的**桌面 Web**。本仓库面向**手机与窄屏场景**：在相同后端之上，提供触控优化、适合随身查看与轻量操作的界面（行情、策略、通知、设置、AI 分析等，以后端实际开放能力为准）。你仍使用同一套账户与策略数据，只是换了一种客户端形态。
-
----
-
-## 能力概览
-
-- 在应用内切换 **API 根地址**，便于连接开发机、局域网 Docker、公网反代或 SaaS。
-- 通过 **设置 → 测试连接** 调用 `{根地址}/api/health` 做连通性自检。
-- 使用 Capacitor 输出 **Android / iOS** 工程，走各应用商店或内部分发流程。
-- 将 **`dist/`** 作为静态站点发布，获得与原生壳**同源**的 **H5** 体验（需正确配置 SPA 回退与 API 反代）。
-
-具体页面与接口以后端版本为准；建议以「当前后端 + 当前移动端 commit」联调结果为准。
-
----
-
-## 与后端的协作方式
-
-应用在本地持久化保存用户输入的 **服务器根地址**（仅 **Origin**：协议 + 主机 + 端口，**不要**末尾 `/`）。所有请求在该 Origin 下访问 `/api/...` 等路径。
-
-仓库内默认示例见 `src/config/index.js` 中的 `DEFAULT_SERVER_URL`；用户可在 **设置 → 服务器** 覆盖，覆盖值优先生效。
-
----
-
-## 仓库结构
-
-```
-quantdinger-mobile/
-├── src/
-│   ├── api/           # 请求封装与接口模块
-│   ├── assets/
-│   ├── components/    # 通用组件
-│   ├── config/        # 默认 API 地址、对外分享用的 H5 根地址、主题等
-│   ├── router/
-│   ├── stores/        # Pinia
-│   ├── styles/
-│   ├── utils/
-│   ├── views/         # 业务页面
-│   ├── App.vue
-│   └── main.js
-├── android/           # Capacitor Android 工程源码
-├── ios/               # Capacitor iOS 工程（macOS）
-├── capacitor.config.json
-├── vite.config.js
-├── package.json
-├── LICENSE
-├── README.md          # 英文说明（仓库默认展示）
-└── README_CN.md       # 本文件（简体中文）
+```bash
+curl -fsSL https://raw.githubusercontent.com/brokermr810/QuantDinger/main/install.sh | bash
 ```
 
----
+Windows PowerShell：
 
-## 技术栈
+```powershell
+irm https://raw.githubusercontent.com/brokermr810/QuantDinger/main/install.ps1 | iex
+```
 
-| 层次 | 选型 |
+完整部署后的默认地址：
+
+| 客户端 | 地址 |
+|--------|------|
+| 桌面端 Web | `http://localhost:8888` |
+| 手机端 H5 | `http://localhost:8889` |
+| 后端 API | 由前端容器通过 `/api/` 自动反向代理 |
+
+如果用手机访问同一局域网内的电脑，请把 `localhost` 换成电脑的局域网 IP，例如：
+
+```text
+http://192.168.1.10:8889
+```
+
+## GHCR 镜像
+
+手机端镜像地址：
+
+```text
+ghcr.io/brokermr810/quantdinger-mobile
+```
+
+常用标签包括 `latest`、具体语义化版本，以及 `4.0` 这样的主次版本标签。在主仓库 `.env` 中可以用 `IMAGE_TAG` 固定整套系统版本，也可以用 `MOBILE_TAG` 单独固定手机端版本。
+
+如果后端已经部署好，也可以单独运行手机端镜像：
+
+```bash
+docker run -d --name quantdinger-mobile \
+  -p 8889:80 \
+  -e BACKEND_URL=http://host.docker.internal:5000 \
+  ghcr.io/brokermr810/quantdinger-mobile:latest
+```
+
+`BACKEND_URL` 控制容器内 Nginx 的 `/api/` 反向代理目标。主仓库 Compose 里通常保持为 `http://backend:5000`。
+
+## 本地开发
+
+### 环境要求
+
+| 工具 | 版本 |
 |------|------|
-| 界面框架 | Vue 3 |
-| 构建 | Vite |
-| 原生容器 | Capacitor 6 |
-| 移动端 UI | Vant 4 |
-| 状态 | Pinia |
-| 路由 | Vue Router 4（history 模式） |
-| 国际化 | vue-i18n |
-| HTTP | Axios |
+| Node.js | Node 20.19+ 或 22.12+。推荐直接使用 Node 22 LTS。 |
+| npm | 随 Node 安装即可。 |
+| 后端 | 默认要求 QuantDinger API 可通过 `http://localhost:5000` 访问。 |
+| 原生构建 | Android 需要 Android Studio；iOS 需要 macOS 和 Xcode。 |
 
----
-
-## 环境要求
-
-- **Node.js** 20.19+ 或 22.12+（推荐 Node 22 LTS）。Vite 7 在 Node 18 下会报 `crypto.hash is not a function` 一类错误。
-- **npm**（或兼容的包管理器）。
-- 打包或调试 **Android** 需安装 **Android Studio** 与对应 SDK。
-- **iOS** 需在 **macOS** 上使用 **Xcode**，并具备 Apple 开发者侧账号与签名能力。
-
----
-
-## 快速开始
+### 启动 H5 开发服务
 
 ```bash
 git clone https://github.com/brokermr810/QuantDinger-Mobile.git
@@ -126,90 +87,84 @@ npm install
 npm run dev
 ```
 
-`npm run dev` 即本地 **H5** 调试。`android/` 工程已随仓库提交；生产构建后同步原生资源即可：
+浏览器打开：
+
+```text
+http://localhost:5173
+```
+
+Vite 会把 `/api/*` 默认转发到：
+
+```text
+http://localhost:5000
+```
+
+如果后端不在这个地址，启动前设置：
 
 ```bash
-npx cap add ios        # 仅在 macOS 上执行
+VITE_DEV_API_TARGET=http://127.0.0.1:5000 npm run dev
+```
+
+开发者工具里看到 `http://localhost:5173/api/...` 是正常现象：浏览器先请求 Vite，Vite 再把请求转发到真正的后端。
+
+## API 地址应该怎么配
+
+手机端和 H5 优先推荐使用同源 `/api/` 反向代理。这样最少遇到跨域问题，也和 Docker 部署方式一致。
+
+| 运行方式 | 推荐做法 |
+|----------|----------|
+| 主仓库 Docker 部署 | 通常不用改。手机端在 `MOBILE_PORT` 提供 H5，`/api/` 自动转发到后端。 |
+| 单独运行手机端 Docker 镜像 | 如果后端不是同网络里的 `http://backend:5000`，启动容器时传入 `BACKEND_URL`。 |
+| `npm run dev` 本地开发 | 如果后端不在 `http://localhost:5000`，设置 `VITE_DEV_API_TARGET`。 |
+| 自己部署静态 H5 | 发布 `dist/`，并在 Web 服务器上把 `/api/` 反代到 QuantDinger 后端。 |
+| Android / iOS 原生壳 | 填手机能访问到的后端地址，例如公网 `https://api.example.com`，或测试时的局域网 IP。 |
+| 想给新安装用户预设默认地址 | 构建时设置 `VITE_DEFAULT_SERVER_URL=https://api.example.com`，用户仍可在应用内覆盖。 |
+
+APK / IPA 里的默认后端地址是在打包时写进去的。用户安装后仍然可以在 **个人中心 → 服务器设置** 里手动修改，但如果你要把安装包发给别人，建议打包前先把默认地址改成你自己的服务器。
+
+创建或修改 `.env.production`：
+
+```env
+VITE_DEFAULT_SERVER_URL=https://api.example.com
+VITE_PUBLIC_WEB_BASE_URL=https://m.example.com
+```
+
+注意：
+
+- `VITE_DEFAULT_SERVER_URL` 必须是手机能访问到的地址，不能只在你的电脑上能访问。
+- 公网部署建议使用 HTTPS。部分 Android 设备或网络环境会限制不安全的 HTTP 请求。
+- APK 里不要填 `localhost` 或 `127.0.0.1`，手机上的 `localhost` 指的是手机自己，不是你的电脑或服务器。
+- 局域网测试可以填电脑的局域网 IP，例如 `http://192.168.1.10:5000`。
+- 地址末尾有没有 `/` 都可以，应用会自动去掉末尾斜杠。
+
+## 构建
+
+### H5 构建
+
+```bash
 npm run build
-npx cap sync
+npm run preview
 ```
 
----
+生产产物会输出到 `dist/`。
 
-## Docker 一键部署
+如果自行托管静态 H5，请确认：
 
-QuantDinger 主仓库的 Docker Compose 栈已包含移动端 H5 服务。安装整套系统后，可直接打开 **`http://localhost:8889`** 使用移动端：
+- SPA 路由回退到 `index.html`
+- `/api/` 已反向代理到 QuantDinger 后端
+- 公网环境启用了 HTTPS
+- 如果启用 OAuth，后端允许当前 H5 域名作为回跳地址
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/brokermr810/QuantDinger/main/install.sh | bash
+### Android
+
+如果你要打包给自己的服务器使用，先在 `.env.production` 里写好默认后端地址：
+
+```env
+VITE_DEFAULT_SERVER_URL=https://api.example.com
+VITE_PUBLIC_WEB_BASE_URL=https://m.example.com
 ```
 
-手机访问时请使用宿主机局域网 IP，例如 `http://192.168.1.10:8889`。该容器会把 `/api` 反代到同一套后端，因此默认 Compose 部署下无需手动配置服务器地址。
-
-主仓库 `.env` 可覆盖镜像标签和端口：
-
-```ini
-IMAGE_TAG=4.0.3
-MOBILE_TAG=4.0.3
-MOBILE_PORT=8889
-# 仅在单独运行移动端镜像、不使用主仓 Compose 栈时需要。
-# 默认 Compose 栈中保持 http://backend:5000 即可，不要改。
-# 单独运行且后端容器名被你改过时，才改成对应容器名，例如：
-# BACKEND_URL=http://quantdinger_api:5000
-# 如果后端跑在宿主机 Docker Desktop：
-# BACKEND_URL=http://host.docker.internal:5000
-```
-
----
-
-## npm 脚本说明
-
-| 命令 | 作用 |
-|------|------|
-| `npm run dev` | 启动 Vite 开发服务器（H5）。 |
-| `npm run build` | 生产构建，输出到 `dist/`。 |
-| `npm run preview` | 本地预览构建结果。 |
-| `npm run cap:sync` | 将 Web 资源同步到原生工程。 |
-| `npm run cap:android` | 用 Android Studio 打开工程。 |
-| `npm run cap:ios` | 用 Xcode 打开工程（macOS）。 |
-| `npm run build:android` | 构建并同步 Android。 |
-| `npm run build:ios` | 构建并同步 iOS。 |
-| `npm run build:all` | 构建并同步已配置的全部平台。 |
-
----
-
-## 配置 API 根地址
-
-在 **设置** 中填写后端 **可被当前环境访问的 Origin**，**不要**带路径后缀。典型示例：
-
-| 场景 | 示例 |
-|------|------|
-| 反代：同一域名下静态站 + `/api` 转发后端 | `https://m.example.com` |
-| 局域网访问 Docker 暴露的 Web 端口 | `http://192.168.1.10:8888` |
-| 仅暴露后端 API（须在服务端放行 CORS） | `http://192.168.1.10:5000` |
-
-修改后务必使用 **测试连接**；若失败，依次检查网络、TLS、防火墙、后端监听地址及端口映射。
-
-### 到底应该改哪个配置？
-
-| 运行方式 | 如何指向自己的后端 |
-|------|------|
-| 主仓 Docker 一键部署 | 通常不用改。移动端容器在 `MOBILE_PORT` 提供 H5，并把 `/api` 自动反代到同一套后端。 |
-| 单独运行移动端 Docker 镜像 | 默认会找同网络里的 `backend:5000`。如果你自定义了后端容器名，启动时传 `-e BACKEND_URL=http://你的后端容器名:5000`；Docker Desktop 宿主机后端可用 `-e BACKEND_URL=http://host.docker.internal:5000`。这个变量控制容器内 Nginx 的 `/api/` 反代目标。 |
-| `npm run dev` 本地开发 | 启动前设置 `VITE_DEV_API_TARGET=http://127.0.0.1:5000`。浏览器里看到的请求仍会是开发服务器上的 `/api/...`，由 Vite 转发到后端。 |
-| 自己部署静态 H5 | 推荐同源反代：例如前端是 `https://m.example.com`，就把 `https://m.example.com/api/` 反代到后端。 |
-| Android / iOS 原生壳 | 在 App 设置里填写手机能访问到的服务地址，例如 `http://192.168.1.10:5000` 或 `https://api.example.com`。 |
-| 想给新安装用户预置默认地址 | 构建时设置 `VITE_DEFAULT_SERVER_URL=https://api.example.com`。用户仍可在设置页覆盖。 |
-
-如果开发者工具里看到 `http://localhost:5173/api/...`，这在本地 H5 开发中是正常的：浏览器先请求 Vite，Vite 再按 `VITE_DEV_API_TARGET` 转发到真正后端。
-
----
-
-## Android 与 iOS 构建
-
-### Android debug APK
-
-环境要求：Node.js 20.19+ 或 22.12+、Android Studio、Android SDK，以及 JDK。Android Studio 自带的 JBR 可以作为 `JAVA_HOME` 使用。
+然后再打包：
 
 ```bash
 npm install
@@ -219,13 +174,7 @@ cd android
 ./gradlew assembleDebug
 ```
 
-debug APK 输出位置：
-
-```text
-android/app/build/outputs/apk/debug/app-debug.apk
-```
-
-Windows PowerShell 如果因为执行策略拦截 `npm.ps1`，请改用 `npm.cmd`；如果 Gradle 找不到 Java，可只在当前终端临时设置 `JAVA_HOME`：
+Windows PowerShell 示例：
 
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
@@ -236,135 +185,98 @@ cd android
 .\gradlew.bat assembleDebug
 ```
 
-### Release 构建
+也可以在 PowerShell 里临时指定一次，不改 `.env.production`：
 
-先生成 Web 产物并同步 Android：
+```powershell
+$env:VITE_DEFAULT_SERVER_URL = "https://api.example.com"
+$env:VITE_PUBLIC_WEB_BASE_URL = "https://m.example.com"
+npm.cmd run build
+npx.cmd cap sync android
+cd android
+.\gradlew.bat assembleDebug
+```
+
+Debug APK 输出位置：
+
+```text
+android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+发布版签名文件不会提交到仓库。请把 keystore 和签名配置保存在本机安全位置或 CI secrets 中。
+
+### iOS
+
+iOS 构建需要 macOS 和 Xcode：
 
 ```bash
 npm run cap:assets
-npm run build:android
-cd android
-./gradlew assembleRelease
+npm run build:ios
+npm run cap:ios
 ```
 
-发布签名文件不会提交到仓库。请把 keystore 和 `keystore.properties` 保存在本机或 CI secrets 中，再通过 Android Studio 或 Gradle 配置签名后产出商店包。
+## 目录结构
 
-### Android 文件提交策略
-
-`android/` 工程源码会提交到仓库，这样贡献者无需再运行 `npx cap add android`。以下本地文件和构建产物继续忽略：
-
-- `android/.gradle/`
-- `android/**/build/`
-- `android/local.properties`
-- `android/app/src/main/assets/public/`（由 `npm run build:android` 生成）
-- `*.apk` 和 `*.aab`
-- 签名 keystore 与 `signing/keystore.properties`
-
-iOS 请在 macOS 上执行 `npm run build:ios`，再用 `npm run cap:ios` 打开原生工程。
-
-推送通知、生物识别等能力依赖额外插件与原生配置，请参阅 Capacitor 官方文档按需启用。
-
----
-
-## H5 部署要点
-
-1. 执行 `npm run build`，将 **`dist/` 内全部文件**上传到静态站点根目录。  
-2. 本项目使用 Vue Router 的 **history** 模式，服务器必须对「无前缀文件路径」回退到 **`index.html`**，否则子路径刷新或直接打开会 **404**。  
-3. 强烈建议将 **`/api/`** 反向代理到 QuantDinger 后端，与前端**同源**，避免浏览器跨域限制。
-
-下面是一段**精简的 Nginx 思路示例**（域名、证书、`root`、上游地址请按实际修改）：
-
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name m.example.com;
-    root /var/www/m.example.com;
-    index index.html;
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:5000/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 120s;
-    }
-
-    location ~* \.(?:js|css|woff2?|ttf|svg|png|jpg|jpeg|gif|ico|webp|map)$ {
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-        try_files $uri =404;
-    }
-
-    location = /index.html {
-        add_header Cache-Control "no-cache, no-store, must-revalidate";
-    }
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-}
+```text
+QuantDinger-Mobile/
+├── src/
+│   ├── api/                # 请求封装和接口模块
+│   ├── assets/             # 图片和静态资源
+│   ├── components/         # 手机端通用组件
+│   ├── config/             # 默认服务地址、H5 地址、主题等
+│   ├── router/             # Vue Router 4
+│   ├── stores/             # Pinia 状态
+│   ├── styles/             # 全局样式
+│   ├── utils/              # 工具函数
+│   └── views/              # 页面模块
+├── android/                # Capacitor Android 工程
+├── ios/                    # Capacitor iOS 工程
+├── deploy/                 # Docker 镜像使用的 Nginx 模板
+├── capacitor.config.json
+├── vite.config.js
+├── package.json
+└── LICENSE
 ```
 
-自检示例：
+## 技术栈
 
-```bash
-curl -sI https://m.example.com/           # 期望 200，HTML
-curl -sI https://m.example.com/login      # 期望 200（SPA 回退生效）
-curl -sI https://m.example.com/api/health # 期望经反代访问到后端
-```
-
----
-
-## OAuth 与后端环境变量
-
-在 **H5 域名**上使用 Google / GitHub 等 OAuth 时，后端必须把你的站点加入允许的回跳列表。可在 `backend_api_python/.env` 中配置类似项（示例）：
-
-```bash
-FRONTEND_URL=https://m.example.com/login
-OAUTH_ALLOWED_REDIRECTS=https://m.example.com,https://m.example.com/login,https://ai.quantdinger.com,http://localhost:5173
-```
-
-修改后请**重启**或**重新构建**后端容器，并确认线上跑的是包含新配置的镜像。
-
----
+| 层级 | 技术 |
+|------|------|
+| 框架 | Vue 3 |
+| 构建 | Vite 7 |
+| 原生壳 | Capacitor 6 |
+| 移动端 UI | Vant 4 |
+| 状态管理 | Pinia |
+| 路由 | Vue Router 4 |
+| 多语言 | vue-i18n |
+| 请求 | Axios |
 
 ## 常见问题
 
 | 现象 | 排查方向 |
 |------|----------|
-| 访问 `/login` 或刷新后 404 | 静态服务器未配置 SPA 回退 `try_files`。 |
-| 接口报 CORS 或网络错误 | 优先改为同源 `/api/` 反代；或在后端显式放行 H5 Origin。 |
-| OAuth 跳错站点或参数丢失 | 后端 `OAUTH_ALLOWED_REDIRECTS`、`FRONTEND_URL` 是否与当前域名一致；镜像是否已更新。 |
-| HTTPS 握手失败 | 证书链、Nginx TLS 版本（建议 TLS 1.2+）、配置语法 `nginx -t`。 |
-| Vite 提示需要 Node 20.19+ 或 22.12+ | 移动端仓库建议切到 Node 22 LTS。PC 前端也可以使用 Node 22，因此本地开发一套 Node 22 即可覆盖两个前端。 |
-
----
+| Vite 提示需要 Node 20.19+ 或 22.12+ | 切换到 Node 22 LTS。 |
+| H5 刷新页面后 404 | Web 服务器没有配置 SPA 回退到 `index.html`。 |
+| H5 接口跨域或请求失败 | 优先使用同源 `/api/` 反向代理；或者在后端显式放行当前 H5 域名。 |
+| 手机访问不到本地后端 | 用电脑的局域网 IP，不要用 `localhost`。手机上的 `localhost` 指手机自己。 |
+| Docker 容器启动了但接口不通 | 检查 `BACKEND_URL`，以及容器内部是否能访问这个地址。 |
+| OAuth 回跳地址不对 | 更新后端 `FRONTEND_URL` 和 `OAUTH_ALLOWED_REDIRECTS`，然后重启或重新部署后端。 |
 
 ## 相关仓库
 
-| 仓库 | 说明 |
+| 仓库 | 作用 |
 |------|------|
-| [QuantDinger](https://github.com/brokermr810/QuantDinger) | 后端、Docker Compose、文档、预构建桌面 Web |
-| [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) | 桌面 Web 源码（与本移动端**同一许可家族**） |
-| **QuantDinger-Mobile** | 本仓库：移动端 + H5 |
-
----
+| [QuantDinger](https://github.com/brokermr810/QuantDinger) | 后端 API、Docker Compose、数据库服务和部署文档 |
+| [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) | 桌面端 Web 前端 |
+| **QuantDinger-Mobile** | 本仓库：手机端和 H5 前端 |
 
 ## 许可协议
 
-本软件适用 **QuantDinger Frontend Source-Available License v1.0**（全文见 [`LICENSE`](LICENSE)），与 [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) **同一份法律文本**。QuantDinger 是 **Open Byte Inc** 的产品。
+本仓库使用 **QuantDinger Frontend Source-Available License v1.0**，完整条款见 [`LICENSE`](./LICENSE)。
 
-- **非商业用途**及**符合资格的非营利 / 教育等用途**，在遵守条款的前提下**免费**使用。  
-- **商业用途**须另行取得 Open Byte Inc 的**书面商业授权**。  
-- 须按许可第 3.1 条**保留**版权声明、许可证全文及应用中的 **QuantDinger** 相关署名或品牌展示，未经许可不得删除或恶意篡改。
-
-项目级商标与品牌规则见主仓库：[`TRADEMARKS.md`](https://github.com/brokermr810/QuantDinger/blob/master/TRADEMARKS.md)。
-
----
+简单说：符合条款的非商业用途和合格非营利用途可以免费使用；商业用途需要取得 **Open Byte Inc** 的书面授权。请保留版权声明、许可文件和应用内要求保留的 QuantDinger 品牌署名。
 
 ## 联系方式
 
-- 官网：[quantdinger.com](https://quantdinger.com)  
-- 商业授权与合作：[support@quantdinger.com](mailto:support@quantdinger.com)。
+- 官网：[quantdinger.com](https://quantdinger.com)
+- Telegram：[t.me/worldinbroker](https://t.me/worldinbroker)
+- 邮箱：[support@quantdinger.com](mailto:support@quantdinger.com)
