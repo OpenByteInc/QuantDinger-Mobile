@@ -752,7 +752,6 @@ export const aiChatApi = {
     const response = await fetch(`${getBaseUrl()}/api/ai/chat/message/stream`, {
       method: 'POST',
       headers,
-      credentials: 'include',
       body: JSON.stringify(payload)
     })
     if (!response.ok || !response.body) {
