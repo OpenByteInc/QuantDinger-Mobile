@@ -77,10 +77,7 @@
           <div class="ind-body">
             <div class="ind-heading">
               <div class="ind-title">{{ item.name }}</div>
-              <div class="pill-stack">
-                <span v-if="isVipFree(item)" class="vip-free-pill">{{ $t('market.vip_free') }}</span>
-                <span class="asset-pill">{{ typeLabel(item) }}</span>
-              </div>
+              <span class="asset-pill">{{ typeLabel(item) }}</span>
             </div>
             <p class="ind-desc">{{ shortDesc(item.description) }}</p>
             <div class="metric-grid">
@@ -568,22 +565,6 @@ export default {
   border: 1px solid rgba(56, 189, 248, 0.18);
   font-size: 10px;
   font-weight: 700;
-}
-.pill-stack {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
-}
-.vip-free-pill {
-  padding: 3px 8px;
-  border-radius: 999px;
-  color: #1f1300;
-  background: linear-gradient(135deg, #fde68a, #f59e0b);
-  border: 1px solid rgba(245, 158, 11, 0.36);
-  font-size: 10px;
-  font-weight: 900;
 }
 .ind-desc {
   margin-top: 8px;
