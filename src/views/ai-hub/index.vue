@@ -190,12 +190,17 @@
         </div>
 
         <textarea
-          v-model="composer"
+          :value="composer"
           :placeholder="text.placeholder"
           rows="2"
-          @compositionstart="isComposerComposing = true"
-          @compositionend="isComposerComposing = false"
-          @input="composerTask = null"
+          inputmode="text"
+          enterkeyhint="send"
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck="false"
+          @compositionstart="handleComposerCompositionStart"
+          @compositionend="handleComposerCompositionEnd"
+          @input="handleComposerInput"
           @keydown="handleComposerKeydown"
         />
 
@@ -731,6 +736,19 @@ export default {
             radar: `Scan ${label} for likely opportunities in the next 24 hours, with triggers, confirmation, invalidation, and risks.`
           }
       return prompts[task.key] || prompts.diagnose
+    },
+    handleComposerCompositionStart() {
+      this.isComposerComposing = true
+    },
+    handleComposerCompositionEnd(event) {
+      this.isComposerComposing = false
+      this.composer = event?.target?.value ?? ''
+      this.composerTask = null
+    },
+    handleComposerInput(event) {
+      if (this.isComposerComposing || event?.isComposing) return
+      this.composer = event?.target?.value ?? ''
+      this.composerTask = null
     },
     handleComposerKeydown(event) {
       if (event.key !== 'Enter' || event.shiftKey) return

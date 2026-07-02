@@ -27,11 +27,11 @@
     >
       <aside class="shell-sidebar">
         <div class="sidebar-brand">
-          <img src="/slogo.png" alt="QuantDinger" />
+          <img :src="avatarUrl" :alt="displayName" referrerpolicy="no-referrer" @error="onAvatarError" />
           <div class="brand-copy">
-            <strong>QuantDinger</strong>
-            <span class="brand-line">{{ displayName }} · {{ userEmail }}</span>
-            <span>{{ displayName }} · {{ userEmail }}</span>
+            <strong>{{ displayName }}</strong>
+            <span class="brand-line">{{ userEmail }}</span>
+            <span>{{ userEmail }}</span>
           </div>
           <button
             type="button"
@@ -88,7 +88,8 @@ import { ref, computed, watch, provide } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useNotificationStore, useSettingsStore, useUserStore } from '@/stores'
-import { userApi } from '@/api'
+import { getBaseUrl, userApi } from '@/api'
+import logoUrl from '@/assets/slogo.png'
 
 const router = useRouter()
 const route = useRoute()
@@ -108,8 +109,27 @@ const unreadCount = computed(() => notificationStore.unreadCount)
 const showShellNav = computed(() => !route.meta.public)
 const showFloatingNavButton = computed(() => showShellNav.value && route.path !== '/ai')
 
-const displayName = computed(() => userStore.userInfo?.nickname || userStore.userInfo?.username || 'QuantDinger')
-const userEmail = computed(() => userStore.userInfo?.email || t('profile.account_subtitle'))
+const userProfile = computed(() => userStore.userInfo || {})
+const displayName = computed(() => (
+  userProfile.value.nickname ||
+  userProfile.value.name ||
+  userProfile.value.username ||
+  'QuantDinger'
+))
+const userEmail = computed(() => userProfile.value.email || t('profile.account_subtitle'))
+const avatarUrl = computed(() => {
+  const raw = String(
+    userProfile.value.avatar ||
+    userProfile.value.avatar_url ||
+    userProfile.value.picture ||
+    ''
+  ).trim()
+  if (!raw) return logoUrl
+  if (/^(https?:|data:|blob:)/i.test(raw)) return raw
+  const base = getBaseUrl().replace(/\/$/, '')
+  if (raw.startsWith('/')) return `${base}${raw}`
+  return `${base}/${raw}`
+})
 const formattedCredits = computed(() => Number(billing.value.credits || 0).toLocaleString())
 const isVip = computed(() => {
   if (!billing.value.vip_expires_at) return !!billing.value.is_vip
@@ -169,6 +189,11 @@ const toggleTheme = () => {
   settingsStore.setTheme(next)
 }
 
+const onAvatarError = (event) => {
+  const img = event?.target
+  if (img && img.src !== logoUrl) img.src = logoUrl
+}
+
 const isActive = (item) => {
   if (!item.path) return false
   const current = route.path
@@ -191,7 +216,10 @@ const refreshBilling = async () => {
     const res = await userApi.getProfile()
     const profile = res?.data || {}
     if (profile.billing) billing.value = { ...billing.value, ...profile.billing }
-    if (profile.user) userStore.setUserInfo(profile.user)
+    const nextUser = profile.user || profile.profile || profile
+    if (nextUser && typeof nextUser === 'object') {
+      userStore.setUserInfo({ ...(userStore.userInfo || {}), ...nextUser })
+    }
   } catch (err) {
     // Sidebar should remain usable even if the balance refresh fails.
   }
