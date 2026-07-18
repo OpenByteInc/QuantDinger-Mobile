@@ -25,13 +25,18 @@
               </span>
               <span class="meta asset-meta">{{ assetLabel }}</span>
             </div>
+            <div class="publisher-meta">
+              <span><van-icon name="manager-o" /> {{ authorName }}</span>
+              <span><van-icon name="clock-o" /> {{ $t('market.published_at') }} {{ formatDate(indicator.created_at) || '-' }}</span>
+              <span><van-icon name="eye-o" /> {{ $t('market.views') }} {{ indicator.view_count || 0 }}</span>
+            </div>
           </div>
-          <div class="hero-score">
+          <div v-if="isStrategyAsset" class="hero-score">
             <span>{{ $t('market.score_short') }}</span>
             <strong>{{ formatScore(performance?.score || indicator.score) }}</strong>
           </div>
         </div>
-        <div class="hero-kpis">
+        <div v-if="isStrategyAsset" class="hero-kpis">
           <div v-for="metric in headlineMetrics" :key="metric.key" class="hero-kpi">
             <span>{{ metric.label }}</span>
             <strong :class="metric.tone">{{ metric.value }}</strong>
@@ -39,7 +44,49 @@
         </div>
       </div>
 
-      <div v-if="performance" class="card performance-card">
+      <div class="card">
+        <div class="card-title">{{ $t(isStrategyAsset ? 'market.detail_about_strategy' : 'market.detail_about_indicator') }}</div>
+        <p class="desc">{{ indicator.description || '-' }}</p>
+      </div>
+
+      <div v-if="isStrategyAsset && strategyContract" class="card contract-card">
+        <div class="contract-title-row">
+          <div class="card-title">{{ $t('market.strategy_contract') }}</div>
+          <span class="contract-badge"><van-icon name="shield-o" /> {{ $t('market.source_controlled') }}</span>
+        </div>
+        <div class="contract-grid">
+          <div v-for="item in strategyContractItems" :key="item.key" class="contract-item">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </div>
+        </div>
+        <div class="contract-logic">
+          <div>
+            <span>{{ $t('market.contract_signals') }}</span>
+            <div class="tag-row">
+              <span v-for="name in strategySignals" :key="name" class="mini-tag">{{ name }}</span>
+              <span v-if="!strategySignals.length" class="empty-value">-</span>
+            </div>
+          </div>
+          <div>
+            <span>{{ $t('market.contract_data') }}</span>
+            <div class="tag-row">
+              <span v-for="name in strategyContract.data_fields || []" :key="name" class="mini-tag">{{ String(name).toUpperCase() }}</span>
+              <span v-if="!(strategyContract.data_fields || []).length" class="empty-value">-</span>
+            </div>
+          </div>
+        </div>
+        <div v-if="strategyParameters.length" class="parameter-list">
+          <div class="parameter-heading">{{ $t('market.contract_parameters') }}</div>
+          <div v-for="parameter in strategyParameters" :key="parameter.name" class="parameter-row">
+            <div><strong>{{ parameterLabel(parameter) }}</strong><code>{{ parameter.name }}</code></div>
+            <span>{{ $t('market.parameter_default') }} <b>{{ formatContractValue(parameter.default, parameter.type) }}</b></span>
+            <span>{{ $t('market.parameter_range') }} <b>{{ formatParameterRange(parameter) }}</b></span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="isStrategyAsset && performance" class="card performance-card">
         <div class="card-head">
           <div>
             <div class="card-title">{{ $t('market.detail_performance') }}</div>
@@ -72,11 +119,6 @@
         <div class="tag-row">
           <span v-for="tag in applicableTags" :key="tag" class="mini-tag">{{ tag }}</span>
         </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">{{ $t('market.detail_about') }}</div>
-        <p class="desc">{{ indicator.description || '-' }}</p>
       </div>
 
       <div class="card">
@@ -130,11 +172,12 @@
           @click="syncCode"
         >{{ $t('market.sync_code') }}</van-button>
         <van-button
+          v-if="isStrategyAsset"
           type="primary"
           round
           block
           @click="goCreateStrategy"
-        >{{ useLabel }}</van-button>
+        >{{ $t('market.use_script_template') }}</van-button>
       </div>
     </div>
   </div>
@@ -147,7 +190,7 @@ import {
   buildCreateRouteFromMarketAsset,
   getAssetLabel,
   getAssetType,
-  getUseLabel
+  isStrategyAsset
 } from '@/utils/marketRoutes'
 
 export default {
@@ -185,8 +228,45 @@ export default {
     assetLabel() {
       return getAssetLabel(this.assetType, this.$t)
     },
-    useLabel() {
-      return getUseLabel(this.assetType, this.$t)
+    isStrategyAsset() {
+      return isStrategyAsset(this.indicator || {})
+    },
+    authorName() {
+      const author = this.indicator?.author || {}
+      return author.nickname || author.username || this.indicator?.author_name || '-'
+    },
+    strategyContract() {
+      const contract = this.performance?.strategy_contract
+      return contract && typeof contract === 'object' ? contract : null
+    },
+    strategySignals() {
+      if (!this.strategyContract) return []
+      return [...new Set([
+        ...(this.strategyContract.factor_dependencies || []),
+        ...(this.strategyContract.fundamental_dependencies || [])
+      ].filter(Boolean))]
+    },
+    strategyParameters() {
+      return Array.isArray(this.strategyContract?.parameters) ? this.strategyContract.parameters : []
+    },
+    strategyContractItems() {
+      const contract = this.strategyContract || {}
+      const instruments = Array.isArray(contract.instruments) ? contract.instruments : []
+      const instrumentNames = instruments.map((item) => item.symbol || item.instrument_id).filter(Boolean)
+      const marketTypes = [...new Set([
+        contract.market_type,
+        ...instruments.map((item) => item.market_type || item.market)
+      ].filter(Boolean))]
+      const contractFrequencies = Array.isArray(contract.supported_timeframes) ? contract.supported_timeframes : []
+      const performanceFrequencies = Array.isArray(this.performance?.applicable_timeframes) ? this.performance.applicable_timeframes : []
+      const indicatorFrequencies = Array.isArray(this.indicator?.applicable_timeframes) ? this.indicator.applicable_timeframes : []
+      const frequencies = contract.frequency || contract.timeframe || contractFrequencies.join(' · ') || performanceFrequencies.join(' · ') || indicatorFrequencies.join(' · ')
+      return [
+        { key: 'instruments', label: this.$t('market.contract_instruments'), value: instrumentNames.join(' · ') || contract.universe_reference || this.$t('market.dynamic_universe') },
+        { key: 'market', label: this.$t('market.contract_market_type'), value: marketTypes.map((value) => this.formatMarketType(value)).join(' · ') || '-' },
+        { key: 'frequency', label: this.$t('market.contract_frequency'), value: frequencies || '-' },
+        { key: 'warmup', label: this.$t('market.contract_warmup'), value: String(contract.warmup_bars || 0) }
+      ]
     },
     headlineMetrics() {
       const source = this.performance || this.indicator || {}
@@ -266,12 +346,17 @@ export default {
     async load() {
       this.loading = true
       try {
-        const [detail, perf] = await Promise.allSettled([
-          marketApi.getIndicator(this.indicatorId),
-          marketApi.getIndicatorPerformance(this.indicatorId)
-        ])
-        this.indicator = detail.status === 'fulfilled' ? detail.value.data : null
-        this.performance = perf.status === 'fulfilled' ? perf.value.data : null
+        const detail = await marketApi.getIndicator(this.indicatorId)
+        this.indicator = detail?.data || null
+        this.performance = null
+        if (this.isStrategyAsset) {
+          try {
+            const perf = await marketApi.getIndicatorPerformance(this.indicatorId)
+            this.performance = perf?.data || null
+          } catch {
+            this.performance = null
+          }
+        }
       } finally {
         this.loading = false
       }
@@ -334,6 +419,27 @@ export default {
       const num = this.asNumber(value)
       return num ? num.toFixed(2) : '-'
     },
+    formatMarketType(value) {
+      const type = String(value || '').toLowerCase()
+      if (type === 'spot') return this.$t('quick_trade.market_spot')
+      if (type === 'swap') return this.$t('quick_trade.market_swap')
+      return value || '-'
+    },
+    parameterLabel(parameter) {
+      if (parameter?.label_key && this.$te(parameter.label_key)) return this.$t(parameter.label_key)
+      return parameter?.label || parameter?.name || '-'
+    },
+    formatContractValue(value, type) {
+      if (value === null || value === undefined || value === '') return '-'
+      if (type === 'boolean') return value ? this.$t('common.yes') : this.$t('common.no')
+      return String(value)
+    },
+    formatParameterRange(parameter) {
+      const hasMin = parameter?.min !== null && parameter?.min !== undefined
+      const hasMax = parameter?.max !== null && parameter?.max !== undefined
+      if (!hasMin && !hasMax) return this.$t('market.parameter_no_range')
+      return `${hasMin ? this.formatContractValue(parameter.min, parameter.type) : '-'} – ${hasMax ? this.formatContractValue(parameter.max, parameter.type) : '-'}`
+    },
     valueTone(value) {
       const num = this.asNumber(value)
       if (num > 0) return 'up'
@@ -394,7 +500,8 @@ export default {
       return this.$t(map[code] || 'market.sync_success')
     },
     goCreateStrategy() {
-      this.$router.push(buildCreateRouteFromMarketAsset(this.indicator, this.indicatorId))
+      const route = buildCreateRouteFromMarketAsset(this.indicator)
+      if (route) this.$router.push(route)
     }
   }
 }
@@ -516,6 +623,49 @@ export default {
   border: 1px solid var(--border);
 }
 .card-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+.publisher-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  margin-top: 9px;
+  color: var(--text-3);
+  font-size: 10px;
+}
+.publisher-meta span { display: inline-flex; align-items: center; gap: 3px; }
+.contract-card {
+  background:
+    radial-gradient(260px 180px at 100% 0%, rgba(124, 92, 255, 0.11), transparent 62%),
+    var(--bg-elevated);
+}
+.contract-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.contract-title-row .card-title { margin-bottom: 0; }
+.contract-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(124, 92, 255, 0.12);
+  font-size: 9px;
+  font-weight: 700;
+}
+.contract-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 13px; }
+.contract-item { min-width: 0; padding: 10px; border-radius: 12px; background: var(--surface-raised); border: 1px solid var(--hairline); }
+.contract-item span { display: block; color: var(--text-3); font-size: 10px; }
+.contract-item strong { display: block; margin-top: 4px; color: var(--text); font-size: 12px; overflow-wrap: anywhere; }
+.contract-logic { display: grid; gap: 11px; margin-top: 13px; }
+.contract-logic > div > span, .parameter-heading { display: block; margin-bottom: 7px; color: var(--text-3); font-size: 10px; font-weight: 700; }
+.empty-value { color: var(--text-3); }
+.parameter-list { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.parameter-row { display: grid; grid-template-columns: minmax(0, 1.3fr) 1fr 1fr; gap: 8px; padding: 9px 0; border-top: 1px solid var(--hairline); }
+.parameter-row:first-of-type { border-top: 0; }
+.parameter-row div { min-width: 0; }
+.parameter-row strong, .parameter-row code { display: block; overflow-wrap: anywhere; }
+.parameter-row strong { color: var(--text); font-size: 11px; }
+.parameter-row code { margin-top: 2px; color: var(--text-3); font-size: 9px; }
+.parameter-row > span { color: var(--text-3); font-size: 9px; }
+.parameter-row b { display: block; margin-top: 3px; color: var(--text-2); font-size: 10px; }
 .card-head {
   display: flex;
   justify-content: space-between;

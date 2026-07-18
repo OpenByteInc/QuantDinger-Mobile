@@ -25,40 +25,7 @@ export const DEFAULT_SERVER_URL =
       OFFICIAL_SERVER_URL
   )
 
-const isOfficialServerUrl = (value) =>
-  normalizeServerUrl(value).toLowerCase() === OFFICIAL_SERVER_URL.toLowerCase()
-
-const isOfficialWebOrigin = (value) => {
-  try {
-    const hostname = new URL(value).hostname.toLowerCase()
-    return hostname === 'm.quantdinger.com' || hostname === 'app.quantdinger.com'
-  } catch (_) {
-    return false
-  }
-}
-
-const isLocalRuntimeUrl = (value) => {
-  try {
-    const hostname = new URL(value).hostname.toLowerCase()
-    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0'
-  } catch (_) {
-    return false
-  }
-}
-
-export const shouldResetSavedServerUrl = (savedUrl) =>
-  Boolean(webOrigin) && !isOfficialWebOrigin(webOrigin) && isOfficialServerUrl(savedUrl)
-
-export const resolveServerUrl = (savedUrl) => {
-  const normalizedSavedUrl = normalizeServerUrl(savedUrl)
-  if (isNativeRuntime && isLocalRuntimeUrl(normalizedSavedUrl)) {
-    return DEFAULT_SERVER_URL
-  }
-  if (shouldResetSavedServerUrl(normalizedSavedUrl)) {
-    return normalizeServerUrl(webOrigin)
-  }
-  return normalizedSavedUrl || DEFAULT_SERVER_URL
-}
+export const resolveServerUrl = () => DEFAULT_SERVER_URL
 
 // Public H5 origin for invitation and external sharing links.
 export const PUBLIC_WEB_BASE_URL =

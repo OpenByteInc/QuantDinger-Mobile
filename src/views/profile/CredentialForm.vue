@@ -20,6 +20,19 @@
         is-link
         @click="showExchangePicker = true"
       />
+      <van-cell
+        :title="$t('credentials.environment')"
+        :value="environmentLabel"
+        is-link
+        @click="showEnvironmentPicker = true"
+      />
+      <div class="field-hint">{{ environmentHint }}</div>
+      <van-cell
+        :title="$t('credentials.market_scope')"
+        :value="marketScopeLabel"
+        is-link
+        @click="showMarketScopePicker = true"
+      />
       <div v-if="selectedExchangeDocsUrl" class="api-doc-card">
         <div class="api-doc-copy">
           <span class="api-doc-title">{{ $t('credentials.api_doc_title') }}</span>
@@ -31,19 +44,19 @@
       </div>
       <van-field
         v-model="form.api_key"
-        label="API Key"
+        :label="$t('credentials.api_key')"
         :placeholder="$t('credentials.api_key_placeholder')"
       />
       <van-field
         v-model="form.secret_key"
-        label="Secret Key"
+        :label="$t('credentials.secret_key')"
         type="password"
         :placeholder="$t('credentials.secret_key_placeholder')"
       />
       <van-field
         v-if="needsPassphrase"
         v-model="form.passphrase"
-        label="Passphrase"
+        :label="$t('credentials.passphrase')"
         :placeholder="$t('credentials.passphrase_placeholder')"
       />
 
@@ -59,6 +72,20 @@
         @confirm="onSelectExchange"
       />
     </van-popup>
+    <van-popup v-model:show="showEnvironmentPicker" position="bottom" round>
+      <van-picker
+        :columns="environmentColumns"
+        @cancel="showEnvironmentPicker = false"
+        @confirm="onSelectEnvironment"
+      />
+    </van-popup>
+    <van-popup v-model:show="showMarketScopePicker" position="bottom" round>
+      <van-picker
+        :columns="marketScopeColumns"
+        @cancel="showMarketScopePicker = false"
+        @confirm="onSelectMarketScope"
+      />
+    </van-popup>
   </div>
 </template>
 
@@ -68,7 +95,7 @@ import { credentialsApi } from '@/api'
 import { EXCHANGE_BRANDS, EXCHANGE_OPTIONS } from '@/constants/exchanges'
 import { openExternal } from '@/utils/external'
 
-const PASSPHRASE_EXCHANGES = ['okx', 'bitget', 'kucoin']
+const PASSPHRASE_EXCHANGES = ['okx', 'bitget']
 
 export default {
   name: 'CredentialCreate',
@@ -77,12 +104,16 @@ export default {
     return {
       saving: false,
       showExchangePicker: false,
+      showEnvironmentPicker: false,
+      showMarketScopePicker: false,
       form: {
         name: '',
         exchange_id: '',
         api_key: '',
         secret_key: '',
-        passphrase: ''
+        passphrase: '',
+        environment: 'live',
+        market_scope: 'both'
       }
     }
   },
@@ -105,6 +136,35 @@ export default {
     },
     needsPassphrase() {
       return PASSPHRASE_EXCHANGES.includes(this.form.exchange_id)
+    },
+    environmentOptions() {
+      const live = { value: 'live', label: this.$t('credentials.environment_live') }
+      const demo = { value: 'demo', label: this.$t('credentials.environment_demo') }
+      const testnet = { value: 'testnet', label: this.$t('credentials.environment_testnet') }
+      if (['binance', 'okx', 'bitget', 'bybit'].includes(this.form.exchange_id)) return [live, demo]
+      if (this.form.exchange_id === 'gate') return [live, testnet]
+      return [live]
+    },
+    environmentColumns() {
+      return this.environmentOptions.map(item => ({ text: item.label, value: item.value }))
+    },
+    environmentLabel() {
+      return this.environmentOptions.find(item => item.value === this.form.environment)?.label || ''
+    },
+    environmentHint() {
+      return this.form.environment === 'live'
+        ? this.$t('credentials.environment_live_hint')
+        : this.$t('credentials.environment_sandbox_hint')
+    },
+    marketScopeColumns() {
+      return [
+        { text: this.$t('credentials.market_scope_spot'), value: 'spot' },
+        { text: this.$t('credentials.market_scope_swap'), value: 'swap' },
+        { text: this.$t('credentials.market_scope_both'), value: 'both' }
+      ]
+    },
+    marketScopeLabel() {
+      return this.marketScopeColumns.find(item => item.value === this.form.market_scope)?.text || ''
     }
   },
 
@@ -115,7 +175,20 @@ export default {
       if (!this.needsPassphrase) {
         this.form.passphrase = ''
       }
+      if (!this.environmentOptions.some(item => item.value === this.form.environment)) {
+        this.form.environment = 'live'
+      }
       this.showExchangePicker = false
+    },
+    onSelectEnvironment(payload) {
+      const selected = payload?.selectedOptions?.[0]
+      if (selected) this.form.environment = selected.value
+      this.showEnvironmentPicker = false
+    },
+    onSelectMarketScope(payload) {
+      const selected = payload?.selectedOptions?.[0]
+      if (selected) this.form.market_scope = selected.value
+      this.showMarketScopePicker = false
     },
 
     openDocs() {
@@ -153,7 +226,10 @@ export default {
           exchange_id: this.form.exchange_id,
           api_key: this.form.api_key.trim(),
           secret_key: this.form.secret_key.trim(),
-          passphrase: this.needsPassphrase ? this.form.passphrase.trim() : ''
+          passphrase: this.needsPassphrase ? this.form.passphrase.trim() : '',
+          environment: this.form.environment,
+          market_scope: this.form.market_scope,
+          enable_demo_trading: this.form.environment !== 'live'
         })
         showToast({ message: this.$t('credentials.saved'), type: 'success' })
         this.$router.replace('/profile/credentials')
@@ -257,6 +333,12 @@ export default {
   margin-top: 3px;
   font-size: 12px;
   color: var(--text-2);
+  line-height: 1.5;
+}
+.field-hint {
+  padding: 0 0 12px;
+  color: var(--text-3);
+  font-size: 12px;
   line-height: 1.5;
 }
 

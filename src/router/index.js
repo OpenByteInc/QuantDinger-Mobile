@@ -29,7 +29,7 @@ const routes = [
     path: '/trading/strategy/:id',
     name: 'StrategyDetail',
     component: () => import('@/views/trading/StrategyDetail.vue'),
-    meta: { title: '策略详情', showTabbar: false }
+    meta: { titleKey: 'trading.strategy_detail', showTabbar: false }
   },
   {
     path: '/trading/create',
@@ -38,27 +38,9 @@ const routes = [
     meta: { titleKey: 'bot_create.title', showTabbar: false }
   },
   {
-    path: '/trading/create/ai',
-    name: 'BotCreateAI',
-    component: () => import('@/views/trading/BotAIRecommend.vue'),
-    meta: { titleKey: 'bot_create.title', showTabbar: false }
-  },
-  {
-    path: '/trading/create/manual',
-    name: 'BotCreateManual',
-    component: () => import('@/views/trading/BotForm.vue'),
-    meta: { titleKey: 'bot_create.title', showTabbar: false }
-  },
-  {
-    path: '/trading/create/indicator',
-    name: 'BotCreateIndicator',
-    component: () => import('@/views/trading/BotFromIndicator.vue'),
-    meta: { titleKey: 'indicator_bot.title', showTabbar: false }
-  },
-  {
     path: '/trading/create/script',
-    name: 'BotCreateScript',
-    component: () => import('@/views/trading/CreateScriptStrategy.vue'),
+    name: 'StrategyCreate',
+    component: () => import('@/views/trading/CreateStrategy.vue'),
     meta: { titleKey: 'script_strategy.title', showTabbar: false }
   },
   {
@@ -117,9 +99,7 @@ const routes = [
   },
   {
     path: '/profile/server',
-    name: 'ServerConfig',
-    component: () => import('@/views/profile/ServerConfig.vue'),
-    meta: { titleKey: 'profile.server', showTabbar: false }
+    redirect: '/profile'
   },
   {
     path: '/profile/language',
@@ -173,13 +153,13 @@ const routes = [
     path: '/profile/credentials',
     name: 'CredentialList',
     component: () => import('@/views/profile/Credentials.vue'),
-    meta: { title: 'API Key 管理', showTabbar: false }
+    meta: { titleKey: 'credentials.title', showTabbar: false }
   },
   {
     path: '/profile/credentials/new',
     name: 'CredentialCreate',
     component: () => import('@/views/profile/CredentialForm.vue'),
-    meta: { title: '添加 API Key', showTabbar: false }
+    meta: { titleKey: 'credentials.add_title', showTabbar: false }
   },
   {
     path: '/assets',
@@ -194,7 +174,8 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const title = to.meta.titleKey ? t(to.meta.titleKey) : to.meta.title
-  document.title = title ? `${title} | Mobile` : 'Mobile'
+  const appName = t('common.app_name')
+  document.title = title ? `${title} | ${appName}` : appName
 
   const userStore = useUserStore()
   if (!to.meta.public && !userStore.isLoggedIn) {

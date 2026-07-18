@@ -1094,7 +1094,7 @@ export default {
       const prompt = isZh
         ? `基于 ${symbol} (${timeframe}) 的 AI 分析建议 ${decision}，请生成一个合适的交易机器人参数。分析摘要：${report.summary || ''}`
         : `Based on the AI analysis of ${symbol} (${timeframe}) suggesting ${decision}, please generate suitable trading bot parameters. Summary: ${report.summary || ''}`
-      this.$router.push({ path: '/trading/create/ai', query: { prompt, symbol } })
+      this.$router.push({ path: '/trading/create/script', query: { prompt, symbol } })
     },
     reportMarketLabel(report) {
       return [report?.market, report?.symbol].filter(Boolean).join(':') || this.$t('ai_analysis.title')

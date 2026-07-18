@@ -75,7 +75,7 @@
               </div>
               <div class="ident-text">
                 <span class="name">{{ strategy.name || $t('trading.untitled') }}</span>
-                <span class="symbol">{{ strategy.trading_config?.symbol || strategy.symbol || '-' }}</span>
+                <span class="symbol">{{ strategy.symbol || '-' }}</span>
               </div>
             </div>
             <div class="badge-stack">
@@ -83,20 +83,17 @@
                 <span class="dot"></span>
                 {{ getStatusText(strategy.status) }}
               </span>
-              <span v-if="botTypeBadgeText(strategy)" class="bot-type-badge" :style="botTypeBadgeStyle(strategy)">
-                {{ botTypeBadgeText(strategy) }}
-              </span>
             </div>
           </div>
 
           <div class="meta-grid">
             <div class="meta-item">
               <span class="label">{{ $t('bot_create.timeframe') }}</span>
-              <span class="value">{{ strategy.trading_config?.timeframe || '-' }}</span>
+              <span class="value">{{ strategy.timeframe || '-' }}</span>
             </div>
             <div class="meta-item">
-              <span class="label">{{ indicatorLabelKey(strategy) }}</span>
-              <span class="value">{{ indicatorDisplay(strategy) }}</span>
+              <span class="label">{{ $t('market.asset_script_template') }}</span>
+              <span class="value">{{ strategy.strategy_type || '-' }}</span>
             </div>
             <div class="meta-item">
               <span class="label">{{ $t('trading.initial_capital') }}</span>
@@ -335,7 +332,7 @@ export default {
     },
 
     formatCapital(strategy) {
-      const cap = Number(strategy?.trading_config?.initial_capital || 0)
+      const cap = Number(strategy?.initial_capital || 0)
       if (!Number.isFinite(cap) || cap <= 0) return '-'
       return `$${cap.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
     },
@@ -354,109 +351,13 @@ export default {
       return 'pause-circle-o'
     },
 
-    botType(strategy) {
-      const raw = (
-        strategy?.strategy_mode ||
-        strategy?.bot_type ||
-        strategy?.type ||
-        strategy?.strategy_type ||
-        strategy?.trading_config?.bot_type ||
-        ''
-      )
-      return String(raw || '').toLowerCase()
-    },
-
-    modeLabel(strategy) {
-      const type = this.botType(strategy)
-      if (!type) return this.$t('trading.indicator') || 'indicator'
-      const key = `bot_create.type_${type}`
-      const text = this.$t(key)
-      if (text && text !== key) return text
-      const rawKey = `bot_create.${type}`
-      const raw = this.$t(rawKey)
-      if (raw && raw !== rawKey) return raw
-      return type.charAt(0).toUpperCase() + type.slice(1)
-    },
-
-    isBotMode(strategy) {
-      const type = this.botType(strategy)
-      return ['grid', 'martingale', 'trend', 'dca', 'ai'].includes(type)
-    },
-
-    isScriptStrategy(strategy) {
-      const strategyType = String(strategy?.strategy_type || strategy?.type || '').toLowerCase()
-      const strategyMode = String(strategy?.strategy_mode || '').toLowerCase()
-      const tc = strategy?.trading_config || {}
-      const fixedType = String(strategy?.bot_type || tc.bot_type || '').toLowerCase()
-      return (
-        (strategyType.includes('script') || strategyMode === 'script') &&
-        !['grid', 'martingale', 'trend', 'dca'].includes(fixedType)
-      ) || !!tc.script_source_id || !!tc.scriptSourceId
-    },
-
-    indicatorLabelKey(strategy) {
-      if (this.isScriptStrategy(strategy)) return this.$t('market.asset_script_template')
-      if (this.isBotMode(strategy)) {
-        const key = 'trading.bot_type'
-        const text = this.$t(key)
-        return text && text !== key ? text : this.$t('trading.indicator')
-      }
-      return this.$t('trading.indicator')
-    },
-
-    indicatorDisplay(strategy) {
-      const ic = strategy?.indicator_config || {}
-      const indName = strategy?.indicator?.name || strategy?.indicator_name || ic?.indicator_name || ic?.name || ic?.display_name
-      if (this.isBotMode(strategy)) {
-        return this.modeLabel(strategy)
-      }
-      if (this.isScriptStrategy(strategy)) {
-        return this.$t('market.asset_script_template')
-      }
-      return indName || '-'
-    },
-
-    /**
-     * Coloured pill that mirrors PC `BotList.vue` so the user can
-     * identify a bot's strategy family at a glance. Only the four
-     * fixed-template bots get a coloured pill; indicator strategies
-     * read the indicator name in the meta grid instead.
-     */
-    botTypeBadgeText(strategy) {
-      const type = this.botType(strategy)
-      if (!['grid', 'martingale', 'trend', 'dca'].includes(type)) return ''
-      return this.modeLabel(strategy)
-    },
-    botTypeBadgeStyle(strategy) {
-      const type = this.botType(strategy)
-      const map = {
-        grid: { background: 'rgba(102, 126, 234, 0.16)', color: '#667eea' },
-        martingale: { background: 'rgba(245, 87, 108, 0.16)', color: '#f5576c' },
-        trend: { background: 'rgba(79, 172, 254, 0.16)', color: '#4facfe' },
-        dca: { background: 'rgba(67, 233, 123, 0.16)', color: '#21b66c' }
-      }
-      return map[type] || {}
-    },
-
     goToDetail(id) {
       this.$router.push(`/trading/strategy/${id}`)
     },
 
-    /**
-     * Edit on PC reopens BotCreateWizard with the bot preloaded. On
-     * mobile we route the user back into the matching form view —
-     * fixed-template bots go to /trading/create/manual?edit=<id>,
-     * indicator bots go to /trading/create/indicator?edit=<id>. The
-     * downstream form is responsible for reading ?edit and hydrating.
-     */
     editStrategy(strategy) {
       if (strategy.status === 'running') return
-      const type = this.botType(strategy)
-      const isFixedTemplate = ['grid', 'martingale', 'trend', 'dca'].includes(type)
-      const path = isFixedTemplate
-        ? '/trading/create/manual'
-        : (this.isScriptStrategy(strategy) ? '/trading/create/script' : '/trading/create/indicator')
-      this.$router.push({ path, query: { edit: strategy.id } })
+      this.$router.push({ path: '/trading/create/script', query: { edit: strategy.id } })
     },
 
     async deleteStrategy(strategy) {

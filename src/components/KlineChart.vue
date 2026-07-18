@@ -128,7 +128,7 @@
       <van-loading v-if="loading" color="#7c5cff" size="20" class="chart-loading" />
       <div v-else-if="!points.length" class="chart-empty">
         <van-icon name="chart-trending-o" />
-        <span>{{ emptyText || $t('common.no_data') }}</span>
+        <span>{{ emptyText || $t('common.empty') }}</span>
       </div>
     </div>
 
@@ -154,6 +154,9 @@ export default {
   props: {
     market: { type: String, default: 'Crypto' },
     symbol: { type: String, default: '' },
+    exchangeId: { type: String, default: '' },
+    marketType: { type: String, default: '' },
+    instrumentId: { type: String, default: '' },
     defaultTimeframe: { type: String, default: '1h' },
     height: { type: Number, default: 220 },
     emptyText: { type: String, default: '' }
@@ -173,7 +176,8 @@ export default {
       paddingLeft: 4,
       paddingRight: 4,
       hoveredIndex: -1,
-      isDragging: false
+      isDragging: false,
+      fetchRequestId: 0
     }
   },
   computed: {
@@ -280,8 +284,14 @@ export default {
       return `${sign}${this.formatPrice(Math.abs(diff))}`
     },
     tfHint() {
-      const map = { '5m': 'Last 1000 min', '15m': 'Last 50h', '1h': 'Last ~8 days', '4h': 'Last ~33 days', '1d': 'Last 200 days' }
-      return map[this.currentTf] || ''
+      const key = {
+        '5m': 'watchlist.chart_range_5m',
+        '15m': 'watchlist.chart_range_15m',
+        '1h': 'watchlist.chart_range_1h',
+        '4h': 'watchlist.chart_range_4h',
+        '1d': 'watchlist.chart_range_1d'
+      }[this.currentTf]
+      return key ? this.$t(key) : ''
     },
     linePath() {
       return this.buildMonotonePath(this.points)
@@ -314,14 +324,18 @@ export default {
     }
   },
   watch: {
-    symbol() { this.fetchData() },
-    market() { this.fetchData() }
+    symbol() { this.refreshData() },
+    market() { this.refreshData() },
+    exchangeId() { this.refreshData() },
+    marketType() { this.refreshData() },
+    instrumentId() { this.refreshData() }
   },
   mounted() {
     this.observeResize()
     this.fetchData()
   },
   beforeUnmount() {
+    this.fetchRequestId += 1
     try { this.resizeObserver?.disconnect() } catch (e) { void 0 }
   },
   methods: {
@@ -337,18 +351,30 @@ export default {
     onTfChange(tf) {
       if (tf === this.currentTf) return
       this.currentTf = tf
+      this.refreshData()
+    },
+    refreshData() {
+      this.candles = []
       this.hoveredIndex = -1
       this.fetchData()
     },
     async fetchData() {
-      if (!this.symbol) return
+      const requestId = ++this.fetchRequestId
+      if (!this.symbol) {
+        this.candles = []
+        this.loading = false
+        return
+      }
       this.loading = true
       try {
         const res = await klineApi.getKline({
           market: this.market || 'Crypto',
           symbol: this.symbol,
           timeframe: this.mapTf(this.currentTf),
-          limit: 200
+          limit: 200,
+          exchangeId: this.exchangeId,
+          marketType: this.marketType,
+          instrumentId: this.instrumentId
         })
         const list = (res?.data || []).map((k) => ({
           time: Math.floor(Number(k.time || k.timestamp || 0) / (Number(k.time || k.timestamp || 0) > 1e12 ? 1000 : 1)),
@@ -358,11 +384,13 @@ export default {
           close: Number(k.close)
         })).filter((k) => k.time && Number.isFinite(k.close))
           .sort((a, b) => a.time - b.time)
+        if (requestId !== this.fetchRequestId) return
         this.candles = list
       } catch (e) {
+        if (requestId !== this.fetchRequestId) return
         this.candles = []
       } finally {
-        this.loading = false
+        if (requestId === this.fetchRequestId) this.loading = false
       }
     },
     mapTf(tf) {

@@ -46,7 +46,7 @@
           <div class="col">
             <span class="name">{{ actionLabel(item.action) }}</span>
             <span class="sub">
-              <span v-if="item.feature">{{ item.feature }}</span>
+              <span v-if="featureLabel(item.feature, item.action)">{{ featureLabel(item.feature, item.action) }}</span>
               <span v-if="item.remark" class="remark">{{ item.remark }}</span>
             </span>
             <span class="time">{{ formatTime(item.created_at) }}</span>
@@ -503,6 +503,13 @@ export default {
       const mapped = fallbackMap[String(action || '').toLowerCase()] || key
       const text = this.$t(mapped)
       return text === mapped ? (action || '-') : text
+    },
+    featureLabel(feature, action) {
+      const value = String(feature || '').trim()
+      if (!value || value.toLowerCase() === String(action || '').trim().toLowerCase()) return ''
+      const key = `profile.feature_${value.toLowerCase()}`
+      const text = this.$t(key)
+      return text === key ? value : text
     },
     formatCredits(value) {
       return new Intl.NumberFormat('en-US').format(Number(value || 0))

@@ -419,7 +419,7 @@
 
 <script>
 import { showToast } from 'vant'
-import { aiAnalysisApi, watchlistApi } from '@/api'
+import { aiAnalysisApi, klineApi } from '@/api'
 import { useAiAnalysisStore, useSettingsStore } from '@/stores'
 import SymbolPicker from '@/components/SymbolPicker.vue'
 
@@ -715,8 +715,8 @@ export default {
         return
       }
       try {
-        const res = await watchlistApi.getPrices([{ market, symbol }])
-        const row = (res?.data || [])[0]
+        const res = await klineApi.getPrice({ market, symbol })
+        const row = res?.data
         if (row && row.price != null) {
           this.livePrice = Number(row.price)
           this.liveChange = row.changePercent != null ? Number(row.changePercent) : null
@@ -899,7 +899,7 @@ export default {
       const prompt = isZh
         ? `基于 ${sym} (${this.form.timeframe}) 的 AI 分析建议 ${decision}，请生成一个合适的交易机器人参数。分析摘要：${this.result?.summary || ''}`
         : `Based on the AI analysis of ${sym} (${this.form.timeframe}) suggesting ${decision}, please generate suitable trading bot parameters. Summary: ${this.result?.summary || ''}`
-      this.$router.push({ path: '/trading/create/ai', query: { prompt, symbol: sym } })
+      this.$router.push({ path: '/trading/create/script', query: { prompt, symbol: sym } })
     }
   }
 }

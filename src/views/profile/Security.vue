@@ -65,7 +65,7 @@
 
 <script>
 import { showToast } from 'vant'
-import { authApi } from '@/api'
+import { authApi, userApi } from '@/api'
 import { useUserStore } from '@/stores'
 
 export default {
@@ -91,6 +91,9 @@ export default {
       return this.userStore.userInfo?.email || ''
     }
   },
+  mounted() {
+    this.loadProfile()
+  },
   beforeUnmount() {
     if (this.cooldownTimer) {
       clearInterval(this.cooldownTimer)
@@ -98,6 +101,15 @@ export default {
     }
   },
   methods: {
+    async loadProfile() {
+      if (this.userEmail) return
+      try {
+        const response = await userApi.getProfile()
+        if (response?.data) this.userStore.setUserInfo(response.data)
+      } catch (error) {
+        console.error('Load profile for security page failed:', error)
+      }
+    },
     startCooldown() {
       this.cooldown = 60
       this.cooldownTimer = setInterval(() => {

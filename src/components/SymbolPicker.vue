@@ -38,7 +38,7 @@
           <div v-else class="list">
             <div
               v-for="item in displayedList"
-              :key="`${item.market}-${item.symbol}`"
+              :key="item.id || `${item.market}-${item.symbol}`"
               class="row"
               @click="pick(item)"
             >
@@ -95,7 +95,7 @@
           <div v-else class="list">
             <div
               v-for="item in searchResults"
-              :key="`${item.market}-${item.symbol}`"
+              :key="`${item.market}-${item.symbol}-${item.exchange_id || ''}-${item.market_type || ''}`"
               class="row"
               @click="chooseResult(item)"
             >
@@ -125,7 +125,9 @@ export default {
     onlyCrypto: { type: Boolean, default: false },
     autoAdd: { type: Boolean, default: true },
     defaultMarket: { type: String, default: 'Crypto' },
-    searchMarket: { type: String, default: '' }
+    searchMarket: { type: String, default: '' },
+    exchangeId: { type: String, default: '' },
+    marketType: { type: String, default: '' }
   },
   emits: ['update:show', 'pick', 'close'],
   data() {
@@ -222,7 +224,9 @@ export default {
         const res = await watchlistApi.search({
           market,
           keyword,
-          limit: 30
+          limit: 30,
+          exchange_id: market === 'Crypto' ? this.exchangeId : undefined,
+          market_type: market === 'Crypto' ? this.marketType : undefined
         })
         this.searchResults = res.data || []
       } catch {
@@ -251,17 +255,23 @@ export default {
       const market = item.market || this.searchMarketInner || 'Crypto'
       const symbol = item.symbol
       const name = item.name || item.base || symbol
+      const context = {
+        exchange_id: item.exchange_id || (market === 'Crypto' ? this.exchangeId : ''),
+        market_type: item.market_type || (market === 'Crypto' ? this.marketType : ''),
+        instrument_id: item.instrument_id || '',
+        settle_currency: item.settle_currency || ''
+      }
       if (!symbol) return
       if (this.autoAdd) {
         try {
-          await watchlistApi.add({ market, symbol, name })
+          await watchlistApi.add({ market, symbol, name, ...context })
           await this.load()
         } catch (e) {
-          showToast({ message: e?.message || 'Failed', type: 'fail' })
+          showToast({ message: e?.message || this.$t('common.failed'), type: 'fail' })
           return
         }
       }
-      this.$emit('pick', { market, symbol, name })
+      this.$emit('pick', { market, symbol, name, ...context })
       this.$emit('update:show', false)
     },
     pick(item) {
@@ -270,11 +280,11 @@ export default {
     },
     async handleRemove(item) {
       try {
-        await watchlistApi.remove(item.symbol)
+        await watchlistApi.remove({ market: item.market, symbol: item.symbol })
         await this.load()
         showToast({ message: this.$t('watchlist.removed'), type: 'success' })
       } catch (e) {
-        showToast({ message: e?.message || 'Failed', type: 'fail' })
+        showToast({ message: e?.message || this.$t('common.failed'), type: 'fail' })
       }
     },
     displaySymbol(item) {

@@ -309,10 +309,19 @@
         <div v-if="securityConfig.turnstile_enabled" class="security-panel">
           <div class="security-copy">
             <span class="security-title">{{ $t('login.turnstile_title') }}</span>
-            <span class="security-desc">{{ $t('login.turnstile_desc') }}</span>
+            <span class="security-desc">
+              {{ turnstileVerified ? $t('login.turnstile_verified') : $t('login.turnstile_desc') }}
+            </span>
           </div>
-          <div class="turnstile-card">
+          <div v-if="turnstileVerified" class="turnstile-verified">
+            <van-icon name="passed" />
+            <span>{{ $t('login.turnstile_verified') }}</span>
+          </div>
+          <div v-else class="turnstile-card">
             <div ref="turnstileRef" class="turnstile-mount"></div>
+            <van-loading v-if="turnstileClearanceLoading" size="18" class="turnstile-loading">
+              {{ $t('login.turnstile_tip') }}
+            </van-loading>
             <p v-if="turnstileError" class="turnstile-error">{{ turnstileError }}</p>
           </div>
         </div>
@@ -583,6 +592,10 @@ export default {
       codeTimers: {},
       turnstileWidgetId: null,
       turnstileToken: '',
+      turnstileClearance: '',
+      turnstileClearanceExpiresAt: 0,
+      turnstileClearanceTimer: null,
+      turnstileClearanceLoading: false,
       turnstileError: '',
       turnstileErrorCode: '',
       mfaVisible: false,
@@ -645,15 +658,12 @@ export default {
       return this.legalTab === 'terms' ? doc.terms : doc.disclaimer
     },
     canSubmit() {
-      const turnstileReady = !this.securityConfig.turnstile_enabled || !!this.turnstileToken
-      if (!turnstileReady) return false
-
       if (this.mode === 'login') {
         if (!this.agreeTerms) return false
         if (this.loginMethod === 'code') {
           return !!(this.codeLoginForm.email.trim() && this.codeLoginForm.code.trim())
         }
-        return !!(this.loginForm.username.trim() && this.loginForm.password)
+        return !!(this.loginForm.username.trim() && this.loginForm.password && this.turnstileVerified)
       }
       if (this.mode === 'register') {
         return !!(
@@ -670,6 +680,9 @@ export default {
         this.forgotForm.newPassword &&
         this.forgotForm.confirmPassword
       )
+    },
+    turnstileVerified() {
+      return !this.securityConfig.turnstile_enabled || this.hasValidTurnstileClearance()
     }
   },
 
@@ -701,6 +714,7 @@ export default {
     Object.values(this.codeTimers || {}).forEach((timer) => {
       if (timer) clearInterval(timer)
     })
+    if (this.turnstileClearanceTimer) clearTimeout(this.turnstileClearanceTimer)
     this.destroyTurnstileWidget()
   },
 
@@ -709,7 +723,7 @@ export default {
       if (this.loginMethod === method) return
       this.loginMethod = method
       this.showPassword = false
-      this.resetTurnstile()
+      this.$nextTick(() => this.renderTurnstileIfNeeded())
     },
 
     switchMode(mode) {
@@ -820,8 +834,63 @@ export default {
       this.turnstileToken = ''
     },
 
+    hasValidTurnstileClearance() {
+      return Boolean(
+        this.turnstileClearance &&
+        Date.now() < Number(this.turnstileClearanceExpiresAt || 0) - 5000
+      )
+    },
+
+    async exchangeTurnstileToken(token) {
+      if (!token || this.turnstileClearanceLoading) return
+      this.turnstileToken = token
+      this.turnstileClearanceLoading = true
+      try {
+        const res = await authApi.issueTurnstileClearance({ turnstile_token: token })
+        const clearance = String(res?.data?.turnstile_clearance || '')
+        if (!clearance) throw new Error(this.$t('login.turnstile_fail'))
+        const ttlSeconds = Math.max(30, Number(res?.data?.expires_in || 600))
+        this.turnstileClearance = clearance
+        this.turnstileClearanceExpiresAt = Date.now() + ttlSeconds * 1000
+        this.turnstileWidgetId = null
+        this.turnstileToken = ''
+        if (this.turnstileClearanceTimer) clearTimeout(this.turnstileClearanceTimer)
+        this.turnstileClearanceTimer = setTimeout(() => {
+          this.clearTurnstileClearance()
+        }, ttlSeconds * 1000)
+        this.turnstileError = ''
+        this.turnstileErrorCode = ''
+      } catch (error) {
+        this.turnstileError = error?.localizedMessage || error?.message || this.$t('login.turnstile_fail')
+        this.resetTurnstileWidget()
+      } finally {
+        this.turnstileClearanceLoading = false
+      }
+    },
+
+    clearTurnstileClearance() {
+      this.turnstileClearance = ''
+      this.turnstileClearanceExpiresAt = 0
+      if (this.turnstileClearanceTimer) clearTimeout(this.turnstileClearanceTimer)
+      this.turnstileClearanceTimer = null
+      this.$nextTick(() => this.renderTurnstileIfNeeded())
+    },
+
+    isTurnstileError(error) {
+      const message = String(error?.backendMessage || error?.localizedMessage || error?.message || error || '')
+      return /turnstile|clearance|human verification|security check|人机验证|安全验证/i.test(message)
+    },
+
+    handleTurnstileError(error) {
+      if (this.isTurnstileError(error)) this.clearTurnstileClearance()
+    },
+
     async renderTurnstileIfNeeded() {
       if (!this.securityConfig.turnstile_enabled || !this.securityConfig.turnstile_site_key) {
+        this.destroyTurnstileWidget()
+        return
+      }
+      if (this.hasValidTurnstileClearance()) {
         this.destroyTurnstileWidget()
         return
       }
@@ -838,19 +907,23 @@ export default {
           theme: this.turnstileWidgetTheme,
           size: 'flexible',
           callback: (token) => {
-            this.turnstileToken = token
             this.turnstileError = ''
             this.turnstileErrorCode = ''
+            this.exchangeTurnstileToken(token)
           },
           'expired-callback': () => {
             this.turnstileToken = ''
-            this.turnstileError = this.$t('login.turnstile_fail')
-            this.turnstileErrorCode = 'expired'
+            if (!this.hasValidTurnstileClearance()) {
+              this.turnstileError = this.$t('login.turnstile_fail')
+              this.turnstileErrorCode = 'expired'
+            }
           },
           'error-callback': (errorCode) => {
             this.turnstileToken = ''
-            this.turnstileErrorCode = String(errorCode || '')
-            this.turnstileError = this.getTurnstileErrorMessage(errorCode)
+            if (!this.hasValidTurnstileClearance()) {
+              this.turnstileErrorCode = String(errorCode || '')
+              this.turnstileError = this.getTurnstileErrorMessage(errorCode)
+            }
           }
         })
       } catch (err) {
@@ -859,7 +932,7 @@ export default {
       }
     },
 
-    resetTurnstile() {
+    resetTurnstileWidget() {
       if (!this.securityConfig.turnstile_enabled || this.turnstileWidgetId === null || !window.turnstile) {
         return
       }
@@ -980,7 +1053,7 @@ export default {
         return
       }
       this.setEmailForCodeType(type, email)
-      if (this.securityConfig.turnstile_enabled && !this.turnstileToken) {
+      if (this.securityConfig.turnstile_enabled && !this.hasValidTurnstileClearance()) {
         showToast({ message: this.$t('login.turnstile_required'), type: 'fail' })
         return
       }
@@ -990,19 +1063,18 @@ export default {
         const res = await authApi.sendCode({
           email,
           type,
-          turnstile_token: this.turnstileToken || undefined
+          turnstile_clearance: this.turnstileClearance || undefined
         })
         if (res.code === 1) {
           showToast({ message: this.$t('login.code_sent'), type: 'success' })
           this.startCountdown(stateKey, 60)
-          this.resetTurnstile()
         } else {
           showToast({ message: res.msg || this.$t('login.code_send_fail'), type: 'fail' })
-          this.resetTurnstile()
+          this.handleTurnstileError(res.msg)
         }
       } catch (err) {
         console.error('Send code error:', err)
-        this.resetTurnstile()
+        this.handleTurnstileError(err)
       } finally {
         this.sendingCodeType = ''
       }
@@ -1010,10 +1082,6 @@ export default {
 
     handleSubmit() {
       if (this.loading || !this.canSubmit) return
-      if (this.securityConfig.turnstile_enabled && !this.turnstileToken) {
-        showToast({ message: this.$t('login.turnstile_required'), type: 'fail' })
-        return
-      }
       if (this.mode === 'login') this.handleLogin()
       else if (this.mode === 'register') this.handleRegister()
       else this.handleReset()
@@ -1052,7 +1120,7 @@ export default {
         return true
       }
       showToast({ message: res?.msg || this.$t(fallbackKey), type: 'fail' })
-      this.resetTurnstile()
+      this.handleTurnstileError(res?.msg)
       return false
     },
 
@@ -1077,17 +1145,21 @@ export default {
         showToast({ message: this.$t('login.password_required'), type: 'fail' })
         return
       }
+      if (this.securityConfig.turnstile_enabled && !this.hasValidTurnstileClearance()) {
+        showToast({ message: this.$t('login.turnstile_required'), type: 'fail' })
+        return
+      }
       this.loading = true
       try {
         const res = await authApi.login({
           username: this.loginForm.username.trim(),
           password: this.loginForm.password,
-          turnstile_token: this.turnstileToken || undefined
+          turnstile_clearance: this.turnstileClearance || undefined
         })
         await this.handleAuthResult(res, 'login.login_fail')
       } catch (err) {
         console.error('Login error:', err)
-        this.resetTurnstile()
+        this.handleTurnstileError(err)
       } finally {
         this.loading = false
       }
@@ -1114,13 +1186,11 @@ export default {
         const res = await authApi.loginWithCode({
           email,
           code,
-          turnstile_token: this.turnstileToken || undefined,
           referral_code: this.registerForm.referralCode.trim() || undefined
         })
         await this.handleAuthResult(res, 'login.login_fail')
       } catch (err) {
         console.error('Code login error:', err)
-        this.resetTurnstile()
       } finally {
         this.loading = false
       }
@@ -1157,7 +1227,6 @@ export default {
           code: this.registerForm.code.trim(),
           username: this.registerForm.username.trim(),
           password: this.registerForm.password,
-          turnstile_token: this.turnstileToken || undefined,
           referral_code: this.registerForm.referralCode.trim() || undefined
         })
         if (res.code === 1 && res.data?.token) {
@@ -1165,11 +1234,9 @@ export default {
           await this.finalizeLogin(res.data.token, res.data.userinfo)
         } else {
           showToast({ message: res.msg || this.$t('login.register_fail'), type: 'fail' })
-          this.resetTurnstile()
         }
       } catch (err) {
         console.error('Register error:', err)
-        this.resetTurnstile()
       } finally {
         this.loading = false
       }
@@ -1199,8 +1266,7 @@ export default {
         const res = await authApi.resetPassword({
           email,
           code: this.forgotForm.code.trim(),
-          new_password: this.forgotForm.newPassword,
-          turnstile_token: this.turnstileToken || undefined
+          new_password: this.forgotForm.newPassword
         })
         if (res.code === 1) {
           showToast({ message: this.$t('login.reset_success'), type: 'success' })
@@ -1210,11 +1276,9 @@ export default {
           this.switchMode('login')
         } else {
           showToast({ message: res.msg || this.$t('login.reset_fail'), type: 'fail' })
-          this.resetTurnstile()
         }
       } catch (err) {
         console.error('Reset error:', err)
-        this.resetTurnstile()
       } finally {
         this.loading = false
       }
@@ -1603,6 +1667,22 @@ export default {
 
 .turnstile-mount {
   min-height: 70px;
+}
+
+.turnstile-loading,
+.turnstile-verified {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  color: var(--up);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.turnstile-loading {
+  color: var(--text-2);
 }
 
 .turnstile-error {

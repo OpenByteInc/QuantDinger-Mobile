@@ -73,7 +73,9 @@ export const EXCHANGE_BRANDS = {
   }
 }
 
-export const EXCHANGE_OPTIONS = Object.keys(EXCHANGE_BRANDS).map((id) => ({
+export const SUPPORTED_TRADING_EXCHANGE_IDS = ['binance', 'okx', 'bitget', 'bybit', 'gate', 'htx']
+
+export const EXCHANGE_OPTIONS = SUPPORTED_TRADING_EXCHANGE_IDS.map((id) => ({
   value: id,
   label: EXCHANGE_BRANDS[id].name
 }))

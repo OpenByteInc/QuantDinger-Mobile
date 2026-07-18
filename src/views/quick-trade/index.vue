@@ -19,6 +19,8 @@
         v-if="form.symbol"
         :market="'Crypto'"
         :symbol="form.symbol"
+        :exchange-id="selectedCredential?.exchange_id || ''"
+        :market-type="marketType"
         :height="170"
       />
       <div v-else class="chart-placeholder" @click="openSymbolPicker">
@@ -39,6 +41,14 @@
         is-link
         @click="openCredentialPicker"
       />
+      <van-button
+        v-if="!credentials.length"
+        block
+        plain
+        icon="plus"
+        class="add-credential-btn"
+        @click="goAddCredential"
+      >{{ $t('quick_trade.add_credential') }}</van-button>
       <div class="market-toggle">
         <span
           v-for="item in marketOptions"
@@ -64,7 +74,7 @@
         <span>{{ $t('quick_trade.spot_available') }} {{ formatNumber(spotBalanceAvailable) }}</span>
       </div>
       <p v-if="balanceErrorMessage" class="balance-error">{{ balanceErrorMessage }}</p>
-      <van-button block plain @click="refreshTradeData">{{ $t('quick_trade.refresh_balance') }}</van-button>
+      <van-button block plain :disabled="!selectedCredential" @click="refreshTradeData">{{ $t('quick_trade.refresh_balance') }}</van-button>
     </div>
 
     <div class="panel-card">
@@ -77,7 +87,7 @@
       />
       <van-field
         v-model="form.amount"
-        :label="$t('quick_trade.amount')"
+        :label="$t(isSwapMode ? 'quick_trade.margin_amount' : 'quick_trade.amount')"
         type="number"
         :placeholder="$t('quick_trade.amount_placeholder')"
       />
@@ -92,6 +102,14 @@
           {{ pct }}%
         </button>
       </div>
+      <div v-if="isSwapMode" class="order-hint notional-hint">
+        {{ $t('quick_trade.margin_notional', {
+          margin: formatNumber(form.amount),
+          leverage: normalizedLeverage,
+          notional: formatNumber(estimatedNotional),
+          currency: balance?.currency || 'USDT'
+        }) }}
+      </div>
       <van-field
         v-if="form.order_type === 'limit'"
         v-model="form.price"
@@ -104,6 +122,8 @@
         v-model="form.leverage"
         :label="$t('quick_trade.leverage')"
         type="number"
+        :min="1"
+        :max="125"
         :placeholder="$t('quick_trade.leverage_placeholder')"
       />
       <div v-if="isSwapMode" class="market-toggle compact">
@@ -116,6 +136,7 @@
           {{ item.label }}
         </span>
       </div>
+      <p v-if="isSwapMode" class="order-hint">{{ $t('quick_trade.margin_mode_hint') }}</p>
       <div class="tpsl-grid">
         <van-field
           v-model="form.tp_price"
@@ -130,6 +151,7 @@
           :placeholder="$t('quick_trade.optional_price')"
         />
       </div>
+      <p class="order-hint">{{ $t('quick_trade.tpsl_record_only_hint') }}</p>
       <div class="market-toggle compact">
         <span
           v-for="item in orderTypeOptions"
@@ -141,10 +163,10 @@
         </span>
       </div>
       <div :class="['action-row', { single: !isSwapMode }]">
-        <van-button type="success" block :loading="submitting" @click="submitOrder('buy')">
+        <van-button type="success" block :loading="submitting" :disabled="!canSubmitOrder" @click="submitOrder('buy')">
           {{ isSwapMode ? $t('quick_trade.buy_long') : $t('quick_trade.buy') }}
         </van-button>
-        <van-button v-if="isSwapMode" type="danger" block :loading="submitting" @click="submitOrder('sell')">
+        <van-button v-if="isSwapMode" type="danger" block :loading="submitting" :disabled="!canSubmitOrder" @click="submitOrder('sell')">
           {{ $t('quick_trade.sell_short') }}
         </van-button>
       </div>
@@ -166,20 +188,26 @@
           {{ item.label }}
         </span>
       </div>
-      <div v-if="positions.length" class="list-wrap">
-        <div v-for="position in positions" :key="position.symbol + position.side" class="list-row">
-          <div>
-            <span class="row-title">{{ normalizeQuickTradeSymbol(position.symbol) || '-' }}</span>
-            <p class="row-subtitle">{{ getSideText(position.side) }} · {{ formatNumber(position.size) }}</p>
+      <div v-if="positions.length" class="position-list">
+        <div v-for="position in positions" :key="position.symbol + position.side" class="position-card">
+          <div class="position-head">
+            <div>
+              <span class="row-title">{{ normalizeQuickTradeSymbol(position.symbol) || '-' }}</span>
+              <p class="row-subtitle">{{ getSideText(position.side) }}</p>
+            </div>
+            <span :class="['side-badge', String(position.side || '').toLowerCase()]">{{ getSideText(position.side) }}</span>
           </div>
-          <div class="row-actions">
-            <span :class="['row-value', Number(position.unrealized_pnl || position.pnl || 0) >= 0 ? 'profit' : 'loss']">
-              {{ formatSigned(position.unrealized_pnl || position.pnl || 0) }}
-            </span>
-            <van-button size="mini" plain type="danger" @click="closePosition(position)">
-              {{ $t('quick_trade.close') }}
-            </van-button>
+          <div class="position-grid">
+            <div><span>{{ $t('quick_trade.position_size') }}</span><strong>{{ formatNumber(positionSize(position)) }}</strong></div>
+            <div><span>{{ $t('quick_trade.position_value') }}</span><strong>{{ formatNumber(positionNotional(position)) }} USDT</strong></div>
+            <div><span>{{ $t('quick_trade.entry_price') }}</span><strong>{{ formatPrice(positionEntryPrice(position)) }}</strong></div>
+            <div><span>{{ $t('quick_trade.mark_price') }}</span><strong>{{ formatPrice(positionMarkPrice(position)) }}</strong></div>
+            <div v-if="Number(position.leverage || 0) > 1"><span>{{ $t('quick_trade.leverage') }}</span><strong>{{ Number(position.leverage) }}x</strong></div>
+            <div><span>{{ $t('quick_trade.unrealized_pnl') }}</span><strong :class="positionPnl(position) >= 0 ? 'profit' : 'loss'">{{ formatSigned(positionPnl(position)) }}</strong></div>
           </div>
+          <van-button block plain type="danger" size="small" @click="closePosition(position)">
+            {{ $t('quick_trade.close') }}
+          </van-button>
         </div>
       </div>
       <van-empty v-else :description="$t('quick_trade.positions_empty')" />
@@ -217,6 +245,8 @@
       v-model:show="showSymbolPicker"
       :only-crypto="true"
       :title="$t('watchlist.picker_title')"
+      :exchange-id="selectedCredential?.exchange_id || ''"
+      :market-type="marketType"
       @pick="onPickSymbol"
     />
   </div>
@@ -234,9 +264,6 @@ const QUICK_TRADE_EXCHANGE_IDS = new Set([
   'okx',
   'bitget',
   'bybit',
-  'coinbaseexchange',
-  'coinbase_exchange',
-  'kraken',
   'gate',
   'htx'
 ])
@@ -254,6 +281,7 @@ export default {
       currentPrice: 0,
       closeScope: 'full',
       pollTimer: null,
+      priceRequestId: 0,
       quickAmountPcts: [10, 25, 50, 75, 100],
       form: {
         symbol: '',
@@ -334,6 +362,9 @@ export default {
     balanceErrorMessage() {
       const err = this.balance?.error || ''
       if (!err) return ''
+      if (/40018|invalid ip/i.test(err)) {
+        return this.$t('quick_trade.error_ip_whitelist', { ip: this.balance?.request_ip || '-' })
+      }
       if (this.balance?.error_hint_key) {
         const translated = this.$te?.(this.balance.error_hint_key) ? this.$t(this.balance.error_hint_key) : ''
         if (translated) return translated
@@ -347,7 +378,7 @@ export default {
       return this.quickTradeStore.history
     },
     selectedCredential() {
-      return this.credentials.find((item) => item.id === this.selectedCredentialId)
+      return this.credentials.find((item) => String(item.id) === String(this.selectedCredentialId))
     },
     selectedCredentialLabel() {
       if (!this.selectedCredential) return ''
@@ -358,6 +389,26 @@ export default {
         text: `${item.name} · ${String(item.exchange_id || '').toUpperCase()}`,
         value: item.id
       }))
+    },
+    normalizedLeverage() {
+      return Math.min(125, Math.max(1, Number(this.form.leverage) || 1))
+    },
+    estimatedNotional() {
+      const amount = Math.max(0, Number(this.form.amount) || 0)
+      return this.isSwapMode ? amount * this.normalizedLeverage : amount
+    },
+    canSubmitOrder() {
+      return Boolean(
+        this.selectedCredentialId &&
+        this.selectedCredential &&
+        this.form.symbol.trim() &&
+        Number(this.form.amount) > 0 &&
+        (this.form.order_type !== 'limit' || Number(this.form.price) > 0) &&
+        (!this.isSwapMode || (Number(this.form.leverage) >= 1 && Number(this.form.leverage) <= 125)) &&
+        Number(this.form.tp_price || 0) >= 0 &&
+        Number(this.form.sl_price || 0) >= 0 &&
+        !this.submitting
+      )
     }
   },
 
@@ -365,14 +416,18 @@ export default {
     selectedCredentialId: {
       immediate: true,
       handler() {
+        this.loadPrice()
         this.refreshTradeData()
       }
     },
     marketType() {
+      this.resetPriceContext()
+      this.loadPrice()
       this.refreshTradeData()
     },
-    'form.symbol'(value) {
+    'form.symbol'(value, oldValue) {
       if (value) {
+        if (value !== oldValue) this.resetPriceContext()
         this.loadPrice()
         this.refreshTradeData()
       }
@@ -454,11 +509,24 @@ export default {
 
     async loadPrice() {
       if (!this.form.symbol) {
-        this.currentPrice = 0
+        this.resetPriceContext()
         return
       }
+      const requestId = ++this.priceRequestId
+      const requestedSymbol = this.normalizeQuickTradeSymbol(this.form.symbol)
+      const requestedMarketType = this.marketType
       try {
-        const res = await klineApi.getPrice({ market: 'Crypto', symbol: this.normalizeQuickTradeSymbol(this.form.symbol) })
+        const res = await klineApi.getPrice({
+          market: 'Crypto',
+          symbol: requestedSymbol,
+          exchangeId: this.selectedCredential?.exchange_id,
+          marketType: requestedMarketType
+        })
+        if (
+          requestId !== this.priceRequestId ||
+          requestedSymbol !== this.normalizeQuickTradeSymbol(this.form.symbol) ||
+          requestedMarketType !== this.marketType
+        ) return
         const price = Number(res.data?.price || res.data?.last || res.data?.close || 0)
         if (price > 0) {
           this.currentPrice = price
@@ -469,6 +537,12 @@ export default {
       } catch (error) {
         console.warn('Load quick trade price failed:', error)
       }
+    },
+
+    resetPriceContext() {
+      this.priceRequestId += 1
+      this.currentPrice = 0
+      this.form.price = ''
     },
 
     shortSymbol(symbol) {
@@ -513,7 +587,7 @@ export default {
 
     onSelectCredential(payload) {
       const selected = payload?.selectedOptions?.[0] || payload?.selectedOption || payload?.[0] || payload
-      if (!this.credentials.some((item) => item.id === selected?.value)) {
+      if (!this.credentials.some((item) => String(item.id) === String(selected?.value))) {
         showToast({ message: this.$t('quick_trade.no_crypto_credential'), type: 'fail' })
         return
       }
@@ -523,10 +597,14 @@ export default {
 
     openCredentialPicker() {
       if (!this.credentialActions.length) {
-        showToast({ message: this.$t('quick_trade.no_crypto_credential'), type: 'fail' })
+        this.goAddCredential()
         return
       }
       this.showCredentialPicker = true
+    },
+
+    goAddCredential() {
+      this.$router.push('/profile/credentials/new')
     },
 
     async refreshTradeData() {
@@ -573,12 +651,20 @@ export default {
         showToast({ message: this.$t('quick_trade.need_symbol'), type: 'fail' })
         return false
       }
-      if (!Number(this.form.amount)) {
+      if (!(Number(this.form.amount) > 0)) {
         showToast({ message: this.$t('quick_trade.need_amount'), type: 'fail' })
         return false
       }
-      if (this.form.order_type === 'limit' && !Number(this.form.price)) {
+      if (this.form.order_type === 'limit' && !(Number(this.form.price) > 0)) {
         showToast({ message: this.$t('quick_trade.need_price'), type: 'fail' })
+        return false
+      }
+      if (this.isSwapMode && !(Number(this.form.leverage) >= 1 && Number(this.form.leverage) <= 125)) {
+        showToast({ message: this.$t('quick_trade.invalid_leverage'), type: 'fail' })
+        return false
+      }
+      if (Number(this.form.tp_price || 0) < 0 || Number(this.form.sl_price || 0) < 0) {
+        showToast({ message: this.$t('quick_trade.invalid_tpsl'), type: 'fail' })
         return false
       }
       return true
@@ -660,6 +746,26 @@ export default {
         failed: this.$t('quick_trade.status_failed')
       }
       return map[value] || (value || '-')
+    },
+
+    positionSize(position) {
+      return Number(position?.size ?? position?.quantity ?? position?.qty ?? position?.amount ?? 0)
+    },
+
+    positionNotional(position) {
+      return Number(position?.notional_usdt ?? position?.notional ?? position?.value ?? 0)
+    },
+
+    positionEntryPrice(position) {
+      return Number(position?.entry_price ?? position?.avg_price ?? 0)
+    },
+
+    positionMarkPrice(position) {
+      return Number(position?.mark_price ?? position?.current_price ?? position?.price ?? 0)
+    },
+
+    positionPnl(position) {
+      return Number(position?.unrealized_pnl ?? position?.pnl ?? 0)
     },
 
     setAmountByPercent(pct) {
@@ -820,6 +926,10 @@ export default {
   margin-bottom: 4px;
 }
 
+.add-credential-btn {
+  margin: 10px 0 4px;
+}
+
 .market-toggle {
   display: flex;
   gap: 4px;
@@ -871,6 +981,21 @@ export default {
 
 .quick-amounts button:disabled {
   opacity: 0.45;
+}
+
+.order-hint {
+  margin: -4px 0 12px;
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.notional-hint {
+  margin-top: -4px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: var(--up);
+  background: var(--up-soft);
 }
 
 .tpsl-grid {
@@ -1004,6 +1129,74 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.position-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.position-card {
+  padding: 13px;
+  border-radius: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+}
+
+.position-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.side-badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--text-2);
+  background: var(--surface-deep);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.side-badge.buy,
+.side-badge.long {
+  color: var(--up);
+  background: var(--up-soft);
+}
+
+.side-badge.sell,
+.side-badge.short {
+  color: var(--down);
+  background: var(--down-soft);
+}
+
+.position-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin: 13px 0;
+}
+
+.position-grid div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.position-grid span {
+  color: var(--text-3);
+  font-size: 10px;
+}
+
+.position-grid strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
 }
 
 .list-row {

@@ -26,7 +26,7 @@
       <van-search
         v-model="keyword"
         shape="round"
-        :placeholder="$t('market.search_placeholder')"
+        :placeholder="$t(isStrategyAsset ? 'market.search_script_placeholder' : 'market.search_indicator_placeholder')"
         @search="reload"
       />
       <div class="filter-row">
@@ -65,11 +65,11 @@
                 <van-icon name="gem-o" />
                 {{ $t('market.vip_free') }}
               </span>
-              <span class="cover-score">{{ $t('market.score_short') }} {{ formatScore(item.score) }}</span>
+              <span v-if="isStrategyItem(item)" class="cover-score">{{ $t('market.score_short') }} {{ formatScore(item.score) }}</span>
             </div>
             <div class="cover-bottom">
               <span class="cover-initials">{{ initialsOf(item.name) }}</span>
-              <span class="cover-return" :class="valueTone(item.total_return)">
+              <span v-if="isStrategyItem(item)" class="cover-return" :class="valueTone(item.total_return)">
                 {{ $t('market.total_return_short') }} {{ formatPercent(item.total_return, true) }}
               </span>
             </div>
@@ -80,7 +80,7 @@
               <span class="asset-pill">{{ typeLabel(item) }}</span>
             </div>
             <p class="ind-desc">{{ shortDesc(item.description) }}</p>
-            <div class="metric-grid">
+            <div v-if="isStrategyItem(item)" class="metric-grid">
               <div v-for="metric in cardMetrics(item)" :key="metric.key" class="metric-cell">
                 <span class="metric-label">{{ metric.label }}</span>
                 <span :class="['metric-value', metric.tone]">{{ metric.value }}</span>
@@ -119,7 +119,7 @@
 
 <script>
 import { marketApi } from '@/api'
-import { ASSET_TYPES, getAssetLabel, normalizeAssetType } from '@/utils/marketRoutes'
+import { ASSET_TYPES, getAssetLabel, isStrategyAsset, normalizeAssetType } from '@/utils/marketRoutes'
 
 export default {
   name: 'Market',
@@ -142,8 +142,7 @@ export default {
     assetOptions() {
       return [
         { value: ASSET_TYPES.INDICATOR, label: this.$t('market.asset_indicator'), icon: 'bar-chart-o' },
-        { value: ASSET_TYPES.SCRIPT_TEMPLATE, label: this.$t('market.asset_script_template'), icon: 'description' },
-        { value: ASSET_TYPES.BOT_PRESET, label: this.$t('market.asset_bot_preset'), icon: 'apps-o' }
+        { value: ASSET_TYPES.SCRIPT_TEMPLATE, label: this.$t('market.asset_script_template'), icon: 'description' }
       ]
     },
     assetTitle() {
@@ -152,8 +151,7 @@ export default {
     assetDesc() {
       const map = {
         [ASSET_TYPES.INDICATOR]: this.$t('market.asset_indicator_desc'),
-        [ASSET_TYPES.SCRIPT_TEMPLATE]: this.$t('market.asset_script_template_desc'),
-        [ASSET_TYPES.BOT_PRESET]: this.$t('market.asset_bot_preset_desc')
+        [ASSET_TYPES.SCRIPT_TEMPLATE]: this.$t('market.asset_script_template_desc')
       }
       return map[this.assetType] || this.$t('market.subtitle')
     },
@@ -317,6 +315,9 @@ export default {
     typeLabel(item) {
       return getAssetLabel(item.asset_type, this.$t)
     },
+    isStrategyItem(item) {
+      return isStrategyAsset(item)
+    },
     isVipFree(item) {
       return !!item?.vip_free
     },
@@ -371,7 +372,7 @@ export default {
 .toolbar { padding: 0 8px; }
 .asset-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 0 8px 8px;
 }
