@@ -6,7 +6,7 @@
   <a href="banner.png" title="查看完整海报"><img src="banner.png" alt="QuantDinger 手机端预览" width="720" /></a>
 </p>
 
-**QuantDinger Mobile** 是 [QuantDinger](https://github.com/brokermr810/QuantDinger) 的手机端和 H5 客户端。QuantDinger 是 **Open Byte Inc** 推出的开源 **AI Trading OS**，面向自动化交易、AI 分析、策略工作流和账户运营。
+**QuantDinger Mobile** 是 [QuantDinger](https://github.com/OpenByteInc/QuantDinger) 的手机端和 H5 客户端。QuantDinger 是 **Open Byte Inc** 推出的开源 **AI Trading OS**，面向自动化交易、AI 分析、策略工作流和账户运营。
 
 手机端主要服务于随身查看和轻量操作：查看行情与 AI 分析、管理策略和交易机器人、进行闪电交易、调整账户设置、维护交易所 API 等。它不是另一套独立系统，而是同一套后端之上的移动界面。
 
@@ -23,13 +23,13 @@
 Linux 或 macOS：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/brokermr810/QuantDinger/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/OpenByteInc/QuantDinger/main/install.sh | bash
 ```
 
 Windows PowerShell：
 
 ```powershell
-irm https://raw.githubusercontent.com/brokermr810/QuantDinger/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/OpenByteInc/QuantDinger/main/install.ps1 | iex
 ```
 
 完整部署后的默认地址：
@@ -81,7 +81,7 @@ docker run -d --name quantdinger-mobile \
 ### 启动 H5 开发服务
 
 ```bash
-git clone https://github.com/brokermr810/QuantDinger-Mobile.git
+git clone https://github.com/OpenByteInc/QuantDinger-Mobile.git
 cd QuantDinger-Mobile
 npm install
 npm run dev
@@ -265,8 +265,8 @@ QuantDinger-Mobile/
 
 | 仓库 | 作用 |
 |------|------|
-| [QuantDinger](https://github.com/brokermr810/QuantDinger) | 后端 API、Docker Compose、数据库服务和部署文档 |
-| [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) | 桌面端 Web 前端 |
+| [QuantDinger](https://github.com/OpenByteInc/QuantDinger) | 后端 API、Docker Compose、数据库服务和部署文档 |
+| [QuantDinger-Vue](https://github.com/OpenByteInc/QuantDinger-Vue) | 桌面端 Web 前端 |
 | **QuantDinger-Mobile** | 本仓库：手机端和 H5 前端 |
 
 ## 许可协议

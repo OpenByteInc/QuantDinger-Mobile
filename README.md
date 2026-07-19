@@ -6,7 +6,7 @@
   <a href="banner.png" title="Open full banner"><img src="banner.png" alt="QuantDinger Mobile app preview" width="720" /></a>
 </p>
 
-**QuantDinger Mobile** is the mobile and H5 client for [QuantDinger](https://github.com/brokermr810/QuantDinger), an open-source **AI Trading OS** by **Open Byte Inc**. It gives users a touch-friendly way to check markets, AI analysis, strategies, bots, quick trading, account settings, and exchange API workflows from a phone.
+**QuantDinger Mobile** is the mobile and H5 client for [QuantDinger](https://github.com/OpenByteInc/QuantDinger), an open-source **AI Trading OS** by **Open Byte Inc**. It gives users a touch-friendly way to check markets, AI analysis, strategies, bots, quick trading, account settings, and exchange API workflows from a phone.
 
 The same Vue 3 app can be deployed as:
 
@@ -21,13 +21,13 @@ Most users should deploy mobile together with the main QuantDinger stack. The ma
 Linux or macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/brokermr810/QuantDinger/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/OpenByteInc/QuantDinger/main/install.sh | bash
 ```
 
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/brokermr810/QuantDinger/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/OpenByteInc/QuantDinger/main/install.ps1 | iex
 ```
 
 Default URLs in the full stack:
@@ -75,7 +75,7 @@ docker run -d --name quantdinger-mobile \
 ### Start H5 development
 
 ```bash
-git clone https://github.com/brokermr810/QuantDinger-Mobile.git
+git clone https://github.com/OpenByteInc/QuantDinger-Mobile.git
 cd QuantDinger-Mobile
 npm install
 npm run dev
@@ -259,8 +259,8 @@ QuantDinger-Mobile/
 
 | Repository | Role |
 |------------|------|
-| [QuantDinger](https://github.com/brokermr810/QuantDinger) | Backend API, Docker Compose, database services, deployment docs |
-| [QuantDinger-Vue](https://github.com/brokermr810/QuantDinger-Vue) | Desktop web frontend |
+| [QuantDinger](https://github.com/OpenByteInc/QuantDinger) | Backend API, Docker Compose, database services, deployment docs |
+| [QuantDinger-Vue](https://github.com/OpenByteInc/QuantDinger-Vue) | Desktop web frontend |
 | **QuantDinger-Mobile** | This repository: mobile and H5 frontend |
 
 ## License
