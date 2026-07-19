@@ -51,7 +51,7 @@ http://192.168.1.10:8889
 手机端镜像地址：
 
 ```text
-ghcr.io/brokermr810/quantdinger-mobile
+ghcr.io/openbyteinc/quantdinger-mobile
 ```
 
 常用标签包括 `latest`、具体语义化版本，以及 `4.0` 这样的主次版本标签。在主仓库 `.env` 中可以用 `IMAGE_TAG` 固定整套系统版本，也可以用 `MOBILE_TAG` 单独固定手机端版本。
@@ -62,7 +62,7 @@ ghcr.io/brokermr810/quantdinger-mobile
 docker run -d --name quantdinger-mobile \
   -p 8889:80 \
   -e BACKEND_URL=http://host.docker.internal:5000 \
-  ghcr.io/brokermr810/quantdinger-mobile:latest
+  ghcr.io/openbyteinc/quantdinger-mobile:latest
 ```
 
 `BACKEND_URL` 控制容器内 Nginx 的 `/api/` 反向代理目标。主仓库 Compose 里通常保持为 `http://backend:5000`。

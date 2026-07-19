@@ -45,7 +45,7 @@ When opening from a phone on the same LAN, use the host machine's LAN IP, for ex
 The mobile image is published as:
 
 ```text
-ghcr.io/brokermr810/quantdinger-mobile
+ghcr.io/openbyteinc/quantdinger-mobile
 ```
 
 Common tags are `latest`, semantic versions, and major/minor tags. In the main repo `.env`, use `IMAGE_TAG` to pin the whole stack or `MOBILE_TAG` to pin only the mobile service.
@@ -56,7 +56,7 @@ Run the image by itself when the backend already exists:
 docker run -d --name quantdinger-mobile \
   -p 8889:80 \
   -e BACKEND_URL=http://host.docker.internal:5000 \
-  ghcr.io/brokermr810/quantdinger-mobile:latest
+  ghcr.io/openbyteinc/quantdinger-mobile:latest
 ```
 
 `BACKEND_URL` controls the container's Nginx `/api/` proxy. In the main Compose stack it normally stays as `http://backend:5000`.
