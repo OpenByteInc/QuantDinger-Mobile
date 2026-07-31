@@ -60,9 +60,26 @@
         :placeholder="$t('credentials.passphrase_placeholder')"
       />
 
-      <van-button block type="primary" :loading="saving" @click="submit">
-        {{ $t('credentials.save') }}
-      </van-button>
+      <div class="form-actions">
+        <van-button
+          block
+          plain
+          :loading="testing"
+          :disabled="saving"
+          @click="testConnection"
+        >
+          {{ $t('credentials.test_connection') }}
+        </van-button>
+        <van-button
+          block
+          type="primary"
+          :loading="saving"
+          :disabled="testing"
+          @click="submit"
+        >
+          {{ $t('credentials.save') }}
+        </van-button>
+      </div>
     </div>
 
     <van-popup v-model:show="showExchangePicker" position="bottom" round>
@@ -103,6 +120,7 @@ export default {
   data() {
     return {
       saving: false,
+      testing: false,
       showExchangePicker: false,
       showEnvironmentPicker: false,
       showMarketScopePicker: false,
@@ -217,20 +235,38 @@ export default {
       return true
     },
 
+    credentialPayload() {
+      return {
+        name: this.form.name.trim(),
+        exchange_id: this.form.exchange_id,
+        api_key: this.form.api_key.trim(),
+        secret_key: this.form.secret_key.trim(),
+        passphrase: this.needsPassphrase ? this.form.passphrase.trim() : '',
+        environment: this.form.environment,
+        market_scope: this.form.market_scope,
+        enable_demo_trading: this.form.environment !== 'live'
+      }
+    },
+
+    async testConnection() {
+      if (!this.validate()) return
+      this.testing = true
+      try {
+        await credentialsApi.test(this.credentialPayload())
+        showToast({ message: this.$t('credentials.test_success'), type: 'success' })
+      } catch (error) {
+        const message = error?.response?.data?.msg || error?.message || this.$t('credentials.test_failed')
+        showToast({ message, type: 'fail' })
+      } finally {
+        this.testing = false
+      }
+    },
+
     async submit() {
       if (!this.validate()) return
       this.saving = true
       try {
-        await credentialsApi.create({
-          name: this.form.name.trim(),
-          exchange_id: this.form.exchange_id,
-          api_key: this.form.api_key.trim(),
-          secret_key: this.form.secret_key.trim(),
-          passphrase: this.needsPassphrase ? this.form.passphrase.trim() : '',
-          environment: this.form.environment,
-          market_scope: this.form.market_scope,
-          enable_demo_trading: this.form.environment !== 'live'
-        })
+        await credentialsApi.create(this.credentialPayload())
         showToast({ message: this.$t('credentials.saved'), type: 'success' })
         this.$router.replace('/profile/credentials')
       } catch (error) {
@@ -261,6 +297,13 @@ export default {
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
+}
+
+.form-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 16px;
 }
 
 .section-title {

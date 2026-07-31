@@ -13,6 +13,61 @@
       </template>
     </van-nav-bar>
 
+    <!-- Existing accounts are the primary mobile task. -->
+    <div class="list-card primary-list">
+      <div class="card-head">
+        <div class="card-head-left">
+          <div class="card-icon blue"><van-icon name="records" /></div>
+          <div>
+            <div class="card-title">{{ $t('credentials.list_title') }}</div>
+            <p class="card-desc">{{ $t('credentials.list_desc', { count: credentials.length }) }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="credentials.length" class="cred-list">
+        <div v-for="item in credentials" :key="item.id" class="cred-row">
+          <div class="cred-left">
+            <div class="cred-logo" :style="exchangeBrand(item.exchange_id)">
+              {{ exchangeShort(item.exchange_id) }}
+            </div>
+            <div class="cred-info">
+              <span class="row-title">{{ item.name }}</span>
+              <span class="row-subtitle">
+                {{ formatExchange(item.exchange_id) }}
+                <span v-if="item.api_key_hint"> · {{ item.api_key_hint }}</span>
+              </span>
+              <span class="credential-tags">
+                <small :class="['credential-tag', credentialHealthy(item) ? 'healthy' : 'needs-check']">
+                  {{ credentialHealthLabel(item) }}
+                </small>
+                <small :class="['credential-tag', item.environment === 'live' ? 'live' : 'sandbox']">
+                  {{ credentialEnvironmentLabel(item) }}
+                </small>
+                <small class="credential-tag">{{ credentialScopeLabel(item) }}</small>
+              </span>
+              <span v-if="credentialLastChecked(item)" class="last-checked">
+                {{ $t('credentials.last_checked', { time: credentialLastChecked(item) }) }}
+              </span>
+            </div>
+          </div>
+          <div class="cred-actions">
+            <van-button size="mini" plain @click="openRename(item)">
+              {{ $t('credentials.rename') }}
+            </van-button>
+            <van-button size="mini" plain type="danger" @click="removeCredential(item)">
+              {{ $t('credentials.delete') }}
+            </van-button>
+          </div>
+        </div>
+      </div>
+      <van-empty v-else-if="!loading" :description="$t('credentials.empty')">
+        <van-button round type="primary" size="small" @click="$router.push('/profile/credentials/new')">
+          {{ $t('credentials.add') }}
+        </van-button>
+      </van-empty>
+    </div>
+
     <!-- Egress IP card -->
     <div class="egress-card">
       <div class="card-head">
@@ -47,7 +102,7 @@
 
     <!-- One-click signup -->
     <div class="signup-card">
-      <div class="card-head">
+      <button type="button" class="card-head signup-toggle" @click="showSignup = !showSignup">
         <div class="card-head-left">
           <div class="card-icon gold"><van-icon name="gift-o" /></div>
           <div>
@@ -55,8 +110,9 @@
             <p class="card-desc">{{ $t('credentials.signup_promo') }}</p>
           </div>
         </div>
-      </div>
-      <div class="signup-grid">
+        <van-icon :name="showSignup ? 'arrow-up' : 'arrow-down'" />
+      </button>
+      <div v-if="showSignup" class="signup-grid">
         <div
           v-for="item in signupCards"
           :key="item.id"
@@ -75,43 +131,25 @@
       </div>
     </div>
 
-    <!-- Saved credentials -->
-    <div class="list-card">
-      <div class="card-head">
-        <div class="card-head-left">
-          <div class="card-icon blue"><van-icon name="records" /></div>
-          <div>
-            <div class="card-title">{{ $t('credentials.list_title') }}</div>
-            <p class="card-desc">{{ $t('credentials.list_desc', { count: credentials.length }) }}</p>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="credentials.length" class="cred-list">
-        <div v-for="item in credentials" :key="item.id" class="cred-row">
-          <div class="cred-left">
-            <div class="cred-logo" :style="exchangeBrand(item.exchange_id)">
-              {{ exchangeShort(item.exchange_id) }}
-            </div>
-            <div class="cred-info">
-              <span class="row-title">{{ item.name }}</span>
-              <span class="row-subtitle">
-                {{ formatExchange(item.exchange_id) }}
-                <span v-if="item.api_key_hint"> · {{ item.api_key_hint }}</span>
-              </span>
-            </div>
-          </div>
-          <van-button size="mini" plain type="danger" @click="removeCredential(item)">
-            {{ $t('credentials.delete') }}
+    <van-popup v-model:show="showRename" position="bottom" round>
+      <div class="rename-sheet">
+        <div class="rename-title">{{ $t('credentials.rename_title') }}</div>
+        <p>{{ $t('credentials.rename_hint') }}</p>
+        <van-field
+          v-model="renameValue"
+          :label="$t('credentials.name')"
+          :placeholder="$t('credentials.name_placeholder')"
+          maxlength="128"
+          clearable
+        />
+        <div class="rename-actions">
+          <van-button block @click="closeRename">{{ $t('common.cancel') }}</van-button>
+          <van-button block type="primary" :loading="renaming" @click="saveRename">
+            {{ $t('common.save') }}
           </van-button>
         </div>
       </div>
-      <van-empty v-else-if="!loading" :description="$t('credentials.empty')">
-        <van-button round type="primary" size="small" @click="$router.push('/profile/credentials/new')">
-          {{ $t('credentials.add') }}
-        </van-button>
-      </van-empty>
-    </div>
+    </van-popup>
 
     <van-loading v-if="loading" class="page-loading" vertical>{{ $t('common.loading') }}</van-loading>
   </div>
@@ -130,7 +168,12 @@ export default {
   data() {
     return {
       loading: false,
-      showTutorial: false
+      showTutorial: false,
+      showSignup: false,
+      showRename: false,
+      renaming: false,
+      renameCredential: null,
+      renameValue: ''
     }
   },
 
@@ -233,6 +276,74 @@ export default {
       openExternal(item.signupUrl)
     },
 
+    credentialEnvironmentLabel(item) {
+      const environment = String(item?.environment || (item?.enable_demo_trading ? 'demo' : 'live')).toLowerCase()
+      if (environment === 'testnet') return this.$t('credentials.environment_testnet')
+      if (environment === 'demo') return this.$t('credentials.environment_demo')
+      return this.$t('credentials.environment_live')
+    },
+
+    credentialScopeLabel(item) {
+      const scope = String(item?.market_scope || 'both').toLowerCase()
+      if (scope === 'spot') return this.$t('credentials.market_scope_spot')
+      if (scope === 'swap') return this.$t('credentials.market_scope_swap')
+      return this.$t('credentials.market_scope_both')
+    },
+
+    credentialHealthy(item) {
+      const status = String(item?.status || item?.connection_status || '').toLowerCase()
+      if (['error', 'failed', 'invalid', 'expired', 'disabled'].includes(status)) return false
+      if (item?.is_active === false || item?.last_test_success === false || item?.test_success === false) return false
+      return true
+    },
+
+    credentialHealthLabel(item) {
+      return this.$t(this.credentialHealthy(item) ? 'credentials.status_connected' : 'credentials.status_check')
+    },
+
+    credentialLastChecked(item) {
+      const value = item?.last_tested_at || item?.last_checked_at || item?.updated_at
+      if (!value) return ''
+      const date = new Date(value)
+      return Number.isNaN(date.getTime()) ? '' : date.toLocaleString()
+    },
+
+    openRename(item) {
+      this.renameCredential = item
+      this.renameValue = String(item?.name || '').trim()
+      this.showRename = true
+    },
+
+    closeRename() {
+      if (this.renaming) return
+      this.showRename = false
+      this.renameCredential = null
+      this.renameValue = ''
+    },
+
+    async saveRename() {
+      const id = Number(this.renameCredential?.id)
+      const name = this.renameValue.trim()
+      if (!id || !name) {
+        showToast({ message: this.$t('credentials.name_required'), type: 'fail' })
+        return
+      }
+      this.renaming = true
+      try {
+        await credentialsApi.updateName(id, name)
+        showToast({ message: this.$t('credentials.rename_success'), type: 'success' })
+        this.showRename = false
+        this.renameCredential = null
+        this.renameValue = ''
+        await this.loadData()
+      } catch (error) {
+        const message = error?.response?.data?.msg || error?.message || this.$t('credentials.rename_failed')
+        showToast({ message, type: 'fail' })
+      } finally {
+        this.renaming = false
+      }
+    },
+
     async removeCredential(item) {
       try {
         await showConfirmDialog({
@@ -288,6 +399,7 @@ export default {
   border: 1px solid var(--border);
   box-shadow: var(--shadow-card);
 }
+.primary-list { border-color: color-mix(in srgb, var(--accent) 24%, var(--border)); }
 
 .card-head {
   display: flex;
@@ -295,6 +407,14 @@ export default {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+.signup-toggle {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  text-align: left;
 }
 .card-head-left {
   display: flex;
@@ -483,6 +603,7 @@ export default {
   font-weight: 800;
 }
 .cred-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cred-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 
 .row-title {
   font-size: 14px;
@@ -500,6 +621,71 @@ export default {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.credential-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.credential-tag {
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--text-2);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+.credential-tag.live {
+  color: var(--down);
+  border-color: color-mix(in srgb, var(--down) 30%, var(--border));
+  background: color-mix(in srgb, var(--down) 9%, var(--surface-raised));
+}
+
+.credential-tag.sandbox {
+  color: var(--up);
+  border-color: color-mix(in srgb, var(--up) 30%, var(--border));
+  background: color-mix(in srgb, var(--up) 9%, var(--surface-raised));
+}
+.credential-tag.healthy {
+  color: var(--up);
+  border-color: color-mix(in srgb, var(--up) 30%, var(--border));
+  background: color-mix(in srgb, var(--up) 9%, var(--surface-raised));
+}
+.credential-tag.needs-check {
+  color: var(--down);
+  border-color: color-mix(in srgb, var(--down) 30%, var(--border));
+  background: color-mix(in srgb, var(--down) 9%, var(--surface-raised));
+}
+.last-checked { color: var(--text-3); font-size: 10px; line-height: 1.4; }
+
+.rename-sheet {
+  padding: 20px 16px calc(20px + var(--safe-area-bottom));
+  background: var(--bg-elevated);
+}
+
+.rename-title {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.rename-sheet p {
+  margin: 6px 0 14px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.rename-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 16px;
 }
 
 .page-loading {

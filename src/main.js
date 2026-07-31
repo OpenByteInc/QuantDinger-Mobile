@@ -22,7 +22,7 @@ app.use(i18n)
 app.use(router)
 
 const settingsStore = useSettingsStore()
-const exitRoutePaths = new Set(['/ai', '/trading', '/quick-trade', '/profile', '/home', '/login'])
+const exitRoutePaths = new Set(['/ai', '/trading', '/market', '/profile', '/login'])
 let lastBackPressedAt = 0
 
 const applyThemeAttr = (theme) => {

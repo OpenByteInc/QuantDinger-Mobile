@@ -64,6 +64,7 @@
             :placeholder="$t('bot_create.bot_name_placeholder')"
           />
           <van-field
+            v-if="form.executionMode === 'live'"
             v-model.number="form.initialCapital"
             type="number"
             :label="$t('bot_create.initial_capital')"
@@ -86,20 +87,20 @@
             is-link
             @click="openCredentialPicker"
           />
-          <van-cell :title="$t('bot_create.leverage')">
+          <van-cell v-if="form.executionMode === 'live'" :title="$t('bot_create.leverage')">
             <template #right-icon>
               <van-switch v-model="form.leverageEnabled" size="22" :disabled="!supportsLeverage" />
             </template>
           </van-cell>
-          <div v-if="!supportsLeverage" class="field-hint">{{ $t('script_strategy.leverage_unavailable') }}</div>
+          <div v-if="form.executionMode === 'live' && !supportsLeverage" class="field-hint">{{ $t('script_strategy.leverage_unavailable') }}</div>
           <van-field
-            v-if="form.leverageEnabled"
+            v-if="form.executionMode === 'live' && form.leverageEnabled"
             v-model.number="form.leverage"
             type="number"
             :label="$t('bot_create.leverage')"
             :placeholder="$t('script_strategy.max_leverage', { value: maxLeverage })"
           />
-          <van-cell v-if="requiresPositionSide" :title="$t('script_strategy.position_side')">
+          <van-cell v-if="form.executionMode === 'live' && requiresPositionSide" :title="$t('script_strategy.position_side')">
             <template #right-icon>
               <van-radio-group v-model="form.positionSide" direction="horizontal">
                 <van-radio name="long">{{ $t('trading.side_long') }}</van-radio>
@@ -115,7 +116,7 @@
           type="primary"
           block
           round
-          :disabled="!sourceId || contractError"
+          :disabled="!formValid"
           :loading="submitting"
           @click="submit"
         >{{ isEditMode ? $t('bot_create.update') : $t('bot_create.submit') }}</van-button>
@@ -182,7 +183,11 @@ export default {
       return this.source?.name || this.form.name || this.$route.query?.name || this.$t('script_strategy.untitled')
     },
     sourceDescription() {
-      return this.source?.description || this.$t('script_strategy.desc')
+      const description = String(this.source?.description || '').trim()
+      if (!description || /strategy api|script source|visual builder|robot generated/i.test(description)) {
+        return this.$t('script_strategy.customer_desc')
+      }
+      return description
     },
     marketCategory() {
       const markets = Array.isArray(this.manifest?.markets) ? this.manifest.markets : []
@@ -244,6 +249,13 @@ export default {
       return item
         ? `${item.name || item.exchange_id} (${String(item.exchange_id || '').toUpperCase()})`
         : this.$t('bot_create.exchange_account_placeholder')
+    },
+    formValid() {
+      if (!this.sourceId || this.contractError || !this.form.name.trim()) return false
+      if (this.form.executionMode !== 'live') return true
+      if (!this.form.credentialId || !(Number(this.form.initialCapital) > 0)) return false
+      if (this.requiresPositionSide && !this.form.positionSide) return false
+      return true
     }
   },
   async mounted() {
@@ -302,8 +314,6 @@ export default {
       const id = Number(this.$route.query?.source_id) || null
       if (id) {
         await this.loadSource(id)
-      } else if (this.$route.query?.prompt) {
-        await this.generateSourceFromPrompt(String(this.$route.query.prompt))
       }
     },
     async loadSource(id) {
@@ -322,22 +332,6 @@ export default {
         this.manifest = {}
         throw error
       }
-    },
-    async generateSourceFromPrompt(prompt) {
-      const generated = await strategyApi.generate({ prompt })
-      const code = String(generated?.data?.code || '').trim()
-      if (!code) throw new Error(this.$t('script_strategy.ai_generate_failed'))
-      const symbol = String(this.$route.query?.symbol || '').trim()
-      const created = await scriptSourceApi.create({
-        name: this.$t('script_strategy.ai_generated_name', { symbol: symbol || this.$t('script_strategy.untitled') }),
-        description: this.$t('script_strategy.ai_generated_desc'),
-        code,
-        metadata: { generated_by: 'mobile_ai_analysis' }
-      })
-      const id = Number(created?.data?.id)
-      if (!id) throw new Error(this.$t('script_strategy.ai_generate_failed'))
-      await this.loadSource(id)
-      showToast({ message: this.$t('script_strategy.ai_generate_success'), type: 'success' })
     },
     parseObject(value) {
       if (value && typeof value === 'object' && !Array.isArray(value)) return value
@@ -408,11 +402,13 @@ export default {
       return {
         sourceId: this.sourceId,
         name: this.form.name || this.sourceName,
-        initialCapital: Number(this.form.initialCapital) || 0,
+        initialCapital: this.form.executionMode === 'live' ? (Number(this.form.initialCapital) || 0) : 0,
         executionMode: this.form.executionMode,
         credentialId: this.form.executionMode === 'live' ? this.form.credentialId : null,
-        leverageEnabled: Boolean(this.form.leverageEnabled && this.supportsLeverage),
-        leverage: this.form.leverageEnabled ? Math.min(this.maxLeverage, Number(this.form.leverage) || 1) : 1,
+        leverageEnabled: Boolean(this.form.executionMode === 'live' && this.form.leverageEnabled && this.supportsLeverage),
+        leverage: this.form.executionMode === 'live' && this.form.leverageEnabled
+          ? Math.min(this.maxLeverage, Number(this.form.leverage) || 1)
+          : 1,
         params: this.params,
         positionSide: this.requiresPositionSide ? this.form.positionSide : undefined,
         notificationChannels: [...this.notificationChannels],
@@ -432,7 +428,7 @@ export default {
         showToast({ message: this.$t('script_strategy.name_required'), type: 'fail' })
         return
       }
-      if (!(Number(this.form.initialCapital) > 0)) {
+      if (this.form.executionMode === 'live' && !(Number(this.form.initialCapital) > 0)) {
         showToast({ message: this.$t('script_strategy.capital_required'), type: 'fail' })
         return
       }

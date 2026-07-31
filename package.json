@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test:unit": "node --test tests/unit/*.test.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "cap:sync": "npx cap sync",
@@ -31,8 +32,6 @@
     "@capacitor/status-bar": "^6.0.3",
     "@vant/auto-import-resolver": "^1.3.0",
     "axios": "^1.13.4",
-    "lightweight-charts": "^4.2.2",
-    "nvm": "^0.0.4",
     "pinia": "^3.0.4",
     "qrcode": "^1.5.3",
     "unplugin-auto-import": "^21.0.0",

@@ -25,13 +25,32 @@
         <van-icon name="replay" class="refresh-icon" :class="{ spinning: loading }" @click="loadSources" />
       </div>
 
+      <div class="source-tools">
+        <van-search
+          v-model="searchText"
+          shape="round"
+          :placeholder="$t('trading.create_source_search')"
+        />
+        <div class="source-filters" role="tablist" :aria-label="$t('trading.create_source_filter')">
+          <button
+            v-for="filter in sourceFilters"
+            :key="filter.value"
+            type="button"
+            role="tab"
+            :aria-selected="sourceType === filter.value"
+            :class="{ active: sourceType === filter.value }"
+            @click="sourceType = filter.value"
+          >{{ filter.label }}</button>
+        </div>
+      </div>
+
       <van-loading v-if="loading && !sources.length" class="source-loading" vertical>
         {{ $t('common.loading') }}
       </van-loading>
 
-      <div v-else-if="sources.length" class="source-list">
+      <div v-else-if="filteredSources.length" class="source-list">
         <button
-          v-for="source in sources"
+          v-for="source in filteredSources"
           :key="source.id"
           type="button"
           class="source-card"
@@ -43,6 +62,7 @@
           <span class="source-copy">
             <span class="source-heading">
               <strong>{{ sourceName(source) }}</strong>
+              <small v-if="isRecent(source)" class="recent">{{ $t('trading.recently_used') }}</small>
               <small>{{ sourceTypeLabel(source) }}</small>
             </span>
             <span class="source-desc">{{ sourceDescription(source) }}</span>
@@ -51,7 +71,7 @@
         </button>
       </div>
 
-      <van-empty v-else :description="$t('trading.create_source_empty')">
+      <van-empty v-else :description="emptyDescription">
         <van-button round type="primary" size="small" @click="$router.push({ path: '/market', query: { asset_type: scriptAssetType } })">
           {{ $t('trading.create_market_cta') }}
         </van-button>
@@ -70,15 +90,44 @@ export default {
   data() {
     return {
       loading: false,
-      sources: []
+      sources: [],
+      searchText: '',
+      sourceType: 'all',
+      recentSourceIds: []
     }
   },
   computed: {
     scriptAssetType() {
       return ASSET_TYPES.SCRIPT_TEMPLATE
+    },
+    sourceFilters() {
+      return [
+        { value: 'all', label: this.$t('common.all') },
+        { value: 'script', label: this.$t('script_strategy.type_cta') },
+        { value: 'portfolio_strategy', label: this.$t('script_strategy.type_portfolio') }
+      ]
+    },
+    filteredSources() {
+      const keyword = this.searchText.trim().toLowerCase()
+      return [...this.sources]
+        .filter((source) => {
+          const type = String(source.asset_type || 'script').toLowerCase()
+          const hitType = this.sourceType === 'all' || type === this.sourceType
+          const hitKeyword = !keyword || `${this.sourceName(source)} ${this.sourceDescription(source)}`
+            .toLowerCase()
+            .includes(keyword)
+          return hitType && hitKeyword
+        })
+        .sort((a, b) => this.recentRank(a) - this.recentRank(b))
+    },
+    emptyDescription() {
+      return this.searchText || this.sourceType !== 'all'
+        ? this.$t('trading.create_source_filter_empty')
+        : this.$t('trading.create_source_empty')
     }
   },
   mounted() {
+    this.loadRecentSources()
     this.loadSources()
   },
   methods: {
@@ -98,8 +147,9 @@ export default {
     },
     goCreate(source) {
       if (!source?.id) return
+      this.rememberSource(source.id)
       this.$router.push({
-        path: '/trading/create/script',
+        path: '/trading/create/configure',
         query: {
           source_id: String(source.id),
           name: this.sourceName(source)
@@ -113,7 +163,11 @@ export default {
       return source?.name || source?.strategy_name || this.$t('script_strategy.untitled')
     },
     sourceDescription(source) {
-      return source?.description || this.$t('script_strategy.desc')
+      const description = String(source?.description || '').trim()
+      if (!description || /strategy api|script source|cta strategy/i.test(description)) {
+        return this.$t('script_strategy.customer_desc')
+      }
+      return description
     },
     sourceTypeLabel(source) {
       return this.$t(this.isPortfolio(source) ? 'script_strategy.type_portfolio' : 'script_strategy.type_cta')
@@ -123,6 +177,26 @@ export default {
     },
     sourceTone(source) {
       return this.isPortfolio(source) ? 'portfolio' : 'script'
+    },
+    loadRecentSources() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem('recent_strategy_sources') || '[]')
+        this.recentSourceIds = Array.isArray(parsed) ? parsed.map(Number).filter(Boolean).slice(0, 5) : []
+      } catch {
+        this.recentSourceIds = []
+      }
+    },
+    rememberSource(id) {
+      const value = Number(id)
+      this.recentSourceIds = [value, ...this.recentSourceIds.filter((item) => item !== value)].slice(0, 5)
+      localStorage.setItem('recent_strategy_sources', JSON.stringify(this.recentSourceIds))
+    },
+    isRecent(source) {
+      return this.recentSourceIds.includes(Number(source?.id))
+    },
+    recentRank(source) {
+      const index = this.recentSourceIds.indexOf(Number(source?.id))
+      return index < 0 ? Number.MAX_SAFE_INTEGER : index
     }
   }
 }
@@ -168,6 +242,21 @@ export default {
   font-weight: 800;
 }
 .source-section { padding: 4px 16px 16px; }
+.source-tools { margin: 0 -8px 12px; }
+.source-tools :deep(.van-search) { padding: 6px 8px; background: transparent; }
+.source-tools :deep(.van-search__content) { border: 1px solid var(--border); background: var(--surface-raised); }
+.source-filters { display: flex; gap: 8px; padding: 4px 8px; overflow-x: auto; }
+.source-filters button {
+  min-height: 40px;
+  padding: 0 13px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.source-filters button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .section-head {
   display: flex;
   align-items: center;
@@ -210,6 +299,7 @@ export default {
 .source-heading { display: flex; align-items: center; gap: 8px; }
 .source-heading strong { min-width: 0; overflow: hidden; color: var(--text); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
 .source-heading small { flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; background: var(--surface-raised); color: var(--accent); font-size: 9px; font-weight: 800; }
+.source-heading small.recent { color: var(--up); background: var(--up-soft); }
 .source-desc { display: -webkit-box; overflow: hidden; margin-top: 5px; color: var(--text-2); font-size: 12px; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .arrow { color: var(--text-3); }
 @keyframes spin { to { transform: rotate(360deg); } }

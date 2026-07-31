@@ -6,14 +6,12 @@
         <div class="nav-copy">
           <span class="nav-eyebrow">{{ $t('trading.hero_eyebrow') }}</span>
           <h1 class="nav-title">{{ $t('trading.hero_title') }}</h1>
+          <p>{{ $t('trading.hero_desc_simple') }}</p>
         </div>
         <div class="nav-actions">
-          <button class="nav-stat" type="button" @click="$router.push('/home')">
-            <van-icon name="bar-chart-o" />
-            <span>{{ $t('trading.stats_entry') }}</span>
-          </button>
           <button class="nav-plus" type="button" @click="$router.push('/trading/create')">
             <van-icon name="plus" />
+            <span>{{ $t('trading.add_strategy') }}</span>
           </button>
         </div>
       </div>
@@ -44,19 +42,26 @@
         shape="round"
         background="transparent"
       />
+      <button type="button" class="sort-button" @click="showSortActions = true">
+        <van-icon name="sort" />
+        <span>{{ sortLabel }}</span>
+      </button>
     </div>
 
     <!-- Segmented status filter -->
-    <div class="filter-tabs">
-      <div
+    <div class="filter-tabs" role="tablist" :aria-label="$t('trading.status_filter')">
+      <button
         v-for="tab in statusTabs"
         :key="tab.value"
+        type="button"
+        role="tab"
+        :aria-selected="currentStatus === tab.value"
         :class="['tab-item', { active: currentStatus === tab.value }]"
         @click="currentStatus = tab.value"
       >
         <span>{{ tab.label }}</span>
         <small>{{ tab.count }}</small>
-      </div>
+      </button>
     </div>
 
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
@@ -75,7 +80,7 @@
               </div>
               <div class="ident-text">
                 <span class="name">{{ strategy.name || $t('trading.untitled') }}</span>
-                <span class="symbol">{{ strategy.symbol || '-' }}</span>
+                <span class="symbol">{{ strategy.symbol || '-' }} · {{ strategy.timeframe || '-' }}</span>
               </div>
             </div>
             <div class="badge-stack">
@@ -83,38 +88,53 @@
                 <span class="dot"></span>
                 {{ getStatusText(strategy.status) }}
               </span>
+              <span :class="['mode-badge', isLiveStrategy(strategy) ? 'live' : 'signal']">
+                {{ executionModeLabel(strategy) }}
+              </span>
             </div>
           </div>
 
+          <button
+            v-if="strategyNeedsAttention(strategy)"
+            type="button"
+            class="card-risk"
+            @click.stop="goToDetail(strategy.id)"
+          >
+            <van-icon name="warning-o" />
+            <span>{{ strategyAttentionText(strategy) }}</span>
+            <van-icon name="arrow" />
+          </button>
+
           <div class="meta-grid">
             <div class="meta-item">
-              <span class="label">{{ $t('bot_create.timeframe') }}</span>
-              <span class="value">{{ strategy.timeframe || '-' }}</span>
+              <span class="label">{{ $t('trading.strategy_source') }}</span>
+              <span class="value">{{ strategySource(strategy) }}</span>
             </div>
             <div class="meta-item">
-              <span class="label">{{ $t('market.asset_script_template') }}</span>
-              <span class="value">{{ strategy.strategy_type || '-' }}</span>
+              <span class="label">{{ $t('trading.execution_account') }}</span>
+              <span class="value">{{ strategyAccount(strategy) }}</span>
             </div>
             <div class="meta-item">
-              <span class="label">{{ $t('trading.initial_capital') }}</span>
-              <span class="value">{{ formatCapital(strategy) }}</span>
+              <span class="label">{{ $t('trading.market_type') }}</span>
+              <span class="value">{{ strategyMarket(strategy) }}</span>
             </div>
             <div class="meta-item">
-              <span class="label">{{ $t('trading.total_pnl') }}</span>
-              <span :class="['value pnl', pnlClass(strategy)]">{{ formatPnl(strategy) }}</span>
+              <span class="label">{{ isLiveStrategy(strategy) ? $t('trading.total_pnl') : $t('trading.run_result') }}</span>
+              <span v-if="isLiveStrategy(strategy)" :class="['value pnl', pnlClass(strategy)]">{{ formatPnl(strategy) }}</span>
+              <span v-else class="value signal-only">{{ $t('trading.signal_only') }}</span>
             </div>
           </div>
 
           <div class="card-actions">
             <van-button size="small" plain @click.stop="goToDetail(strategy.id)">
-              <van-icon name="eye-o" />
+              {{ $t('common.view_detail') }}
             </van-button>
             <van-button
               v-if="strategy.status === 'running'"
               size="small"
               type="danger"
               :loading="!!strategy._loading"
-              @click.stop="stopStrategy(strategy)"
+              @click.stop="requestStopStrategy(strategy)"
             >
               {{ $t('trading.stop') }}
             </van-button>
@@ -129,19 +149,10 @@
             </van-button>
             <van-button
               size="small"
-              :disabled="strategy.status === 'running'"
-              @click.stop="editStrategy(strategy)"
-            >
-              <van-icon name="edit" />
-            </van-button>
-            <van-button
-              size="small"
-              type="danger"
               plain
-              :disabled="strategy.status === 'running'"
-              @click.stop="deleteStrategy(strategy)"
+              @click.stop="openMore(strategy)"
             >
-              <van-icon name="delete-o" />
+              {{ $t('common.more') }}
             </van-button>
           </div>
         </div>
@@ -154,13 +165,38 @@
       </div>
     </van-pull-refresh>
 
+    <van-action-sheet
+      v-model:show="showStopActions"
+      :actions="stopActions"
+      :cancel-text="$t('common.cancel')"
+      :description="stopPolicyDescription"
+      close-on-click-action
+      @select="onStopAction"
+      @closed="stopTarget = null"
+    />
+    <van-action-sheet
+      v-model:show="showMoreActions"
+      :actions="moreActions"
+      :cancel-text="$t('common.cancel')"
+      close-on-click-action
+      @select="onMoreAction"
+      @closed="moreTarget = null"
+    />
+    <van-action-sheet
+      v-model:show="showSortActions"
+      :actions="sortActions"
+      :cancel-text="$t('common.cancel')"
+      close-on-click-action
+      @select="onSortAction"
+    />
+
     <van-loading v-if="loading" class="page-loading" vertical>{{ $t('common.loading') }}</van-loading>
   </div>
 </template>
 
 <script>
 import { showConfirmDialog, showToast } from 'vant'
-import { strategyApi } from '@/api'
+import { scriptSourceApi, strategyApi } from '@/api'
 import { useStrategyStore } from '@/stores'
 
 export default {
@@ -171,7 +207,14 @@ export default {
       searchText: '',
       currentStatus: 'all',
       loading: false,
-      refreshing: false
+      refreshing: false,
+      showStopActions: false,
+      stopTarget: null,
+      showMoreActions: false,
+      showSortActions: false,
+      sortMode: 'attention',
+      moreTarget: null,
+      sourceNames: {}
     }
   },
 
@@ -182,6 +225,46 @@ export default {
     strategies() {
       return this.strategyStore.strategies
     },
+    stopActions() {
+      return [
+        {
+          name: this.$t('trading.stop_only'),
+          subname: this.$t('trading.stop_only_desc'),
+          closePositions: false
+        },
+        {
+          name: this.$t('trading.stop_and_close'),
+          subname: this.$t('trading.stop_and_close_desc'),
+          color: 'var(--down)',
+          closePositions: true
+        }
+      ]
+    },
+    stopPolicyDescription() {
+      const name = this.stopTarget?.name || this.$t('trading.untitled')
+      return `${name} · ${this.$t('trading.stop_policy_desc')}`
+    },
+    moreActions() {
+      const running = this.moreTarget?.status === 'running'
+      const hasExposure = this.strategyHasExposure(this.moreTarget)
+      return [
+        {
+          name: this.$t('trading.action_edit'),
+          subname: running ? this.$t('trading.stop_before_edit') : this.$t('trading.edit_hint'),
+          action: 'edit',
+          disabled: running
+        },
+        {
+          name: this.$t('trading.action_delete'),
+          subname: hasExposure
+            ? this.$t('trading.delete_blocked_exposure')
+            : (running ? this.$t('trading.stop_before_delete') : this.$t('trading.delete_hint')),
+          action: 'delete',
+          color: 'var(--down)',
+          disabled: running || hasExposure
+        }
+      ]
+    },
     statusTabs() {
       const counts = this.strategyStore.statusCounts
       return [
@@ -191,55 +274,52 @@ export default {
         { label: this.$t('trading.filter_stopped'), value: 'stopped', count: counts.stopped }
       ]
     },
-    /**
-     * KPI cards mirror PC trading-bot/index.vue:
-     * - totalEquity sums each bot's initial_capital
-     * - totalPnl prefers unrealized_pnl (PC field), falls back to
-     *   performance.total_pnl, so older API payloads still render.
-     */
+    sortActions() {
+      return [
+        { name: this.$t('trading.sort_attention'), value: 'attention' },
+        { name: this.$t('trading.sort_recent'), value: 'recent' },
+        { name: this.$t('trading.sort_name'), value: 'name' }
+      ]
+    },
+    sortLabel() {
+      return this.sortActions.find((item) => item.value === this.sortMode)?.name || ''
+    },
     kpiCards() {
       const list = this.strategies || []
+      const liveList = list.filter((strategy) => this.isLiveStrategy(strategy))
       const total = list.length
       const running = list.filter((s) => s.status === 'running').length
-      let totalEquity = 0
+      const errors = list.filter((s) => this.strategyNeedsAttention(s)).length
       let totalPnl = 0
-      list.forEach((s) => {
-        const cap = Number(s.trading_config?.initial_capital || 0)
-        if (Number.isFinite(cap)) totalEquity += cap
+      liveList.forEach((s) => {
         const pnl = this.bestPnl(s)
         if (Number.isFinite(pnl)) totalPnl += pnl
       })
       const pnlSign = totalPnl >= 0 ? '+' : ''
       return [
         {
-          label: this.$t('trading.kpi_total_equity'),
-          value: `$${totalEquity.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-          icon: 'balance-pay',
-          color: '#1890ff'
-        },
-        {
-          label: this.$t('trading.kpi_total_pnl'),
-          value: `${pnlSign}$${Math.abs(totalPnl).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-          icon: 'chart-trending-o',
-          color: totalPnl >= 0 ? '#52c41a' : '#f5222d',
-          cls: totalPnl >= 0 ? 'kpi-up' : 'kpi-down'
-        },
-        {
           label: this.$t('trading.kpi_running'),
           value: `${running} / ${total}`,
           icon: 'play-circle-o',
-          color: '#722ed1'
+          color: '#18b87a'
         },
         {
-          label: this.$t('trading.kpi_stopped'),
-          value: String(total - running),
-          icon: 'pause-circle-o',
-          color: '#faad14'
+          label: this.$t('trading.kpi_attention'),
+          value: String(errors),
+          icon: 'warning-o',
+          color: errors ? '#ef5350' : '#8b93a7'
+        },
+        {
+          label: this.$t('trading.kpi_live_pnl'),
+          value: `${pnlSign}$${Math.abs(totalPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          icon: 'chart-trending-o',
+          color: totalPnl >= 0 ? '#18b87a' : '#ef5350',
+          cls: totalPnl >= 0 ? 'kpi-up' : 'kpi-down'
         }
       ]
     },
     filteredStrategies() {
-      return this.strategies.filter((item) => {
+      const list = this.strategies.filter((item) => {
         const hitStatus = this.currentStatus === 'all' || item.status === this.currentStatus
         const keyword = this.searchText.trim().toLowerCase()
         const hitKeyword = !keyword || [
@@ -249,6 +329,13 @@ export default {
           item.indicator?.name
         ].some((value) => String(value || '').toLowerCase().includes(keyword))
         return hitStatus && hitKeyword
+      })
+      return list.sort((a, b) => {
+        if (this.sortMode === 'name') return String(a.name || '').localeCompare(String(b.name || ''))
+        if (this.sortMode === 'recent') {
+          return new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime()
+        }
+        return Number(this.strategyNeedsAttention(b)) - Number(this.strategyNeedsAttention(a))
       })
     }
   },
@@ -272,8 +359,20 @@ export default {
     async loadStrategies() {
       this.loading = true
       try {
-        const res = await strategyApi.getList()
-        this.strategyStore.setStrategies(res.data || [])
+        const [strategyResult, sourceResult] = await Promise.allSettled([
+          strategyApi.getList(),
+          scriptSourceApi.getList()
+        ])
+        if (strategyResult.status === 'rejected') throw strategyResult.reason
+        this.strategyStore.setStrategies(strategyResult.value.data || [])
+        if (sourceResult.status === 'fulfilled') {
+          this.sourceNames = Object.fromEntries(
+            (sourceResult.value.data || []).map((source) => [
+              Number(source.id),
+              source.name || source.strategy_name || source.display_name || `#${source.id}`
+            ])
+          )
+        }
       } catch (error) {
         console.error('Load strategies failed:', error)
       } finally {
@@ -284,6 +383,10 @@ export default {
     async onRefresh() {
       await this.loadStrategies()
       this.refreshing = false
+    },
+    onSortAction(action) {
+      this.sortMode = action?.value || 'attention'
+      this.showSortActions = false
     },
 
     getStatusText(status) {
@@ -326,18 +429,21 @@ export default {
     },
 
     formatPnl(strategy) {
+      if (!this.isLiveStrategy(strategy)) return '--'
       const num = this.bestPnl(strategy)
       const sign = num > 0 ? '+' : ''
       return `${sign}$${num.toFixed(2)}`
     },
 
     formatCapital(strategy) {
+      if (!this.isLiveStrategy(strategy)) return '--'
       const cap = Number(strategy?.initial_capital || 0)
       if (!Number.isFinite(cap) || cap <= 0) return '-'
       return `$${cap.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
     },
 
     pnlClass(strategy) {
+      if (!this.isLiveStrategy(strategy)) return ''
       const num = this.bestPnl(strategy)
       if (num > 0) return 'profit'
       if (num < 0) return 'loss'
@@ -357,11 +463,56 @@ export default {
 
     editStrategy(strategy) {
       if (strategy.status === 'running') return
-      this.$router.push({ path: '/trading/create/script', query: { edit: strategy.id } })
+      this.$router.push({ path: '/trading/create/configure', query: { edit: strategy.id } })
+    },
+
+    openMore(strategy) {
+      this.moreTarget = strategy
+      this.showMoreActions = true
+    },
+
+    onMoreAction(action) {
+      const strategy = this.moreTarget
+      this.showMoreActions = false
+      this.moreTarget = null
+      if (!strategy || action?.disabled) return
+      if (action.action === 'edit') this.editStrategy(strategy)
+      if (action.action === 'delete') this.deleteStrategy(strategy)
+    },
+
+    strategySource(strategy) {
+      const sourceId = Number(strategy?.trading_config?.script_source_id || strategy?.script_source_id || 0)
+      return strategy?.source_name ||
+        strategy?.template_name ||
+        strategy?.indicator?.name ||
+        strategy?.script_source_name ||
+        this.sourceNames[sourceId] ||
+        strategy?.strategy_type ||
+        this.$t('trading.custom_strategy')
+    },
+
+    strategyAccount(strategy) {
+      if (!this.isLiveStrategy(strategy)) return this.$t('trading.no_account_needed')
+      return strategy?.exchange_config?.credential_name ||
+        strategy?.exchange_config?.account_name ||
+        strategy?.exchange_config?.exchange_name ||
+        strategy?.exchange_config?.exchange_id ||
+        strategy?.trading_config?.exchange ||
+        this.$t('trading.account_unset')
+    },
+
+    strategyMarket(strategy) {
+      const config = strategy?.trading_config || {}
+      const market = config.market_type || strategy?.market_type || strategy?.market || '-'
+      const leverage = Number(config.leverage || strategy?.leverage || 0)
+      return leverage > 1 ? `${market} · ${leverage}x` : String(market)
     },
 
     async deleteStrategy(strategy) {
-      if (strategy.status === 'running') return
+      if (strategy.status === 'running' || this.strategyHasExposure(strategy)) {
+        showToast({ message: this.$t('trading.delete_blocked_exposure'), type: 'fail' })
+        return
+      }
       try {
         await showConfirmDialog({
           title: this.$t('trading.delete_title'),
@@ -381,6 +532,18 @@ export default {
     },
 
     async startStrategy(strategy) {
+      if (this.strategyHasExposure(strategy)) {
+        try {
+          await showConfirmDialog({
+            title: this.$t('trading.restart_with_position_title'),
+            message: this.$t('trading.restart_with_position_msg', {
+              count: strategy.open_position_count || strategy.position_count || 1
+            })
+          })
+        } catch {
+          return
+        }
+      }
       strategy._loading = true
       try {
         await strategyApi.start(strategy.id)
@@ -393,15 +556,86 @@ export default {
       }
     },
 
-    async stopStrategy(strategy) {
+    isLiveStrategy(strategy) {
+      return String(strategy?.execution_mode || strategy?.trading_config?.execution_mode || '').toLowerCase() === 'live'
+    },
+
+    executionModeLabel(strategy) {
+      return this.$t(this.isLiveStrategy(strategy)
+        ? 'indicator_bot.execution_mode_live'
+        : 'indicator_bot.execution_mode_signal')
+    },
+
+    strategyHasExposure(strategy) {
+      if (!strategy) return false
+      const positions = Number(
+        strategy.open_position_count ??
+        strategy.position_count ??
+        strategy.positions_count ??
+        strategy.active_positions ??
+        0
+      )
+      const orders = Number(strategy.pending_order_count ?? strategy.open_order_count ?? 0)
+      return Boolean(strategy.has_open_position || strategy.has_open_positions || positions > 0 || orders > 0)
+    },
+
+    strategyAccountConfigured(strategy) {
+      if (!this.isLiveStrategy(strategy)) return true
+      const exchange = strategy?.exchange_config || {}
+      return Boolean(
+        exchange.credential_id ||
+        exchange.credential_name ||
+        exchange.account_name ||
+        strategy?.trading_config?.credential_id
+      )
+    },
+
+    strategyNeedsAttention(strategy) {
+      if (!strategy) return false
+      if (strategy.status === 'error') return true
+      if (strategy.status !== 'running' && this.strategyHasExposure(strategy)) return true
+      return this.isLiveStrategy(strategy) && !this.strategyAccountConfigured(strategy)
+    },
+
+    strategyAttentionText(strategy) {
+      if (strategy?.status !== 'running' && this.strategyHasExposure(strategy)) {
+        return this.$t('trading.stopped_position_attention')
+      }
+      if (this.isLiveStrategy(strategy) && !this.strategyAccountConfigured(strategy)) {
+        return this.$t('trading.account_requires_attention')
+      }
+      return this.$t('trading.strategy_run_error')
+    },
+
+    async requestStopStrategy(strategy) {
+      if (this.isLiveStrategy(strategy)) {
+        this.stopTarget = strategy
+        this.showStopActions = true
+        return
+      }
+      await this.confirmStopStrategy(strategy, false)
+    },
+
+    async onStopAction(action) {
+      const strategy = this.stopTarget
+      this.showStopActions = false
+      this.stopTarget = null
+      if (!strategy) return
+      await this.confirmStopStrategy(strategy, Boolean(action?.closePositions))
+    },
+
+    async confirmStopStrategy(strategy, closePositions) {
       try {
         await showConfirmDialog({
-          title: this.$t('trading.stop'),
-          message: `${this.$t('trading.stop')} ${strategy.name} ?`
+          title: this.$t(closePositions ? 'trading.confirm_stop_close_title' : 'trading.confirm_stop_title'),
+          message: this.$t(closePositions ? 'trading.confirm_stop_close_msg' : 'trading.confirm_stop_msg')
         })
         strategy._loading = true
-        await strategyApi.stop(strategy.id)
-        showToast({ message: this.$t('trading.stop'), type: 'success' })
+        await strategyApi.stop(strategy.id, closePositions)
+        showToast({
+          message: this.$t(closePositions ? 'trading.stop_close_success' : 'trading.stop_success'),
+          type: 'success'
+        })
         await this.loadStrategies()
       } catch (error) {
         if (error !== 'cancel') {
@@ -475,9 +709,18 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.nav-stat {
-  height: 42px;
-  padding: 0 12px;
+.nav-copy p {
+  max-width: 220px;
+  margin: 0;
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.nav-plus {
+  min-width: 44px;
+  height: 44px;
+  padding: 0 13px;
+  flex: 0 0 auto;
   border: 1px solid var(--border);
   border-radius: 14px;
   display: inline-flex;
@@ -486,28 +729,8 @@ export default {
   gap: 5px;
   background: var(--surface-raised);
   color: var(--text);
-  font-size: 12px;
-  font-weight: 900;
-  box-shadow: var(--shadow-card);
-  appearance: none;
-  -webkit-appearance: none;
-}
-.nav-stat .van-icon {
-  font-size: 16px;
-  color: var(--accent);
-}
-.nav-plus {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--surface-raised);
-  color: var(--text);
-  font-size: 22px;
+  font-size: 14px;
+  font-weight: 800;
   box-shadow: var(--shadow-card);
   appearance: none;
   -webkit-appearance: none;
@@ -515,27 +738,28 @@ export default {
 
 .kpi-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
   padding: 4px 16px 0;
 }
 .kpi-card {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 10px;
   border-radius: var(--radius);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
 }
 .kpi-icon {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 15px;
   flex-shrink: 0;
 }
 .kpi-body { min-width: 0; flex: 1; }
@@ -548,7 +772,7 @@ export default {
 }
 .kpi-value {
   margin-top: 2px;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 800;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -562,13 +786,31 @@ export default {
 
 .search-bar {
   padding: 8px 16px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.search-bar :deep(.van-search) { padding: 0; }
+.search-bar :deep(.van-search) { min-width: 0; flex: 1; padding: 0; }
 .search-bar :deep(.van-search__content) {
   background: var(--surface-raised) !important;
   border: 1px solid var(--border);
   border-radius: 12px;
 }
+.sort-button {
+  min-height: 42px;
+  max-width: 108px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: var(--text-2);
+  font-size: 11px;
+}
+.sort-button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .filter-tabs {
   display: flex;
@@ -583,6 +825,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-height: 40px;
   padding: 7px 13px;
   border-radius: 999px;
   color: var(--text-2);
@@ -745,6 +988,24 @@ export default {
   flex-shrink: 0;
 }
 
+.mode-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.mode-badge.live {
+  color: var(--down);
+  background: var(--down-soft);
+}
+
+.mode-badge.signal {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+}
+
 .bot-type-badge {
   display: inline-block;
   padding: 2px 8px;
@@ -765,6 +1026,24 @@ export default {
   border: 1px solid var(--hairline);
 }
 
+.card-risk {
+  width: 100%;
+  min-height: 42px;
+  margin: -2px 0 12px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--down) 32%, var(--border));
+  border-radius: 11px;
+  color: var(--down);
+  background: color-mix(in srgb, var(--down) 8%, var(--surface-deep));
+  text-align: left;
+  font-size: 12px;
+}
+
+.card-risk span { flex: 1; }
+
 .meta-item {
   display: flex;
   flex-direction: column;
@@ -772,7 +1051,7 @@ export default {
 }
 
 .meta-item .label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-3);
   letter-spacing: 0.06em;
@@ -780,16 +1059,21 @@ export default {
 }
 
 .meta-item .value {
-  font-size: 14px;
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
-  word-break: break-word;
+  word-break: break-all;
   font-variant-numeric: tabular-nums;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .meta-item .value.pnl { font-weight: 700; }
 .meta-item .value.profit { color: var(--up); }
 .meta-item .value.loss { color: var(--down); }
+.meta-item .value.signal-only { color: var(--accent); font-size: 12px; }
 
 .card-actions {
   display: flex;
@@ -801,7 +1085,7 @@ export default {
 .card-actions :deep(.van-button) {
   flex: 1;
   border-radius: 12px;
-  height: 36px;
+  height: 44px;
   font-size: 13px;
   font-weight: 600;
 }

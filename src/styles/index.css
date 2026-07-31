@@ -125,7 +125,6 @@ html[data-theme='dark'] {
 
   --safe-area-top: env(safe-area-inset-top);
   --safe-area-bottom: env(safe-area-inset-bottom);
-  --tabbar-height: 50px;
 }
 
 /* ================================================================
@@ -279,7 +278,6 @@ html[data-theme='light'] #app::after {
 }
 
 .app-main,
-.van-tabbar,
 .page-container,
 [class$='-page'] {
   position: relative;
@@ -293,7 +291,7 @@ html[data-theme='light'] #app::after {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-bottom: calc(var(--tabbar-height) + var(--safe-area-bottom));
+  padding-bottom: calc(24px + var(--safe-area-bottom));
   -webkit-overflow-scrolling: touch;
 }
 
@@ -323,9 +321,6 @@ html[data-theme='light'] #app::after {
   --van-nav-bar-background: transparent;
   --van-nav-bar-title-text-color: var(--text);
   --van-nav-bar-icon-color: var(--text);
-  --van-tabbar-background: rgba(20, 20, 24, 0.86);
-  --van-tabbar-item-text-color: var(--text-3);
-  --van-tabbar-item-active-color: var(--accent);
   --van-cell-background: transparent;
   --van-cell-text-color: var(--text);
   --van-cell-value-color: var(--text-2);
@@ -369,7 +364,6 @@ html[data-theme='light'] #app::after {
 }
 
 html[data-theme='light'] {
-  --van-tabbar-background: rgba(255, 255, 255, 0.9);
   --van-overlay-background: rgba(15, 23, 42, 0.4);
   --van-overlay-background-color: rgba(15, 23, 42, 0.4);
   --van-toast-background: rgba(255, 255, 255, 0.96);
@@ -377,12 +371,6 @@ html[data-theme='light'] {
 
 :where(.van-nav-bar) { background: transparent !important; }
 :where(.van-nav-bar__title, .van-nav-bar .van-icon) { color: var(--text) !important; }
-
-:where(.van-tabbar) {
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-top: 1px solid var(--border) !important;
-}
 
 :where(.van-cell, .van-cell-group, .van-dialog, .van-popup, .van-action-sheet) {
   background: var(--bg-elevated) !important;

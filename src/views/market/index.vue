@@ -12,16 +12,19 @@
     </div>
 
     <div class="toolbar">
-      <div class="asset-tabs">
-        <div
+      <div class="asset-tabs" role="tablist" :aria-label="$t('market.asset_type_label')">
+        <button
           v-for="opt in assetOptions"
           :key="opt.value"
+          type="button"
+          role="tab"
+          :aria-selected="assetType === opt.value"
           :class="['asset-tab', { active: assetType === opt.value }]"
           @click="setAssetType(opt.value)"
         >
           <van-icon :name="opt.icon" />
           <span>{{ opt.label }}</span>
-        </div>
+        </button>
       </div>
       <van-search
         v-model="keyword"
@@ -29,14 +32,16 @@
         :placeholder="$t(isStrategyAsset ? 'market.search_script_placeholder' : 'market.search_indicator_placeholder')"
         @search="reload"
       />
-      <div class="filter-row">
+      <div v-if="items.length || keyword || pricing" class="filter-row">
         <div class="segment">
-          <div
+          <button
             v-for="opt in filterOptions"
             :key="opt.value"
+            type="button"
+            :aria-pressed="pricing === opt.value"
             :class="['seg-item', { active: pricing === opt.value }]"
             @click="setPricing(opt.value)"
-          >{{ opt.label }}</div>
+          >{{ opt.label }}</button>
         </div>
         <van-cell :value="sortLabel" is-link class="sort-cell" @click="showSortPicker = true">
           <template #title>
@@ -105,7 +110,34 @@
       </div>
     </van-list>
 
-    <van-empty v-if="!loading && !items.length" :description="$t('common.empty')" />
+    <div v-if="!loading && !items.length" class="market-empty" role="status">
+      <van-icon :name="loadFailed ? 'warning-o' : 'bag-o'" class="empty-icon" />
+      <strong>{{ emptyStateTitle }}</strong>
+      <p>{{ emptyStateDescription }}</p>
+      <div class="empty-actions">
+        <van-button round type="primary" size="small" @click="reload">
+          {{ $t('common.refresh') }}
+        </van-button>
+        <van-button
+          v-if="keyword || pricing"
+          round
+          plain
+          size="small"
+          @click="clearFilters"
+        >
+          {{ $t('market.clear_filters') }}
+        </van-button>
+        <van-button
+          v-else
+          round
+          plain
+          size="small"
+          @click="$router.push('/trading')"
+        >
+          {{ $t('market.view_my_strategies') }}
+        </van-button>
+      </div>
+    </div>
 
     <van-popup v-model:show="showSortPicker" position="bottom" round>
       <van-picker
@@ -135,6 +167,7 @@ export default {
       total: 0,
       loading: false,
       finished: false,
+      loadFailed: false,
       showSortPicker: false
     }
   },
@@ -176,6 +209,19 @@ export default {
     sortLabel() {
       const it = this.sortColumns.find((s) => s.value === this.sort)
       return it ? it.text : ''
+    },
+    emptyStateTitle() {
+      if (this.loadFailed) return this.$t('market.empty_load_title')
+      if (this.keyword || this.pricing) return this.$t('market.empty_filter_title')
+      return this.$t(this.isStrategyAsset ? 'market.empty_strategy_title' : 'market.empty_indicator_title')
+    },
+    emptyStateDescription() {
+      if (this.loadFailed) return this.$t('market.empty_load_desc')
+      if (this.keyword || this.pricing) return this.$t('market.empty_filter_desc')
+      return this.$t(this.isStrategyAsset ? 'market.empty_strategy_desc' : 'market.empty_indicator_desc')
+    },
+    isStrategyAsset() {
+      return this.assetType === ASSET_TYPES.SCRIPT_TEMPLATE
     }
   },
   mounted() {
@@ -189,6 +235,7 @@ export default {
       this.page = 1
       this.finished = false
       this.items = []
+      this.loadFailed = false
       await this.loadMore()
     },
     async loadMore() {
@@ -213,6 +260,7 @@ export default {
           this.page += 1
         }
       } catch (err) {
+        this.loadFailed = true
         this.finished = true
       } finally {
         this.loading = false
@@ -221,6 +269,11 @@ export default {
     setPricing(val) {
       if (this.pricing === val) return
       this.pricing = val
+      this.reload()
+    },
+    clearFilters() {
+      this.keyword = ''
+      this.pricing = ''
       this.reload()
     },
     setAssetType(val) {
@@ -377,6 +430,8 @@ export default {
   padding: 0 8px 8px;
 }
 .asset-tab {
+  appearance: none;
+  -webkit-appearance: none;
   min-height: 58px;
   padding: 9px 6px;
   border-radius: 16px;
@@ -428,6 +483,8 @@ export default {
   display: none;
 }
 .seg-item {
+  appearance: none;
+  -webkit-appearance: none;
   flex: 0 0 auto;
   padding: 6px 12px;
   border-radius: 999px;
@@ -641,4 +698,35 @@ export default {
 .price { font-weight: 700; }
 .price.paid { color: var(--c-amber); }
 .price.free { color: var(--up); }
+.market-empty {
+  margin: 18px 16px 28px;
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+.empty-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 12px;
+  border-radius: 16px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: 24px;
+}
+.market-empty strong { color: var(--text); font-size: 16px; }
+.market-empty p {
+  max-width: 280px;
+  margin: 8px 0 18px;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.empty-actions { display: flex; gap: 10px; }
 </style>

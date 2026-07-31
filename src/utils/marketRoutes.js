@@ -39,7 +39,7 @@ export const buildCreateRouteFromMarketAsset = (item = {}) => {
     indicator.script_source_id ||
     indicator.purchased_script_source_id
   return {
-    path: '/trading/create/script',
+    path: '/trading/create/configure',
     query: {
       source_id: scriptSourceId || '',
       name

@@ -7,17 +7,32 @@
       @click-left="$router.back()"
     >
       <template #right>
-        <span v-if="notifications.length" class="nav-link" @click="markAllRead">
+        <button v-if="notifications.length" type="button" class="nav-link" @click="markAllRead">
           {{ $t('notifications.mark_all_read') }}
-        </span>
+        </button>
       </template>
     </van-nav-bar>
 
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
+      <div class="notification-filters" role="tablist" :aria-label="$t('notifications.category_filter')">
+        <button
+          v-for="filter in categoryFilters"
+          :key="filter.value"
+          type="button"
+          role="tab"
+          :aria-selected="activeCategory === filter.value"
+          :class="{ active: activeCategory === filter.value }"
+          @click="activeCategory = filter.value"
+        >
+          {{ filter.label }}
+          <small>{{ filter.count }}</small>
+        </button>
+      </div>
       <div class="notification-list">
-        <div
-          v-for="item in notifications"
+        <button
+          v-for="item in displayedNotifications"
           :key="item.id"
+          type="button"
           :class="['notification-item', { unread: !item.is_read && !item.read }]"
           @click="openNotification(item)"
         >
@@ -33,6 +48,9 @@
               {{ getMessage(item) }}
             </p>
             <div class="meta">
+              <van-tag v-if="item._members?.length > 1" size="small" plain type="warning">
+                {{ $t('notifications.merged_count', { count: item._members.length }) }}
+              </van-tag>
               <van-tag v-if="item.strategy_id" size="small" plain type="primary">
                 {{ $t('notifications.strategy') }} #{{ item.strategy_id }}
               </van-tag>
@@ -41,10 +59,10 @@
               </van-tag>
             </div>
           </div>
-        </div>
+        </button>
 
         <van-empty
-          v-if="!loading && notifications.length === 0"
+          v-if="!loading && displayedNotifications.length === 0"
           :description="$t('notifications.empty')"
         />
       </div>
@@ -80,6 +98,20 @@
         <div class="detail-body">
           {{ getDetailMessage(selectedNotification) }}
         </div>
+        <van-button
+          v-if="selectedNotification.strategy_id"
+          round
+          block
+          type="primary"
+          class="detail-action"
+          @click="goToStrategy(selectedNotification.strategy_id)"
+        >
+          {{ $t('notifications.view_strategy') }}
+        </van-button>
+        <details v-if="getTechnicalMessage(selectedNotification)" class="technical-details">
+          <summary>{{ $t('notifications.technical_details') }}</summary>
+          <code>{{ getTechnicalMessage(selectedNotification) }}</code>
+        </details>
       </div>
     </van-popup>
   </div>
@@ -146,7 +178,8 @@ export default {
       loading: false,
       refreshing: false,
       showDetail: false,
-      selectedNotification: null
+      selectedNotification: null,
+      activeCategory: 'all'
     }
   },
 
@@ -156,6 +189,52 @@ export default {
     },
     notifications() {
       return this.notificationStore.notifications
+    },
+    groupedNotifications() {
+      const groups = new Map()
+      this.notifications.forEach((item) => {
+        const type = this.getType(item)
+        const action = this.signalAction(item)
+        const symbol = this.notificationSymbol(item)
+        const time = this.notificationTimestamp(item)
+        const bucket = Math.floor(time / (30 * 60 * 1000))
+        const key = [item.strategy_id || 'general', type, action || 'event', symbol || 'all', bucket].join('|')
+        if (!groups.has(key)) groups.set(key, [])
+        groups.get(key).push(item)
+      })
+      return Array.from(groups.entries())
+        .map(([key, members]) => {
+          const latest = [...members].sort((a, b) => this.notificationTimestamp(b) - this.notificationTimestamp(a))[0]
+          const unread = members.some((item) => !item.is_read && !item.read)
+          return {
+            ...latest,
+            id: `group-${key}`,
+            is_read: unread ? 0 : 1,
+            read: !unread,
+            _members: members
+          }
+        })
+        .sort((a, b) => this.notificationTimestamp(b) - this.notificationTimestamp(a))
+    },
+    displayedNotifications() {
+      if (this.activeCategory === 'all') return this.groupedNotifications
+      return this.groupedNotifications.filter((item) => this.getType(item) === this.activeCategory)
+    },
+    categoryFilters() {
+      const options = [
+        ['all', 'notifications.category_all'],
+        ['alert', 'notifications.category_alert'],
+        ['trade', 'notifications.category_trade'],
+        ['signal', 'notifications.category_signal'],
+        ['system', 'notifications.category_system']
+      ]
+      return options.map(([value, key]) => ({
+        value,
+        label: this.$t(key),
+        count: value === 'all'
+          ? this.groupedNotifications.length
+          : this.groupedNotifications.filter((item) => this.getType(item) === value).length
+      }))
     }
   },
 
@@ -186,9 +265,11 @@ export default {
     },
 
     getType(item) {
-      const text = `${item.title || ''} ${item.message || ''}`.toLowerCase()
-      if (text.includes('error') || text.includes('异常') || text.includes('fail')) return 'alert'
-      if (text.includes('trade') || text.includes('成交') || text.includes('order')) return 'trade'
+      const text = `${item.event_type || ''} ${item.title || ''} ${item.message || ''} ${item.content || ''}`.toLowerCase()
+      if (/(risk|error|异常|fail|expired|失效|liquidat|强平|止损)/.test(text)) return 'alert'
+      if (/(signal|open_long|open_short|close_long|close_short|add_long|add_short|信号)/.test(text)) return 'signal'
+      if (/(trade|成交|order|filled|pending_order|下单|委托)/.test(text)) return 'trade'
+      if (/(system|account|credential|login|系统|账户)/.test(text)) return 'system'
       return 'signal'
     },
 
@@ -197,21 +278,66 @@ export default {
       const map = {
         signal: 'bell',
         trade: 'exchange',
-        alert: 'warning-o'
+        alert: 'warning-o',
+        system: 'setting-o'
       }
       return map[type]
     },
 
     getTitle(item) {
-      return toPlainNotificationText(item.title || item.event_type) || this.$t('notifications.default_title')
+      const action = this.signalAction(item)
+      const symbol = this.notificationSymbol(item)
+      if (action) {
+        return this.$t(`notifications.action_${action}`, { symbol: symbol || this.$t('notifications.the_strategy') })
+      }
+      const type = this.getType(item)
+      return this.$t(`notifications.default_${type}_title`)
     },
 
     getMessage(item) {
-      return toPlainNotificationText(item.message || item.content, { limit: MESSAGE_PREVIEW_LIMIT }) || this.$t('notifications.no_content')
+      const action = this.signalAction(item)
+      const symbol = this.notificationSymbol(item)
+      if (action) {
+        const key = action.startsWith('open') || action.startsWith('add')
+          ? 'notifications.signal_detected'
+          : 'notifications.signal_closed'
+        return this.$t(key, {
+          symbol: symbol || this.$t('notifications.the_strategy'),
+          action: this.$t(`notifications.action_label_${action}`)
+        })
+      }
+      const plain = toPlainNotificationText(item.message || item.content, { limit: MESSAGE_PREVIEW_LIMIT })
+      if (this.getType(item) === 'alert') return this.$t('notifications.risk_requires_attention')
+      return plain || this.$t('notifications.no_content')
     },
 
     getDetailMessage(item) {
-      return toPlainNotificationText(item.content || item.message, { preserveLines: true }) || this.$t('notifications.no_content')
+      return this.getMessage(item)
+    },
+
+    getTechnicalMessage(item) {
+      return toPlainNotificationText(item.content || item.message, { preserveLines: true })
+    },
+
+    signalAction(item) {
+      const text = `${item.event_type || ''} ${item.title || ''} ${item.message || ''} ${item.content || ''}`.toLowerCase()
+      const actions = ['open_long', 'open_short', 'add_long', 'add_short', 'close_long', 'close_short']
+      return actions.find((action) => text.includes(action)) || ''
+    },
+
+    notificationSymbol(item) {
+      const direct = item.symbol || item.trading_symbol
+      if (direct) return String(direct).toUpperCase()
+      const text = `${item.title || ''} ${item.message || ''} ${item.content || ''}`
+      const match = text.match(/\b([A-Z0-9]{2,12})[/-](USDT|USD|USDC|BTC|ETH)\b/i)
+      return match ? `${match[1].toUpperCase()}/${match[2].toUpperCase()}` : ''
+    },
+
+    notificationTimestamp(item) {
+      const value = item?.created_at || item?.timestamp
+      if (typeof value === 'number') return value * (value < 1e12 ? 1000 : 1)
+      const parsed = new Date(value || 0).getTime()
+      return Number.isFinite(parsed) ? parsed : 0
     },
 
     formatTime(value) {
@@ -230,10 +356,12 @@ export default {
     },
 
     async markRead(item) {
-      if (item.is_read || item.read) return
+      const members = item._members || [item]
+      const unread = members.filter((member) => !member.is_read && !member.read)
+      if (!unread.length) return
       try {
-        await strategyApi.markNotificationRead(item.id)
-        this.notificationStore.markAsRead(item.id)
+        await Promise.allSettled(unread.map((member) => strategyApi.markNotificationRead(member.id)))
+        unread.forEach((member) => this.notificationStore.markAsRead(member.id))
       } catch (error) {
         console.error('Mark notification read failed:', error)
       }
@@ -243,6 +371,11 @@ export default {
       this.selectedNotification = item
       this.showDetail = true
       this.markRead(item)
+    },
+
+    goToStrategy(id) {
+      this.showDetail = false
+      this.$router.push(`/trading/strategy/${id}`)
     },
 
     async markAllRead() {
@@ -270,14 +403,42 @@ export default {
 .notifications-page :deep(.van-nav-bar .van-icon) { color: var(--text); }
 
 .nav-link {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--accent);
   font-size: 14px;
   font-weight: 600;
 }
 
-.notification-list { padding: 16px; }
+.notification-filters {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.notification-filters::-webkit-scrollbar { display: none; }
+.notification-filters button {
+  min-height: 40px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.notification-filters button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.notification-filters small { color: var(--text-3); }
+.notification-list { padding: 12px 16px 16px; }
 
 .notification-item {
+  width: 100%;
   display: flex;
   gap: 12px;
   padding: 14px;
@@ -285,6 +446,8 @@ export default {
   border-radius: var(--radius);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
+  color: inherit;
+  text-align: left;
 }
 
 .notification-item.unread {
@@ -315,6 +478,10 @@ export default {
 .icon-wrapper.alert {
   background: var(--down-soft);
   color: var(--down);
+}
+.icon-wrapper.system {
+  background: color-mix(in srgb, var(--c-blue) 14%, var(--surface-raised));
+  color: var(--c-blue);
 }
 
 .content {
@@ -415,6 +582,10 @@ export default {
   background: var(--down-soft);
   color: var(--down);
 }
+.detail-icon.system {
+  background: color-mix(in srgb, var(--c-blue) 14%, var(--surface-raised));
+  color: var(--c-blue);
+}
 
 .detail-title {
   margin: 14px 28px 10px 0;
@@ -439,6 +610,22 @@ export default {
   color: var(--text-2);
   font-size: 14px;
   line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.detail-action { margin-top: 14px; }
+.technical-details {
+  margin-top: 14px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.technical-details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+.technical-details code {
+  display: block;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-deep);
+  color: var(--text-2);
   white-space: pre-wrap;
   word-break: break-word;
 }

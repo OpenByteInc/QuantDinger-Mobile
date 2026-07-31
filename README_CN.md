@@ -118,11 +118,11 @@ VITE_DEV_API_TARGET=http://127.0.0.1:5000 npm run dev
 | `npm run dev` 本地开发 | 如果后端不在 `http://localhost:5000`，设置 `VITE_DEV_API_TARGET`。 |
 | 自己部署静态 H5 | 发布 `dist/`，并在 Web 服务器上把 `/api/` 反代到 QuantDinger 后端。 |
 | Android / iOS 原生壳 | 填手机能访问到的后端地址，例如公网 `https://api.example.com`，或测试时的局域网 IP。 |
-| 想给新安装用户预设默认地址 | 构建时设置 `VITE_DEFAULT_SERVER_URL=https://api.example.com`，用户仍可在应用内覆盖。 |
+| 想给原生安装包预设默认地址 | 构建时设置 `VITE_DEFAULT_SERVER_URL=https://api.example.com`；未设置时官方安装包默认使用 `https://api.quantdinger.com`。 |
 
-APK / IPA 里的默认后端地址是在打包时写进去的。用户安装后仍然可以在 **个人中心 → 服务器设置** 里手动修改，但如果你要把安装包发给别人，建议打包前先把默认地址改成你自己的服务器。
+APK / IPA 里的默认后端地址是在打包时写进去的。如果你要分发自己的安装包，请在构建命令或自己的 `.env.local` 中配置服务器地址；不要把私有地址提交到仓库的生产环境文件。
 
-创建或修改 `.env.production`：
+例如在本机创建或修改 `.env.local`：
 
 ```env
 VITE_DEFAULT_SERVER_URL=https://api.example.com
@@ -131,6 +131,7 @@ VITE_PUBLIC_WEB_BASE_URL=https://m.example.com
 
 注意：
 
+- 仓库不提供硬编码的 `.env.production`，因此预构建 H5 和 Docker 镜像默认走同源 `/api/`，不会绕过 `BACKEND_URL`。
 - `VITE_DEFAULT_SERVER_URL` 必须是手机能访问到的地址，不能只在你的电脑上能访问。
 - 公网部署建议使用 HTTPS。部分 Android 设备或网络环境会限制不安全的 HTTP 请求。
 - APK 里不要填 `localhost` 或 `127.0.0.1`，手机上的 `localhost` 指的是手机自己，不是你的电脑或服务器。

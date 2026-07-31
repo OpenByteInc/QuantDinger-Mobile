@@ -1,7 +1,7 @@
 <template>
   <div class="ai-copilot-page">
     <div class="top-bar">
-      <button type="button" class="nav-menu-btn" @click="openNav">
+      <button type="button" class="nav-menu-btn" :aria-label="$t('sidebar.open_navigation')" @click="openNav">
         <van-icon name="wap-nav" />
       </button>
       <div class="top-copy">
@@ -9,13 +9,13 @@
           {{ text.title }}
         </span>
       </div>
-      <button type="button" class="history-btn" @click="openHistoryDrawer">
+      <button type="button" class="history-btn" :aria-label="text.sessions" @click="openHistoryDrawer">
         <van-icon name="clock-o" />
         <span>{{ text.sessions }}</span>
       </button>
     </div>
 
-    <div class="copilot-body">
+    <div :class="['copilot-body', { empty: !messages.length }]">
       <div class="chat-panel">
         <div v-if="!messages.length" class="welcome-card">
           <div class="welcome-title-row">
@@ -218,11 +218,15 @@
               <van-icon name="photo-o" />
             </button>
           </div>
-          <button type="button" class="send-action" :disabled="sending || !canSend" @click="sendMessage">
+          <button
+            type="button"
+            class="send-action"
+            :aria-label="text.send"
+            :disabled="sending || !canSend"
+            @click="sendMessage"
+          >
             <van-loading v-if="sending" size="16" />
-            <template v-else>
-              <van-icon name="guide-o" />
-            </template>
+            <template v-else>{{ text.send }}</template>
           </button>
         </div>
       </div>
@@ -334,6 +338,7 @@ const COPY = {
     promptNeeded: '请输入问题或上传图片',
     strategyPromptNeeded: '请先写一点策略想法',
     generateFailed: '生成失败',
+    desktopOnly: '手机端仅支持使用与监控，请在电脑端完成代码编辑或回测。',
     taskDiagnose: '诊断标的',
     taskDiagnoseDesc: '趋势、量能、支撑阻力和风险',
     taskChart: '看图诊断',
@@ -377,6 +382,7 @@ const COPY = {
     promptNeeded: '請輸入問題或上傳圖片',
     strategyPromptNeeded: '請先寫一點策略想法',
     generateFailed: '生成失敗',
+    desktopOnly: '手機端僅支援使用與監控，請在電腦端完成程式碼編輯或回測。',
     taskDiagnose: '診斷標的',
     taskDiagnoseDesc: '趨勢、量能、支撐阻力和風險',
     taskChart: '看圖診斷',
@@ -420,6 +426,7 @@ const COPY = {
     promptNeeded: 'Enter a question or upload an image',
     strategyPromptNeeded: 'Write a short strategy idea first',
     generateFailed: 'Generation failed',
+    desktopOnly: 'Mobile supports usage and monitoring only. Use desktop for code editing or backtesting.',
     taskDiagnose: 'Diagnose',
     taskDiagnoseDesc: 'Trend, volume, levels, and risk',
     taskChart: 'Chart review',
@@ -463,6 +470,7 @@ const COPY = {
     promptNeeded: '質問を入力するか画像をアップロードしてください',
     strategyPromptNeeded: 'まず戦略アイデアを入力してください',
     generateFailed: '生成に失敗しました',
+    desktopOnly: 'モバイルは利用と監視専用です。コード編集やバックテストはデスクトップで行ってください。',
     taskDiagnose: '銘柄診断',
     taskDiagnoseDesc: 'トレンド、出来高、重要水準、リスク',
     taskChart: 'チャート診断',
@@ -506,6 +514,7 @@ const COPY = {
     promptNeeded: '질문을 입력하거나 이미지를 업로드하세요',
     strategyPromptNeeded: '먼저 전략 아이디어를 입력하세요',
     generateFailed: '생성 실패',
+    desktopOnly: '모바일은 사용 및 모니터링 전용입니다. 코드 편집과 백테스트는 데스크톱에서 진행하세요.',
     taskDiagnose: '종목 진단',
     taskDiagnoseDesc: '추세, 거래량, 레벨, 리스크',
     taskChart: '차트 진단',
@@ -916,13 +925,55 @@ export default {
         throw new Error(this.text.generateFailed)
       }
     },
+    isUnsupportedMobileAction(action) {
+      const payload = action?.payload || {}
+      const signature = [
+        action?.type,
+        action?.path,
+        action?.workflow,
+        payload.intent,
+        payload.path,
+        payload.workflow,
+        payload.target_type
+      ].filter(Boolean).join(' ').toLowerCase()
+      return /backtest|generate[-_]?(code|strategy)|code[-_]?(edit|editor|generation)|source[-_]?edit|script[-_]?(edit|editor)|indicator[-_]?research|strategy[-_]?research|publish|compile|strategy-ide|indicator-ide|backtest-center/.test(signature)
+    },
     filterMobileActions(actions) {
-      return (actions || []).filter((action) => {
-        const type = String(action.type || '').toLowerCase()
-        return !/backtest|indicator|script|code/.test(type)
-      })
+      return (actions || []).filter((action) => action && !this.isUnsupportedMobileAction(action))
+    },
+    mobileActionRoute(action) {
+      const payload = action?.payload || {}
+      const strategyId = payload.strategy_id || payload.strategyId
+      if (strategyId) return { name: 'StrategyDetail', params: { id: strategyId } }
+
+      const indicatorId = payload.indicator_id || payload.indicatorId || payload.asset_id || payload.assetId
+      if (indicatorId) return { name: 'MarketIndicatorDetail', params: { id: indicatorId } }
+
+      const path = String(action?.path || payload.path || '').split('?')[0].replace(/\/+$/, '')
+      const routeMap = {
+        '/strategy-center': { name: 'Trading' },
+        '/portfolio': { name: 'Trading' },
+        '/indicator-community': { name: 'Market' },
+        '/strategy-market': { name: 'Market' },
+        '/broker-accounts': { name: 'CredentialList' },
+        '/billing': { name: 'ProfileCredits' },
+        '/profile': { name: 'Profile' },
+        '/ai-analysis': { name: 'AiAnalysis' }
+      }
+      return routeMap[path] || null
     },
     handleCopilotAction(action) {
+      if (this.isUnsupportedMobileAction(action)) {
+        showToast({ message: this.text.desktopOnly, type: 'fail' })
+        return
+      }
+
+      const route = this.mobileActionRoute(action)
+      if (route) {
+        this.$router.push(route)
+        return
+      }
+
       const type = String(action.type || '').toLowerCase()
       if (type.includes('analysis')) {
         this.runProfessionalAnalysis()
@@ -1083,18 +1134,6 @@ export default {
           timeframe: report.timeframe || this.context.timeframe
         }
       })
-    },
-    generateStrategyFromReport(report) {
-      if (!report) return
-      const symbol = report.symbol || this.context.symbol
-      const timeframe = report.timeframe || this.context.timeframe || '4h'
-      const decision = String(report.decision || '').toUpperCase() || 'HOLD'
-      const locale = this.$i18n?.locale || 'zh-CN'
-      const isZh = locale.startsWith('zh')
-      const prompt = isZh
-        ? `基于 ${symbol} (${timeframe}) 的 AI 分析建议 ${decision}，请生成一个合适的交易机器人参数。分析摘要：${report.summary || ''}`
-        : `Based on the AI analysis of ${symbol} (${timeframe}) suggesting ${decision}, please generate suitable trading bot parameters. Summary: ${report.summary || ''}`
-      this.$router.push({ path: '/trading/create/script', query: { prompt, symbol } })
     },
     reportMarketLabel(report) {
       return [report?.market, report?.symbol].filter(Boolean).join(':') || this.$t('ai_analysis.title')
@@ -1290,8 +1329,8 @@ export default {
 }
 
 .nav-menu-btn {
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -1341,7 +1380,7 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 34px;
+  min-height: 44px;
   padding: 0 11px;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -1359,7 +1398,8 @@ export default {
 }
 
 .ask-card {
-  position: relative;
+  position: sticky;
+  bottom: 0;
   z-index: 5;
   padding: 8px 9px 9px;
   border-radius: 16px;
@@ -1439,7 +1479,7 @@ export default {
   outline: none;
   background: transparent;
   color: var(--text);
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -1477,7 +1517,7 @@ export default {
 
 .task-card {
   min-width: 116px;
-  min-height: 34px;
+  min-height: 44px;
   display: flex;
   gap: 6px;
   align-items: center;
@@ -1544,7 +1584,7 @@ export default {
 
 .task-copy strong {
   color: var(--text);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
 }
@@ -2157,15 +2197,17 @@ export default {
 }
 
 .send-action {
-  min-width: 36px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  min-width: 72px;
+  width: auto;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 13px;
   color: var(--on-accent);
   border: 0;
   background: linear-gradient(135deg, #f2b632 0%, #ff6b35 58%, #e34848 100%);
   box-shadow: 0 8px 18px rgba(255, 107, 53, 0.2);
-  font-size: 15px;
+  font-size: 14px;
+  letter-spacing: 0.04em;
 }
 
 .send-action:disabled {

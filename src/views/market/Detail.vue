@@ -178,6 +178,14 @@
           block
           @click="goCreateStrategy"
         >{{ $t('market.use_script_template') }}</van-button>
+        <van-button
+          v-else
+          type="primary"
+          round
+          block
+          :disabled="!indicator.local_copy_id"
+          @click="goIndicatorChart"
+        >{{ $t('indicator_chart.view_chart') }}</van-button>
       </div>
     </div>
   </div>
@@ -421,8 +429,8 @@ export default {
     },
     formatMarketType(value) {
       const type = String(value || '').toLowerCase()
-      if (type === 'spot') return this.$t('quick_trade.market_spot')
-      if (type === 'swap') return this.$t('quick_trade.market_swap')
+      if (type === 'spot') return this.$t('trading.market_spot')
+      if (type === 'swap') return this.$t('trading.market_futures')
       return value || '-'
     },
     parameterLabel(parameter) {
@@ -502,6 +510,17 @@ export default {
     goCreateStrategy() {
       const route = buildCreateRouteFromMarketAsset(this.indicator)
       if (route) this.$router.push(route)
+    },
+    goIndicatorChart() {
+      const localIndicatorId = Number(this.indicator?.local_copy_id || 0)
+      if (!localIndicatorId) {
+        showToast({ message: this.$t('indicator_chart.local_copy_required'), type: 'fail' })
+        return
+      }
+      this.$router.push({
+        name: 'IndicatorChart',
+        query: { indicator_id: localIndicatorId }
+      })
     }
   }
 }

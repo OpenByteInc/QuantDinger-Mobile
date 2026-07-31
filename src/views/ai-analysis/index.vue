@@ -143,8 +143,8 @@
           {{ $t('ai_analysis.next_step') }}
         </span>
         <div class="ns-actions">
-          <van-button size="small" type="primary" @click="generateStrategyFromResult">
-            <van-icon name="cluster-o" /> {{ $t('ai_analysis.generate_strategy') }}
+          <van-button size="small" type="primary" @click="chooseStrategy">
+            <van-icon name="cluster-o" /> {{ $t('ai_analysis.choose_strategy') }}
           </van-button>
         </div>
       </div>
@@ -891,15 +891,8 @@ export default {
       if (t.includes('bear') || t.includes('down')) return 'down'
       return 'neutral'
     },
-    generateStrategyFromResult() {
-      const sym = this.form.symbol.trim()
-      const decision = String(this.result?.decision || '').toUpperCase()
-      const locale = this.$i18n?.locale
-      const isZh = locale === 'zh-CN' || locale === 'zh-TW'
-      const prompt = isZh
-        ? `基于 ${sym} (${this.form.timeframe}) 的 AI 分析建议 ${decision}，请生成一个合适的交易机器人参数。分析摘要：${this.result?.summary || ''}`
-        : `Based on the AI analysis of ${sym} (${this.form.timeframe}) suggesting ${decision}, please generate suitable trading bot parameters. Summary: ${this.result?.summary || ''}`
-      this.$router.push({ path: '/trading/create/script', query: { prompt, symbol: sym } })
+    chooseStrategy() {
+      this.$router.push({ name: 'BotCreate' })
     }
   }
 }

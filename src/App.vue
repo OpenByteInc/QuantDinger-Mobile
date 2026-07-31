@@ -4,7 +4,7 @@
       v-if="showFloatingNavButton"
       type="button"
       class="shell-menu-floating"
-      aria-label="Open navigation"
+      :aria-label="t('sidebar.open_navigation')"
       @click="openSidebar"
     >
       <van-icon name="wap-nav" />
@@ -12,7 +12,7 @@
 
     <div class="app-main" :class="{ 'with-floating-menu': showFloatingNavButton }">
       <router-view v-slot="{ Component }">
-        <keep-alive :include="['Home', 'Trading', 'AiHub', 'QuickTrade', 'Profile']">
+        <keep-alive :include="['Trading', 'AiHub', 'Profile']">
           <component :is="Component" />
         </keep-alive>
       </router-view>
@@ -30,7 +30,6 @@
           <img :src="avatarUrl" :alt="displayName" referrerpolicy="no-referrer" @error="onAvatarError" />
           <div class="brand-copy">
             <strong>{{ displayName }}</strong>
-            <span class="brand-line">{{ userEmail }}</span>
             <span>{{ userEmail }}</span>
           </div>
           <button
@@ -148,9 +147,8 @@ const navGroups = computed(() => ([
     items: [
       { name: 'ai', label: t('sidebar.ai_analysis'), icon: 'cluster-o', path: '/ai' },
       { name: 'indicator-market', label: t('sidebar.indicator_market'), icon: 'chart-trending-o', path: '/market' },
-      { name: 'create-bot', label: t('sidebar.create_bot'), icon: 'plus', path: '/trading/create' },
       { name: 'trading', label: t('sidebar.strategy_lab'), icon: 'apps-o', path: '/trading' },
-      { name: 'quick-trade', label: t('sidebar.quick_trade'), icon: 'exchange', path: '/quick-trade' },
+      { name: 'indicator-chart', label: t('sidebar.indicator_chart'), icon: 'chart-trending-o', path: '/indicators/chart' },
       { name: 'credentials', label: t('sidebar.exchange_config'), icon: 'shield-o', path: '/profile/credentials' }
     ]
   },
@@ -199,11 +197,8 @@ const isActive = (item) => {
   const current = route.path
   if (item.path === '/profile') return current === '/profile'
   if (item.path === '/ai') return current === '/ai'
-  if (item.path === '/trading/create') {
-    return current === '/trading/create' || current.startsWith('/trading/create/')
-  }
   if (item.path === '/trading') {
-    return current === '/trading' || current.startsWith('/trading/strategy/')
+    return current === '/trading' || current.startsWith('/trading/strategy/') || current.startsWith('/trading/create')
   }
   if (item.path === '/profile/credentials') {
     return current === '/profile/credentials' || current.startsWith('/profile/credentials/')
@@ -289,8 +284,8 @@ watch(
   top: calc(10px + var(--safe-area-top, 0px));
   left: 16px;
   z-index: 120;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--border);
   border-radius: 14px;
   color: var(--text);
@@ -356,15 +351,11 @@ watch(
   white-space: nowrap;
 }
 
-.brand-copy span:not(.brand-line) {
-  display: none;
-}
-
 .sidebar-notification {
   position: relative;
   flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

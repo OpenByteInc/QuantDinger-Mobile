@@ -29,7 +29,10 @@ export const resolveServerUrl = () => DEFAULT_SERVER_URL
 
 // Public H5 origin for invitation and external sharing links.
 export const PUBLIC_WEB_BASE_URL =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PUBLIC_WEB_BASE_URL) ||
-  'https://m.quantdinger.com'
+  normalizeServerUrl(
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PUBLIC_WEB_BASE_URL) ||
+      webOrigin ||
+      'https://m.quantdinger.com'
+  )
 
 export const DEFAULT_THEME = 'dark'

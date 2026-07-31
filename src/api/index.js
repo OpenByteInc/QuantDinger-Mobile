@@ -224,8 +224,10 @@ const normalizeStrategy = (raw = {}) => {
   return {
     ...raw,
     name,
-    symbol: raw.symbol || '',
-    timeframe: raw.timeframe || '',
+    symbol: raw.symbol || tradingConfig.symbol || '',
+    timeframe: raw.timeframe || tradingConfig.timeframe || '',
+    initial_capital: raw.initial_capital ?? tradingConfig.initial_capital ?? 0,
+    execution_mode: raw.execution_mode || tradingConfig.execution_mode || 'signal',
     trading_config: tradingConfig,
     exchange_config: exchangeConfig,
     notification_config: notificationConfig,
@@ -286,7 +288,7 @@ function redirectToLoginIfNeeded(requestUrl) {
   clearAuthSession()
   try {
     if (router.currentRoute.value.path === '/login') return
-    const full = router.currentRoute.value.fullPath || '/home'
+    const full = router.currentRoute.value.fullPath || '/ai'
     router.replace({ path: '/login', query: { redirect: full } })
   } catch (_) {
     // The router may not be ready during app bootstrap.
@@ -398,23 +400,6 @@ export const authApi = {
   changePassword: (data) => http.post('/api/auth/change-password', data)
 }
 
-export const dashboardApi = {
-  getSummary: async () => {
-    const res = await http.get('/api/dashboard/summary')
-    return {
-      ...res,
-      data: res.data || {}
-    }
-  },
-  getPendingOrders: async (params = {}) => {
-    const res = await http.get('/api/dashboard/pendingOrders', { params })
-    return {
-      ...res,
-      data: res.data || { items: [], total: 0 }
-    }
-  }
-}
-
 export const credentialsApi = {
   list: async () => {
     const res = await http.get('/api/credentials/list')
@@ -433,6 +418,8 @@ export const credentialsApi = {
     }
   },
   create: (data) => http.post('/api/credentials/create', data),
+  test: (data) => http.post('/api/credentials/test', data),
+  updateName: (id, name) => http.put('/api/credentials/update-name', { id, name }),
   delete: (id) => http.delete('/api/credentials/delete', {
     params: { id }
   }),
@@ -463,7 +450,6 @@ export const strategyApi = {
   create: (payload) => http.post('/api/strategies', payload),
   update: (id, payload) => http.put(`/api/strategies/${id}`, payload),
   delete: (id) => http.delete(`/api/strategies/${id}`),
-  generate: (payload) => http.post('/api/strategies/generate', payload, { timeout: 180000 }),
   getList: async () => {
     const res = await http.get('/api/strategies')
     return {
@@ -479,7 +465,9 @@ export const strategyApi = {
     }
   },
   start: (id) => http.post(`/api/strategies/${id}/start`),
-  stop: (id) => http.post(`/api/strategies/${id}/stop`),
+  stop: (id, closePositions = false) => http.post(`/api/strategies/${id}/stop`, {
+    close_positions: Boolean(closePositions)
+  }),
   getTrades: async (id, limit = 50) => {
     const res = await http.get('/api/strategies/trades', {
       params: { id, limit }
@@ -545,43 +533,6 @@ export const strategyApi = {
   clearNotifications: () => http.delete('/api/strategies/notifications/clear')
 }
 
-export const quickTradeApi = {
-  getBalance: async (credentialId, marketType = 'swap') => {
-    const res = await http.get('/api/quick-trade/balance', {
-      params: {
-        credential_id: credentialId,
-        market_type: marketType
-      }
-    })
-    return {
-      ...res,
-      data: res.data || { available: 0, total: 0, currency: 'USDT' }
-    }
-  },
-  getPosition: async ({ credentialId, symbol, marketType = 'swap' }) => {
-    const res = await http.get('/api/quick-trade/position', {
-      params: {
-        credential_id: credentialId,
-        symbol,
-        market_type: marketType
-      }
-    })
-    return {
-      ...res,
-      data: unwrapItems(res.data, 'positions')
-    }
-  },
-  placeOrder: (payload) => http.post('/api/quick-trade/place-order', payload),
-  closePosition: (payload) => http.post('/api/quick-trade/close-position', payload),
-  getHistory: async (params = {}) => {
-    const res = await http.get('/api/quick-trade/history', { params })
-    return {
-      ...res,
-      data: unwrapItems(res.data, 'trades')
-    }
-  }
-}
-
 export const aiAnalysisApi = {
   analyze: (payload) => http.post('/api/fast-analysis/analyze', payload, { timeout: 300000 }),
   getHistory: async (params = {}) => {
@@ -638,7 +589,6 @@ export const scriptSourceApi = {
       data: res.data || null
     }
   },
-  create: (payload) => http.post('/api/strategies/script-sources/create', payload),
   compile: async (sourceId) => {
     const res = await http.post('/api/strategies/script-sources/compile', { sourceId })
     return {
@@ -866,6 +816,13 @@ export const indicatorApi = {
     return {
       ...res,
       data: Array.isArray(res.data) ? res.data : (res.data?.params || [])
+    }
+  },
+  previewChart: async (payload) => {
+    const res = await http.post('/api/indicator/chart-preview', payload, { timeout: 45000 })
+    return {
+      ...res,
+      data: res.data || null
     }
   }
 }

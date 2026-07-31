@@ -41,6 +41,15 @@
           <van-button v-if="isStrategyItem(item)" size="small" type="primary" @click="goCreate(item)">
             {{ $t('market.use_script_template') }}
           </van-button>
+          <van-button
+            v-else
+            size="small"
+            type="primary"
+            :disabled="!item.local_copy_id"
+            @click="goChart(item)"
+          >
+            {{ $t('indicator_chart.view_chart') }}
+          </van-button>
         </div>
       </div>
     </div>
@@ -130,6 +139,17 @@ export default {
       if (!item.indicator?.id) return
       const route = buildCreateRouteFromMarketAsset(item)
       if (route) this.$router.push(route)
+    },
+    goChart(item) {
+      const indicatorId = Number(item.local_copy_id || 0)
+      if (!indicatorId) {
+        showToast({ message: this.$t('indicator_chart.local_copy_required'), type: 'fail' })
+        return
+      }
+      this.$router.push({
+        name: 'IndicatorChart',
+        query: { indicator_id: indicatorId }
+      })
     },
     async syncCode(item) {
       const id = item.indicator?.id
