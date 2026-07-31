@@ -753,6 +753,7 @@ export const aiChatApi = {
     const reader = response.body.getReader()
     const decoder = new TextDecoder('utf-8')
     let buffer = ''
+    let streamComplete = false
     const handlePart = async (part) => {
       const lines = String(part || '').split(/\r?\n/)
       let event = 'message'
@@ -767,19 +768,31 @@ export const aiChatApi = {
         data = JSON.parse(data)
       } catch (_) {}
       if (typeof onEvent === 'function') await onEvent(event, data)
+      return event
     }
 
-    while (true) {
+    while (!streamComplete) {
       const { value, done } = await reader.read()
       if (done) break
       buffer += decoder.decode(value, { stream: true })
       const parts = buffer.split(/\r?\n\r?\n/)
       buffer = parts.pop() || ''
       for (const part of parts) {
-        await handlePart(part)
+        if (await handlePart(part) === 'done') {
+          streamComplete = true
+          break
+        }
+      }
+      if (streamComplete) {
+        try {
+          await reader.cancel()
+        } catch (_) {}
       }
     }
-    if (buffer.trim()) await handlePart(buffer)
+    if (!streamComplete && buffer.trim()) {
+      streamComplete = await handlePart(buffer) === 'done'
+    }
+    return { completed: streamComplete }
   },
   saveLocalMessage: (payload) => http.post('/api/ai/chat/message/local', payload),
   getSessions: async (params = {}) => {

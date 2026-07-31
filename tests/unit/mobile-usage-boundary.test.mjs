@@ -205,6 +205,7 @@ test('AI composer stays at the bottom and uses a text send action', () => {
   assert.match(aiHub, /await this\.sendMessageStream\(payload, pendingMsg\)[\s\S]*aiChatApi\.sendMessage\(\{/)
   assert.match(api, /sendMessage: \(payload\) => http\.post\('\/api\/ai\/chat\/message', payload, \{ timeout: 600000 \}\)/)
   assert.match(api, /streamMessage:[\s\S]*\/api\/ai\/chat\/message\/stream/)
+  assert.match(api, /if \(await handlePart\(part\) === 'done'\)[\s\S]*await reader\.cancel\(\)/)
 })
 
 test('signal chart supports mobile history navigation and candle inspection', () => {
