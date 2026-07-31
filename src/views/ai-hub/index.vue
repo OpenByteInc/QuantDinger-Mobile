@@ -338,6 +338,7 @@ const COPY = {
     promptNeeded: '请输入问题或上传图片',
     strategyPromptNeeded: '请先写一点策略想法',
     generateFailed: '生成失败',
+    streamInterrupted: '连接中断，已保留当前内容，请重试。',
     desktopOnly: '手机端仅支持使用与监控，请在电脑端完成代码编辑或回测。',
     taskDiagnose: '诊断标的',
     taskDiagnoseDesc: '趋势、量能、支撑阻力和风险',
@@ -382,6 +383,7 @@ const COPY = {
     promptNeeded: '請輸入問題或上傳圖片',
     strategyPromptNeeded: '請先寫一點策略想法',
     generateFailed: '生成失敗',
+    streamInterrupted: '連線中斷，已保留目前內容，請重試。',
     desktopOnly: '手機端僅支援使用與監控，請在電腦端完成程式碼編輯或回測。',
     taskDiagnose: '診斷標的',
     taskDiagnoseDesc: '趨勢、量能、支撐阻力和風險',
@@ -426,6 +428,7 @@ const COPY = {
     promptNeeded: 'Enter a question or upload an image',
     strategyPromptNeeded: 'Write a short strategy idea first',
     generateFailed: 'Generation failed',
+    streamInterrupted: 'The connection was interrupted. The current response was kept; please retry.',
     desktopOnly: 'Mobile supports usage and monitoring only. Use desktop for code editing or backtesting.',
     taskDiagnose: 'Diagnose',
     taskDiagnoseDesc: 'Trend, volume, levels, and risk',
@@ -470,6 +473,7 @@ const COPY = {
     promptNeeded: '質問を入力するか画像をアップロードしてください',
     strategyPromptNeeded: 'まず戦略アイデアを入力してください',
     generateFailed: '生成に失敗しました',
+    streamInterrupted: '接続が中断されました。現在の内容を保持しました。再試行してください。',
     desktopOnly: 'モバイルは利用と監視専用です。コード編集やバックテストはデスクトップで行ってください。',
     taskDiagnose: '銘柄診断',
     taskDiagnoseDesc: 'トレンド、出来高、重要水準、リスク',
@@ -514,6 +518,7 @@ const COPY = {
     promptNeeded: '질문을 입력하거나 이미지를 업로드하세요',
     strategyPromptNeeded: '먼저 전략 아이디어를 입력하세요',
     generateFailed: '생성 실패',
+    streamInterrupted: '연결이 중단되었습니다. 현재 내용을 유지했으니 다시 시도해 주세요.',
     desktopOnly: '모바일은 사용 및 모니터링 전용입니다. 코드 편집과 백테스트는 데스크톱에서 진행하세요.',
     taskDiagnose: '종목 진단',
     taskDiagnoseDesc: '추세, 거래량, 레벨, 리스크',
@@ -888,39 +893,46 @@ export default {
     },
     async sendMessageStream(payload, pendingMsg) {
       let hasContent = false
-      await aiChatApi.streamMessage(payload, async (event, data) => {
-        if (event === 'meta') {
-          this.sessionId = data?.session_id || this.sessionId
-          return
-        }
-        if (['delta', 'message', 'content'].includes(event)) {
-          const text = this.extractStreamText(data)
-          if (!text) return
-          if (!hasContent) {
-            this.updatePendingMessage(pendingMsg, { content: '', loading: false })
-            hasContent = true
+      try {
+        await aiChatApi.streamMessage(payload, async (event, data) => {
+          if (event === 'meta') {
+            this.sessionId = data?.session_id || this.sessionId
+            return
           }
-          await this.revealStreamText(pendingMsg, text)
-          return
-        }
-        if (event === 'done') {
-          this.sessionId = data?.session_id || this.sessionId
-          this.updatePendingMessage(pendingMsg, { id: data?.message_id || pendingMsg.id })
-          const finalText = this.extractStreamText(data)
-          if (finalText && !hasContent) {
-            this.updatePendingMessage(pendingMsg, { content: '', loading: false })
-            hasContent = true
-            await this.revealStreamText(pendingMsg, finalText)
+          if (['delta', 'message', 'content'].includes(event)) {
+            const text = this.extractStreamText(data)
+            if (!text) return
+            if (!hasContent) {
+              this.updatePendingMessage(pendingMsg, { content: '', loading: false })
+              hasContent = true
+            }
+            await this.revealStreamText(pendingMsg, text)
+            return
           }
-          if (data?.actions) {
-            this.updatePendingMessage(pendingMsg, { actions: this.filterMobileActions(data.actions || []) })
+          if (event === 'done') {
+            this.sessionId = data?.session_id || this.sessionId
+            this.updatePendingMessage(pendingMsg, { id: data?.message_id || pendingMsg.id })
+            const finalText = this.extractStreamText(data)
+            if (finalText && !hasContent) {
+              this.updatePendingMessage(pendingMsg, { content: '', loading: false })
+              hasContent = true
+              await this.revealStreamText(pendingMsg, finalText)
+            }
+            if (data?.actions) {
+              this.updatePendingMessage(pendingMsg, { actions: this.filterMobileActions(data.actions || []) })
+            }
+            return
           }
-          return
+          if (event === 'error') {
+            throw new Error(data?.msg || data?.message || this.text.generateFailed)
+          }
+        })
+      } catch (error) {
+        if (error && typeof error === 'object') {
+          error.streamHasContent = hasContent
         }
-        if (event === 'error') {
-          throw new Error(data?.msg || data?.message || this.text.generateFailed)
-        }
-      })
+        throw error
+      }
       if (!hasContent && pendingMsg.content === this.text.sending) {
         throw new Error(this.text.generateFailed)
       }
@@ -929,7 +941,12 @@ export default {
       try {
         await this.sendMessageStream(payload, pendingMsg)
         return
-      } catch (_) {
+      } catch (error) {
+        if (error?.streamHasContent) {
+          this.updatePendingMessage(pendingMsg, { loading: false })
+          showToast({ message: this.text.streamInterrupted, type: 'fail' })
+          return
+        }
         this.updatePendingMessage(pendingMsg, {
           content: this.text.sending,
           loading: true,
