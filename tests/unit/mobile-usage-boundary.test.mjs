@@ -206,7 +206,10 @@ test('AI composer stays at the bottom and uses a text send action', () => {
   assert.match(api, /sendMessage: \(payload\) => http\.post\('\/api\/ai\/chat\/message', payload, \{ timeout: 600000 \}\)/)
   assert.match(api, /streamMessage:[\s\S]*\/api\/ai\/chat\/message\/stream/)
   assert.match(api, /if \(await handlePart\(part\) === 'done'\)[\s\S]*await reader\.cancel\(\)/)
-  assert.match(aiHub, /error\.streamHasContent = hasContent[\s\S]*if \(error\?\.streamHasContent\)[\s\S]*return/)
+  assert.match(aiHub, /if \(!streamResult\?\.completed\)[\s\S]*throw new Error\(this\.text\.streamIncomplete\)/)
+  assert.match(aiHub, /error\.streamAccepted = streamAccepted[\s\S]*if \(error\?\.streamAccepted \|\| error\?\.streamHasContent\)[\s\S]*return/)
+  assert.match(aiHub, /event === 'replace'[\s\S]*content: text/)
+  assert.match(aiHub, /event === 'warning'[\s\S]*streamWarning/)
 })
 
 test('signal chart supports mobile history navigation and candle inspection', () => {

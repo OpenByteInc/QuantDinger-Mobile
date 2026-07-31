@@ -771,26 +771,36 @@ export const aiChatApi = {
       return event
     }
 
-    while (!streamComplete) {
-      const { value, done } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const parts = buffer.split(/\r?\n\r?\n/)
-      buffer = parts.pop() || ''
-      for (const part of parts) {
-        if (await handlePart(part) === 'done') {
-          streamComplete = true
+    try {
+      while (!streamComplete) {
+        const { value, done } = await reader.read()
+        if (done) {
+          buffer += decoder.decode()
           break
         }
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split(/\r?\n\r?\n/)
+        buffer = parts.pop() || ''
+        for (const part of parts) {
+          if (await handlePart(part) === 'done') {
+            streamComplete = true
+            break
+          }
+        }
+        if (streamComplete) {
+          try {
+            await reader.cancel()
+          } catch (_) {}
+        }
       }
-      if (streamComplete) {
-        try {
-          await reader.cancel()
-        } catch (_) {}
+      if (!streamComplete && buffer.trim()) {
+        streamComplete = await handlePart(buffer) === 'done'
       }
-    }
-    if (!streamComplete && buffer.trim()) {
-      streamComplete = await handlePart(buffer) === 'done'
+    } catch (error) {
+      try {
+        await reader.cancel()
+      } catch (_) {}
+      throw error
     }
     return { completed: streamComplete }
   },
