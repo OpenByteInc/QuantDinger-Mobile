@@ -827,7 +827,7 @@ export default {
               selected_task: task?.key || null
             }
           }
-          await this.sendMessageStream(payload, pendingMsg)
+          await this.sendMessageReliable(payload, pendingMsg)
         }
       } catch (err) {
         if (pendingMsg.reportLoading) {
@@ -924,6 +924,35 @@ export default {
       if (!hasContent && pendingMsg.content === this.text.sending) {
         throw new Error(this.text.generateFailed)
       }
+    },
+    async sendMessageReliable(payload, pendingMsg) {
+      try {
+        await this.sendMessageStream(payload, pendingMsg)
+        return
+      } catch (_) {
+        this.updatePendingMessage(pendingMsg, {
+          content: this.text.sending,
+          loading: true,
+          actions: []
+        })
+      }
+
+      const response = await aiChatApi.sendMessage({
+        ...payload,
+        session_id: this.sessionId || payload.session_id
+      })
+      const data = response?.data || {}
+      const reply = String(data.reply || data.answer || '').trim()
+      if (!reply) throw new Error(this.text.generateFailed)
+
+      this.sessionId = data.session_id || this.sessionId
+      this.updatePendingMessage(pendingMsg, {
+        id: data.message_id || pendingMsg.id,
+        content: '',
+        loading: false,
+        actions: this.filterMobileActions(data.actions || [])
+      })
+      await this.revealStreamText(pendingMsg, reply)
     },
     isUnsupportedMobileAction(action) {
       const payload = action?.payload || {}

@@ -195,11 +195,16 @@ test('market, chart, and accounts provide a complete mobile path', () => {
 
 test('AI composer stays at the bottom and uses a text send action', () => {
   const aiHub = read('src/views/ai-hub/index.vue')
+  const api = read('src/api/index.js')
 
   assert.match(aiHub, /\{\{ text\.send \}\}/)
   assert.match(aiHub, /\.bottom-suggestions\s*\{\s*margin-top: auto;/)
   assert.doesNotMatch(aiHub, /copilot-body\.empty \.bottom-suggestions/)
   assert.match(aiHub, /\.send-action[\s\S]*min-width: 72px/)
+  assert.match(aiHub, /sendMessageReliable\(payload, pendingMsg\)/)
+  assert.match(aiHub, /await this\.sendMessageStream\(payload, pendingMsg\)[\s\S]*aiChatApi\.sendMessage\(\{/)
+  assert.match(api, /sendMessage: \(payload\) => http\.post\('\/api\/ai\/chat\/message', payload, \{ timeout: 600000 \}\)/)
+  assert.match(api, /streamMessage:[\s\S]*\/api\/ai\/chat\/message\/stream/)
 })
 
 test('signal chart supports mobile history navigation and candle inspection', () => {

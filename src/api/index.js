@@ -724,7 +724,7 @@ export const klineApi = {
 }
 
 export const aiChatApi = {
-  sendMessage: (payload) => http.post('/api/ai/chat/message', payload, { timeout: 180000 }),
+  sendMessage: (payload) => http.post('/api/ai/chat/message', payload, { timeout: 600000 }),
   streamMessage: async (payload, onEvent) => {
     const language = payload?.language || 'zh-CN'
     const headers = {
