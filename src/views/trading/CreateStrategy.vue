@@ -29,6 +29,45 @@
         <div><span>{{ $t('script_strategy.strategy_type') }}</span><strong>{{ strategyTypeLabel }}</strong></div>
       </div>
 
+      <div v-if="hasTriggerContract" class="trigger-card">
+        <div class="trigger-card-icon"><van-icon name="fire-o" /></div>
+        <div>
+          <strong>{{ triggerModeTitle }}</strong>
+          <p>{{ triggerModeHint }}</p>
+          <span>{{ $t('script_strategy.trigger_risk_realtime') }}</span>
+          <span>{{ $t('script_strategy.trigger_fill_reconciled') }}</span>
+        </div>
+      </div>
+
+      <div v-if="hasEquityRisk" class="risk-summary-card">
+        <div class="risk-summary-title">
+          <van-icon name="shield-o" />
+          <span>{{ $t('script_strategy.equity_risk_title') }}</span>
+          <em>{{ $t('script_strategy.system_preset') }}</em>
+        </div>
+        <div class="risk-summary-grid">
+          <div>
+            <span>{{ $t('script_strategy.equity_take_profit') }}</span>
+            <strong>{{ formatRiskPercent(equityRisk.takeProfitPct) }}</strong>
+          </div>
+          <div>
+            <span>{{ $t('script_strategy.equity_stop_loss') }}</span>
+            <strong>{{ formatRiskPercent(equityRisk.stopLossPct) }}</strong>
+          </div>
+          <div class="risk-summary-wide">
+            <span>{{ $t('script_strategy.equity_trailing') }}</span>
+            <strong v-if="equityRisk.trailingEnabled">
+              {{ $t('script_strategy.equity_trailing_value', {
+                activation: formatRiskPercent(equityRisk.trailingActivationPct),
+                callback: formatRiskPercent(equityRisk.trailingCallbackPct)
+              }) }}
+            </strong>
+            <strong v-else>{{ $t('common.disabled') }}</strong>
+          </div>
+        </div>
+        <p>{{ $t('script_strategy.equity_risk_hint') }}</p>
+      </div>
+
       <div v-if="parameterDefinitions.length" class="section">
         <div class="section-title">{{ $t('script_strategy.parameters') }}</div>
         <van-cell-group inset>
@@ -64,11 +103,14 @@
             :placeholder="$t('bot_create.bot_name_placeholder')"
           />
           <van-field
-            v-if="form.executionMode === 'live'"
             v-model.number="form.initialCapital"
             type="number"
             :label="$t('bot_create.initial_capital')"
+            :placeholder="$t('bot_create.initial_capital_placeholder')"
           />
+          <div class="field-hint capital-hint">
+            {{ $t('bot_create.initial_capital_hint') }}
+          </div>
           <van-cell :title="$t('indicator_bot.execution_mode')">
             <template #right-icon>
               <van-radio-group v-model="form.executionMode" direction="horizontal">
@@ -226,6 +268,65 @@ export default {
         ? this.$t('indicator_bot.execution_mode_live_desc')
         : this.$t('indicator_bot.execution_mode_signal_desc')
     },
+    triggerContract() {
+      const metadata = this.parseObject(this.source?.metadata)
+      return this.parseObject(metadata.trigger_contract)
+    },
+    hasTriggerContract() {
+      return Boolean(this.triggerContract.entry)
+    },
+    triggerModeTitle() {
+      const entry = String(this.triggerContract.entry || '').toLowerCase()
+      if (entry === 'exchange_resting_orders') return this.$t('script_strategy.trigger_exchange_resting')
+      if (entry === 'realtime_price') return this.$t('script_strategy.trigger_realtime_price')
+      if (entry === 'schedule') return this.$t('script_strategy.trigger_schedule')
+      return this.$t('script_strategy.trigger_closed_bar')
+    },
+    triggerModeHint() {
+      const entry = String(this.triggerContract.entry || '').toLowerCase()
+      if (entry === 'exchange_resting_orders') return this.$t('script_strategy.trigger_exchange_resting_hint')
+      if (entry === 'realtime_price') return this.$t('script_strategy.trigger_realtime_price_hint')
+      if (entry === 'schedule') return this.$t('script_strategy.trigger_schedule_hint')
+      return this.$t('script_strategy.trigger_closed_bar_hint')
+    },
+    equityRisk() {
+      const metadata = this.parseObject(this.source?.metadata)
+      const direct = this.parseObject(metadata.equity_risk)
+      const config = this.parseObject(metadata.executor_config)
+      const value = (directKey, configKey, camelKey) => {
+        if (direct[directKey] !== undefined) return direct[directKey]
+        if (config[configKey] !== undefined) return config[configKey]
+        if (config[camelKey] !== undefined) return config[camelKey]
+        return 0
+      }
+      return {
+        isPreset: metadata.source === 'robot_builder' || Object.keys(direct).length > 0,
+        takeProfitPct: Number(value('take_profit_pct', 'equity_take_profit_pct', 'equityTakeProfitPct')) || 0,
+        stopLossPct: Number(value('stop_loss_pct', 'equity_stop_loss_pct', 'equityStopLossPct')) || 0,
+        trailingEnabled: Boolean(
+          direct.trailing_enabled !== undefined
+            ? direct.trailing_enabled
+            : (config.equity_trailing_enabled ?? config.equityTrailingEnabled)
+        ),
+        trailingActivationPct: Number(value(
+          'trailing_activation_pct',
+          'equity_trailing_activation_pct',
+          'equityTrailingActivationPct'
+        )) || 0,
+        trailingCallbackPct: Number(value(
+          'trailing_callback_pct',
+          'equity_trailing_callback_pct',
+          'equityTrailingCallbackPct'
+        )) || 0
+      }
+    },
+    hasEquityRisk() {
+      return this.equityRisk.isPreset && (
+        this.equityRisk.takeProfitPct > 0
+        || this.equityRisk.stopLossPct > 0
+        || this.equityRisk.trailingEnabled
+      )
+    },
     parameterDefinitions() {
       const schema = this.parseObject(this.source?.param_schema)
       if (Array.isArray(schema.params) && schema.params.length) {
@@ -252,8 +353,10 @@ export default {
     },
     formValid() {
       if (!this.sourceId || this.contractError || !this.form.name.trim()) return false
+      const initialCapital = Number(this.form.initialCapital)
+      if (!Number.isFinite(initialCapital) || initialCapital < 10 || initialCapital > 1000000) return false
       if (this.form.executionMode !== 'live') return true
-      if (!this.form.credentialId || !(Number(this.form.initialCapital) > 0)) return false
+      if (!this.form.credentialId) return false
       if (this.requiresPositionSide && !this.form.positionSide) return false
       return true
     }
@@ -376,6 +479,10 @@ export default {
     parameterDescription(parameter) {
       return parameter?.description || ''
     },
+    formatRiskPercent(value) {
+      const ratio = Math.max(0, Number(value) || 0)
+      return `${Number((ratio * 100).toFixed(2))}%`
+    },
     openCredentialPicker() {
       if (!this.credentials.length) {
         showToast({ message: this.$t('script_strategy.no_compatible_credential'), type: 'fail' })
@@ -402,7 +509,7 @@ export default {
       return {
         sourceId: this.sourceId,
         name: this.form.name || this.sourceName,
-        initialCapital: this.form.executionMode === 'live' ? (Number(this.form.initialCapital) || 0) : 0,
+        initialCapital: Number(this.form.initialCapital) || 0,
         executionMode: this.form.executionMode,
         credentialId: this.form.executionMode === 'live' ? this.form.credentialId : null,
         leverageEnabled: Boolean(this.form.executionMode === 'live' && this.form.leverageEnabled && this.supportsLeverage),
@@ -428,7 +535,8 @@ export default {
         showToast({ message: this.$t('script_strategy.name_required'), type: 'fail' })
         return
       }
-      if (this.form.executionMode === 'live' && !(Number(this.form.initialCapital) > 0)) {
+      const initialCapital = Number(this.form.initialCapital)
+      if (!Number.isFinite(initialCapital) || initialCapital < 10 || initialCapital > 1000000) {
         showToast({ message: this.$t('script_strategy.capital_required'), type: 'fail' })
         return
       }
@@ -502,12 +610,64 @@ export default {
 .contract-card div { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
 .contract-card span { color: var(--text-3); font-size: 11px; }
 .contract-card strong { overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.trigger-card {
+  display: flex;
+  gap: 11px;
+  margin: 12px 16px;
+  padding: 13px;
+  border: 1px solid rgba(45, 145, 255, 0.24);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, rgba(45, 145, 255, 0.09), var(--bg-elevated) 66%);
+}
+.trigger-card-icon {
+  display: flex;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: #55a8ff;
+  background: rgba(45, 145, 255, 0.12);
+}
+.trigger-card strong { display: block; color: var(--text); font-size: 13px; }
+.trigger-card p { margin: 4px 0 8px; color: var(--text-3); font-size: 11px; line-height: 1.5; }
+.trigger-card span { display: inline-block; margin: 0 5px 4px 0; padding: 3px 7px; border-radius: 999px; color: #7bbdff; background: rgba(45, 145, 255, 0.1); font-size: 10px; }
+.risk-summary-card {
+  margin: 12px 16px;
+  padding: 14px;
+  border: 1px solid rgba(246, 187, 35, 0.28);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, rgba(246, 187, 35, 0.08), var(--bg-elevated) 62%);
+}
+.risk-summary-title { display: flex; align-items: center; gap: 7px; color: var(--text); font-size: 14px; font-weight: 850; }
+.risk-summary-title :deep(.van-icon) { color: var(--accent); font-size: 17px; }
+.risk-summary-title em {
+  margin-left: auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(246, 187, 35, 0.12);
+  font-size: 10px;
+  font-style: normal;
+}
+.risk-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.risk-summary-grid > div { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.025); }
+.risk-summary-grid span { color: var(--text-3); font-size: 11px; }
+.risk-summary-grid strong { color: var(--text); font-size: 12px; line-height: 1.4; }
+.risk-summary-wide { grid-column: 1 / -1; }
+.risk-summary-card p { margin: 10px 2px 0; color: var(--text-3); font-size: 11px; line-height: 1.55; }
 .section { padding: 14px 0 4px; }
 .section-title { padding: 0 16px 12px; color: var(--text); font-weight: 800; }
 :deep(.van-cell-group--inset) { margin: 0; background: transparent; }
 :deep(.van-cell) { background: transparent; color: var(--text); }
 :deep(.van-field__control),
 :deep(.van-cell__value) { color: var(--text); }
+:deep(.van-field__label) { width: 112px; flex: 0 0 112px; color: var(--text-2); }
+:deep(.van-field__body) { min-width: 0; }
+:deep(.van-field__control) { min-width: 0; text-align: right; }
+:deep(.van-radio-group--horizontal) { justify-content: flex-end; row-gap: 8px; }
+.capital-hint { padding-top: 2px; }
 .field-hint { padding: 0 16px 12px; color: var(--text-3); font-size: 12px; line-height: 1.5; }
 .loading { margin-top: 80px; color: var(--text-2); }
 .submit-wrap { padding: 16px; }

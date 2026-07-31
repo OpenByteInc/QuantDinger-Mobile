@@ -172,6 +172,12 @@ test('signal and live configuration expose only relevant fields', () => {
   const createStrategy = read('src/views/trading/CreateStrategy.vue')
 
   assert.match(createStrategy, /v-if="form\.executionMode === 'live'"/)
+  assert.doesNotMatch(createStrategy, /v-if="form\.executionMode === 'live'"\s+v-model\.number="form\.initialCapital"/)
+  assert.match(createStrategy, /initialCapital: Number\(this\.form\.initialCapital\) \|\| 0/)
+  assert.match(createStrategy, /initialCapital < 10 \|\| initialCapital > 1000000/)
+  assert.match(createStrategy, /hasEquityRisk/)
+  assert.match(createStrategy, /metadata\.equity_risk/)
+  assert.match(createStrategy, /equity_risk_hint/)
   assert.match(createStrategy, /formValid\(\)/)
   assert.match(createStrategy, /form\.executionMode !== 'live'\) return true/)
   assert.match(createStrategy, /:disabled="!formValid"/)

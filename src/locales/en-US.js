@@ -590,6 +590,8 @@ export default {
     timeframe: 'Timeframe',
     leverage: 'Leverage',
     initial_capital: 'Capital (USDT)',
+    initial_capital_placeholder: '10 - 1,000,000',
+    initial_capital_hint: 'The strategy budget used consistently for signal, backtest, and live modes.',
     exchange_account: 'Exchange Account',
     exchange_account_placeholder: 'Select saved API Key',
     strategy_params: 'Strategy Params',
@@ -810,7 +812,16 @@ export default {
     position_side_required: 'Select a position side for live perpetual trading.', no_compatible_credential: 'Add a compatible execution account first.',
     name_required: 'Enter a strategy name.', capital_required: 'Enter valid initial capital.',
     parameters_empty: 'This strategy has no configurable parameters.',
-    customer_desc: 'A ready-to-configure strategy for mobile use.'
+    customer_desc: 'A ready-to-configure strategy for mobile use.',
+    equity_risk_title: 'Total Equity Risk', system_preset: 'System preset',
+    equity_take_profit: 'Equity take-profit', equity_stop_loss: 'Equity stop-loss', equity_trailing: 'Trailing take-profit',
+    equity_trailing_value: 'Arm at {activation}; trigger after a {callback} peak pullback',
+    equity_risk_hint: 'Calculated from invested capital including realized P&L, unrealized P&L, and fees. Triggering closes positions and stops the strategy.',
+    trigger_exchange_resting: 'Exchange resting-order execution', trigger_exchange_resting_hint: 'Limit orders rest at the exchange and fill without waiting for a candle close.',
+    trigger_realtime_price: 'Real-time price-level execution', trigger_realtime_price_hint: 'Fresh prices trigger add-on levels without waiting for the selected candle to close.',
+    trigger_schedule: 'Calendar-time scheduled execution', trigger_schedule_hint: 'Runs on the configured schedule independently of chart candles.',
+    trigger_closed_bar: 'Closed-candle confirmation', trigger_closed_bar_hint: 'Only completed candles may produce strategy signals.',
+    trigger_risk_realtime: 'Real-time risk', trigger_fill_reconciled: 'Fill reconciliation'
   },
   indicator_bot: {
     title: 'Strategy from Indicator',
