@@ -413,7 +413,7 @@ export default {
     position_ownership_drift_title: '持仓归属不一致，已暂停同方向开仓',
     position_ownership_drift_desc: '账户仓位与策略记录不一致，请先确认未知仓位的归属。',
     position_ownership_risk_title: '用户仓位保护',
-    position_ownership_risk_desc: '修复只更新仓位归属基线或共存模式，不会自动开仓或平仓。',
+    position_ownership_risk_desc: 'Crypto 现货和合约均支持高级共存。修复只更新仓位归属基线或共存模式，不会自动开仓或平仓。现货仍共享账户余额，合约同方向仓位仍共享均价、保证金和强平风险。',
     position_ownership_account: '账户仓位',
     position_ownership_strategy: '策略仓位',
     position_ownership_protected: '保护仓位',

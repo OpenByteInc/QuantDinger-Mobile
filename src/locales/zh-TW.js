@@ -394,7 +394,7 @@ export default {
     position_ownership_drift_title: '持倉歸屬不一致，已暫停同方向開倉',
     position_ownership_drift_desc: '帳戶持倉與策略記錄不一致，請先確認未知持倉的歸屬。',
     position_ownership_risk_title: '使用者持倉保護',
-    position_ownership_risk_desc: '修復只會更新持倉歸屬基線或共存模式，不會自動開倉或平倉。',
+    position_ownership_risk_desc: 'Crypto 現貨與合約均支援進階共存。修復只會更新持倉歸屬基線或共存模式，不會自動開倉或平倉。現貨仍共用帳戶餘額，合約同方向持倉仍共用均價、保證金與強平風險。',
     position_ownership_account: '帳戶持倉',
     position_ownership_strategy: '策略持倉',
     position_ownership_protected: '保護持倉',

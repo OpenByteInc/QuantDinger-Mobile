@@ -394,7 +394,7 @@ export default {
     position_ownership_drift_title: '포지션 소유권 불일치로 같은 방향 진입을 중지했습니다',
     position_ownership_drift_desc: '계정 포지션과 전략 기록이 일치하지 않습니다. 알 수 없는 수량의 소유권을 확인하세요.',
     position_ownership_risk_title: '사용자 포지션 보호',
-    position_ownership_risk_desc: '복구는 소유권 기준선 또는 공존 모드만 변경하며 자동으로 진입하거나 청산하지 않습니다.',
+    position_ownership_risk_desc: '고급 공존은 암호화폐 현물과 파생상품 모두 지원합니다. 복구는 소유권 기준선 또는 모드만 변경하며 자동 매매하지 않습니다. 현물은 계정 잔액을 공유하고 같은 방향의 파생상품은 평균가, 증거금 및 청산 위험을 공유합니다.',
     position_ownership_account: '계정 포지션',
     position_ownership_strategy: '전략 포지션',
     position_ownership_protected: '보호 포지션',

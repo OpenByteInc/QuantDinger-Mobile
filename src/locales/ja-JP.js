@@ -394,7 +394,7 @@ export default {
     position_ownership_drift_title: 'ポジション帰属が不一致のため、同方向の新規注文を停止しました',
     position_ownership_drift_desc: '口座ポジションと戦略記録が一致しません。不明数量の帰属を確認してください。',
     position_ownership_risk_title: 'ユーザーポジション保護',
-    position_ownership_risk_desc: '修復は帰属基準または共存モードだけを更新し、自動で新規・決済注文を出しません。',
+    position_ownership_risk_desc: '高度な共存は暗号資産の現物とデリバティブの両方に対応します。修復は帰属基準またはモードだけを更新し、自動売買は行いません。現物は口座残高を共有し、同方向のデリバティブは平均価格・証拠金・清算リスクを共有します。',
     position_ownership_account: '口座ポジション',
     position_ownership_strategy: '戦略ポジション',
     position_ownership_protected: '保護ポジション',

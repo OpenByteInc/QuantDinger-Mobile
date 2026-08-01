@@ -414,7 +414,7 @@ export default {
     position_ownership_drift_title: 'Position ownership differs; same-side entries are paused',
     position_ownership_drift_desc: 'The account position differs from the strategy record. Review the unknown quantity first.',
     position_ownership_risk_title: 'User position protection',
-    position_ownership_risk_desc: 'Repair only updates the ownership baseline or coexistence mode. It never opens or closes a position automatically.',
+    position_ownership_risk_desc: 'Advanced coexistence supports both Crypto spot and derivatives. Repair only updates the ownership baseline or mode; it never trades automatically. Spot inventory still shares the account balance, while same-side derivatives share entry price, margin, and liquidation risk.',
     position_ownership_account: 'Account position',
     position_ownership_strategy: 'Strategy position',
     position_ownership_protected: 'Protected position',
