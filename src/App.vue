@@ -1,555 +1,149 @@
 <template>
   <div class="app-container">
-    <button
-      v-if="showFloatingNavButton"
-      type="button"
-      class="shell-menu-floating"
-      :aria-label="t('sidebar.open_navigation')"
-      @click="openSidebar"
-    >
-      <van-icon name="wap-nav" />
-    </button>
-
-    <div class="app-main" :class="{ 'with-floating-menu': showFloatingNavButton }">
+    <main class="app-main" :class="{ 'with-bottom-nav': showBottomNav }">
       <router-view v-slot="{ Component }">
-        <keep-alive :include="['Trading', 'AiHub', 'Profile']">
+        <keep-alive :include="['Trading', 'AiHub', 'Profile', 'IndicatorChart']">
           <component :is="Component" />
         </keep-alive>
       </router-view>
-    </div>
+    </main>
 
-    <van-popup
-      v-model:show="sidebarOpen"
-      position="left"
-      class="shell-sidebar-popup"
-      :style="{ width: 'min(318px, 84vw)', height: '100%' }"
-      teleport="body"
-    >
-      <aside class="shell-sidebar">
-        <div class="sidebar-brand">
-          <img :src="avatarUrl" :alt="displayName" referrerpolicy="no-referrer" @error="onAvatarError" />
-          <div class="brand-copy">
-            <strong>{{ displayName }}</strong>
-            <span>{{ userEmail }}</span>
-          </div>
-          <button
-            type="button"
-            :class="['sidebar-notification', { active: route.path.startsWith('/profile/notifications') }]"
-            :aria-label="t('sidebar.notifications')"
-            @click="goNav('/profile/notifications')"
-          >
-            <van-icon name="bell" />
-            <small v-if="unreadCount > 0">{{ unreadCount > 99 ? '99+' : unreadCount }}</small>
-          </button>
-        </div>
-
-        <div class="credits-card" @click="goNav('/profile/credits')">
-          <div>
-            <span class="credits-label">{{ t('profile.credits') }}</span>
-            <strong>{{ formattedCredits }}</strong>
-            <small v-if="isVip">{{ vipText }}</small>
-          </div>
-          <button type="button" @click.stop="goNav('/profile/credits')">
-            <van-icon name="plus" />
-            {{ t('profile.credits_recharge') }}
-          </button>
-        </div>
-
-        <div class="sidebar-groups">
-          <section
-            v-for="(group, groupIndex) in navGroups"
-            :key="group.key"
-            class="sidebar-group"
-          >
-            <div :class="['sidebar-section', { first: groupIndex === 0 }]">{{ group.title }}</div>
-            <nav class="sidebar-nav">
-              <button
-                v-for="item in group.items"
-                :key="item.name"
-                type="button"
-                :class="['nav-item', { active: isActive(item) }]"
-                @click="handleNav(item)"
-              >
-                <van-icon :name="item.icon" />
-                <span>{{ item.label }}</span>
-                <small v-if="item.badge">{{ item.badge }}</small>
-              </button>
-            </nav>
-          </section>
-        </div>
-      </aside>
-    </van-popup>
+    <nav v-if="showBottomNav" class="shell-tabbar" :aria-label="t('tabs.navigation')">
+      <button
+        v-for="item in tabs"
+        :key="item.key"
+        type="button"
+        :class="['shell-tab', { active: isActive(item) }]"
+        @click="goTab(item)"
+      >
+        <span class="tab-icon">
+          <van-icon :name="item.icon" />
+          <small v-if="item.key === 'profile' && unreadCount > 0">{{ unreadCount > 99 ? '99+' : unreadCount }}</small>
+        </span>
+        <span>{{ item.label }}</span>
+      </button>
+    </nav>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, provide } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useNotificationStore, useSettingsStore, useUserStore } from '@/stores'
-import { getBaseUrl, userApi } from '@/api'
-import logoUrl from '@/assets/slogo.png'
+import { useNotificationStore } from '@/stores'
 
-const router = useRouter()
 const route = useRoute()
+const router = useRouter()
 const { t } = useI18n()
 const notificationStore = useNotificationStore()
-const userStore = useUserStore()
-const settingsStore = useSettingsStore()
-
-const sidebarOpen = ref(false)
-const billing = ref({
-  credits: 0,
-  is_vip: false,
-  vip_expires_at: null
-})
 
 const unreadCount = computed(() => notificationStore.unreadCount)
-const showShellNav = computed(() => !route.meta.public)
-const showFloatingNavButton = computed(() => showShellNav.value && route.path !== '/ai')
-
-const userProfile = computed(() => userStore.userInfo || {})
-const displayName = computed(() => (
-  userProfile.value.nickname ||
-  userProfile.value.name ||
-  userProfile.value.username ||
-  'QuantDinger'
-))
-const userEmail = computed(() => userProfile.value.email || t('profile.account_subtitle'))
-const avatarUrl = computed(() => {
-  const raw = String(
-    userProfile.value.avatar ||
-    userProfile.value.avatar_url ||
-    userProfile.value.picture ||
-    ''
-  ).trim()
-  if (!raw) return logoUrl
-  if (/^(https?:|data:|blob:)/i.test(raw)) return raw
-  const base = getBaseUrl().replace(/\/$/, '')
-  if (raw.startsWith('/')) return `${base}${raw}`
-  return `${base}/${raw}`
-})
-const formattedCredits = computed(() => Number(billing.value.credits || 0).toLocaleString())
-const isVip = computed(() => {
-  if (!billing.value.vip_expires_at) return !!billing.value.is_vip
-  const ts = new Date(billing.value.vip_expires_at).getTime()
-  return !Number.isNaN(ts) && ts > Date.now()
-})
-const vipText = computed(() => isVip.value ? 'VIP' : '')
-const themeLabel = computed(() => (
-  settingsStore.theme === 'light' ? t('profile.theme_light') : t('profile.theme_dark')
-))
-
-const navGroups = computed(() => ([
-  {
-    key: 'workspace',
-    title: t('sidebar.workspace'),
-    items: [
-      { name: 'ai', label: t('sidebar.ai_analysis'), icon: 'cluster-o', path: '/ai' },
-      { name: 'indicator-market', label: t('sidebar.indicator_market'), icon: 'chart-trending-o', path: '/market' },
-      { name: 'trading', label: t('sidebar.strategy_lab'), icon: 'apps-o', path: '/trading' },
-      { name: 'indicator-chart', label: t('sidebar.indicator_chart'), icon: 'chart-trending-o', path: '/indicators/chart' },
-      { name: 'credentials', label: t('sidebar.exchange_config'), icon: 'shield-o', path: '/profile/credentials' }
-    ]
-  },
-  {
-    key: 'account',
-    title: t('sidebar.account_security'),
-    items: [
-      { name: 'profile', label: t('sidebar.profile'), icon: 'contact-o', path: '/profile' },
-      { name: 'theme', label: t('sidebar.theme_toggle'), icon: 'bulb-o', action: 'theme', badge: themeLabel.value },
-      { name: 'language', label: t('sidebar.language'), icon: 'font-o', path: '/profile/language' }
-    ]
-  }
-]))
-
-const openSidebar = async () => {
-  sidebarOpen.value = true
-  await refreshBilling()
-}
-
-const goNav = (path) => {
-  if (!path) return
-  sidebarOpen.value = false
-  if (route.path !== path) router.push(path)
-}
-
-const handleNav = (item) => {
-  if (item.action === 'theme') {
-    toggleTheme()
-    return
-  }
-  goNav(item.path)
-}
-
-const toggleTheme = () => {
-  const next = settingsStore.theme === 'light' ? 'dark' : 'light'
-  settingsStore.setTheme(next)
-}
-
-const onAvatarError = (event) => {
-  const img = event?.target
-  if (img && img.src !== logoUrl) img.src = logoUrl
-}
+const showBottomNav = computed(() => !route.meta.public)
+const tabs = computed(() => [
+  { key: 'ai', label: t('tabs.ai'), icon: 'cluster-o', path: '/ai' },
+  { key: 'market', label: t('tabs.market'), icon: 'shop-o', path: '/market' },
+  { key: 'chart', label: t('tabs.chart'), icon: 'chart-trending-o', path: '/indicators/chart' },
+  { key: 'strategy', label: t('tabs.strategy'), icon: 'apps-o', path: '/trading' },
+  { key: 'profile', label: t('tabs.profile'), icon: 'contact-o', path: '/profile' }
+])
 
 const isActive = (item) => {
-  if (!item.path) return false
   const current = route.path
-  if (item.path === '/profile') return current === '/profile'
-  if (item.path === '/ai') return current === '/ai'
-  if (item.path === '/trading') {
-    return current === '/trading' || current.startsWith('/trading/strategy/') || current.startsWith('/trading/create')
-  }
-  if (item.path === '/profile/credentials') {
-    return current === '/profile/credentials' || current.startsWith('/profile/credentials/')
-  }
-  return current === item.path || current.startsWith(`${item.path}/`)
+  if (item.key === 'chart') return current === '/indicators/chart'
+  if (item.key === 'strategy') return current === '/trading' || current.startsWith('/trading/')
+  if (item.key === 'profile') return current === '/profile' || current.startsWith('/profile/')
+  if (item.key === 'market') return current === '/market' || current.startsWith('/market/')
+  return current === item.path
 }
 
-const refreshBilling = async () => {
-  try {
-    const res = await userApi.getProfile()
-    const profile = res?.data || {}
-    if (profile.billing) billing.value = { ...billing.value, ...profile.billing }
-    const nextUser = profile.user || profile.profile || profile
-    if (nextUser && typeof nextUser === 'object') {
-      userStore.setUserInfo({ ...(userStore.userInfo || {}), ...nextUser })
-    }
-  } catch (err) {
-    // Sidebar should remain usable even if the balance refresh fails.
-  }
+const goTab = (item) => {
+  if (route.path === item.path) return
+  router.push(item.path)
 }
-
-provide('openAppNav', openSidebar)
-
-watch(
-  () => route.fullPath,
-  () => {
-    sidebarOpen.value = false
-  }
-)
 </script>
 
 <style scoped>
 .app-container {
+  --shell-tabbar-height: calc(62px + var(--safe-area-bottom));
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg);
+  background: var(--bg);
   overflow: hidden;
 }
 
 .app-main {
   flex: 1;
   min-height: 0;
-  box-sizing: border-box;
-  overflow-y: auto;
   overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  background: var(--bg);
-}
-
-.app-main.with-floating-menu {
-  padding-top: 0;
-}
-
-.app-main.with-floating-menu :deep(.van-nav-bar) {
-  background: transparent;
-}
-
-.app-main.with-floating-menu :deep(.van-nav-bar__content) {
-  min-height: 58px;
-  height: 58px;
-}
-
-.app-main.with-floating-menu :deep(.van-nav-bar__left) {
-  display: none;
-}
-
-.app-main.with-floating-menu :deep(.van-nav-bar__title) {
-  max-width: calc(100% - 144px);
-  color: var(--text);
-  font-weight: 900;
-}
-
-.app-main.with-floating-menu :deep(.van-nav-bar__right) {
-  right: 16px;
-  height: 58px;
-}
-
-.shell-menu-floating {
-  position: fixed;
-  top: calc(10px + var(--safe-area-top, 0px));
-  left: 16px;
-  z-index: 120;
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  color: var(--text);
-  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-.shell-sidebar-popup :deep(.van-popup) {
-  background: transparent;
-}
-
-.shell-sidebar {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  padding: calc(18px + var(--safe-area-top, 0px)) 14px calc(18px + var(--safe-area-bottom, 0px));
-  color: var(--text);
-  background:
-    radial-gradient(circle at 10% 0%, rgba(251, 191, 36, 0.14), transparent 34%),
-    var(--bg-elevated);
-  border-right: 1px solid var(--border);
   overflow-y: auto;
+  background: var(--bg);
+  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
 
-.sidebar-brand {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 4px 12px;
+.app-main.with-bottom-nav {
+  padding-bottom: var(--shell-tabbar-height);
 }
 
-.sidebar-brand img {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid var(--border);
+.shell-tabbar {
+  position: fixed;
+  z-index: 100;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--shell-tabbar-height);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 5px 4px var(--safe-area-bottom);
+  border-top: 1px solid var(--border-strong);
+  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, .18);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
-.brand-copy {
-  flex: 1;
+.shell-tab {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 3px;
-}
-
-.sidebar-brand strong {
-  color: var(--text);
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.sidebar-brand span {
+  border: 0;
+  background: transparent;
   color: var(--text-3);
-  font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 9px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
-.sidebar-notification {
+.tab-icon {
   position: relative;
-  flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  color: var(--text-2);
-  background: color-mix(in srgb, var(--surface-raised) 86%, transparent);
+  width: 30px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
 }
 
-.sidebar-notification.active {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
-  background: var(--accent-soft);
-}
-
-.sidebar-notification .van-icon {
-  font-size: 18px;
-}
-
-.sidebar-notification small {
+.tab-icon .van-icon { font-size: 19px; }
+.shell-tab.active { color: var(--accent); }
+.shell-tab.active .tab-icon { background: var(--accent-soft); }
+.tab-icon small {
   position: absolute;
-  top: -5px;
-  right: -5px;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  color: #fff;
-  background: var(--accent-crimson);
+  top: -4px;
+  right: -6px;
+  min-width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  padding: 0 3px;
   border: 2px solid var(--bg-elevated);
-  font-size: 9px;
-  font-weight: 900;
-  line-height: 1;
-  box-sizing: border-box;
-}
-
-.credits-card {
-  flex: 0 0 auto;
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px;
-  margin-bottom: 14px;
-  min-height: 84px;
-  box-sizing: border-box;
-  border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--accent-gold) 24%, var(--border));
-  background:
-    radial-gradient(circle at 0% 0%, rgba(245, 181, 27, 0.24), transparent 42%),
-    linear-gradient(135deg, rgba(245, 181, 27, 0.12), rgba(56, 189, 248, 0.04)),
-    var(--surface-raised);
-}
-
-.credits-card::after {
-  content: "";
-  position: absolute;
-  right: -24px;
-  top: -28px;
-  width: 92px;
-  height: 92px;
-  border-radius: 50%;
-  background: rgba(245, 181, 27, 0.12);
-}
-
-.credits-card > div {
-  position: relative;
-  z-index: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.credits-label {
-  color: var(--text-3);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.credits-card strong {
-  color: var(--text);
-  font-size: 24px;
-  font-weight: 950;
-  line-height: 1;
-}
-
-.credits-card small {
-  width: max-content;
-  padding: 2px 7px;
   border-radius: 999px;
-  color: #1f1300;
-  background: var(--accent-gold);
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.credits-card button {
-  position: relative;
-  z-index: 1;
-  height: 34px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 11px;
-  border: 0;
-  border-radius: 999px;
-  color: #1f1300;
-  background: linear-gradient(135deg, #ffd166, #f59e0b);
-  font-size: 12px;
-  font-weight: 950;
-}
-
-.sidebar-groups {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-bottom: 10px;
-}
-
-.sidebar-group {
-  flex: 0 0 auto;
-}
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.sidebar-section {
-  margin: 18px 8px 8px;
-  color: var(--text-3);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.sidebar-section.first {
-  margin-top: 2px;
-}
-
-.nav-item {
-  width: 100%;
-  height: 46px;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: 15px;
-  color: var(--text-2);
-  background: transparent;
-  text-align: left;
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.nav-item .van-icon {
-  width: 22px;
-  font-size: 18px;
-}
-
-.nav-item span {
-  flex: 1;
-}
-
-.nav-item small {
-  min-width: 22px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  background: var(--down);
   color: #fff;
-  background: var(--accent-crimson);
-  font-size: 10px;
-}
-
-.nav-item.active {
-  color: var(--accent);
-  border-color: var(--border);
-  background: var(--accent-soft);
-}
-
-.nav-item:active {
-  transform: scale(0.99);
+  font-size: 8px;
 }
 </style>

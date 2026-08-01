@@ -179,7 +179,7 @@ export default {
 }
 
 .card.intro {
-  margin: 16px;
+  margin: 16px var(--page-gutter);
   padding: 18px 16px;
   border-radius: 16px;
   background: var(--bg-elevated);
@@ -215,7 +215,7 @@ export default {
 }
 
 .actions {
-  margin: 20px 16px 0;
+  margin: 20px var(--page-gutter) 0;
 }
 
 .dialog-body {

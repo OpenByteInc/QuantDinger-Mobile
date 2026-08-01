@@ -231,7 +231,7 @@ export default {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin: 14px 16px;
+  margin: 14px var(--page-gutter);
   padding: 12px 14px;
   border-radius: 14px;
   background: var(--c-blue-soft);
@@ -248,7 +248,7 @@ export default {
 }
 
 .card {
-  margin: 12px 16px;
+  margin: 12px var(--page-gutter);
   padding: 16px;
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);

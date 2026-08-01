@@ -527,13 +527,16 @@ export default {
 </script>
 
 <style scoped>
-.detail-page { min-height: 100vh; padding-bottom: 120px; }
+.detail-page {
+  min-height: 100vh;
+  padding-bottom: calc(168px + var(--safe-area-bottom, 0px));
+}
 :deep(.van-nav-bar) { background: transparent; }
 :deep(.van-nav-bar .van-nav-bar__title),
 :deep(.van-nav-bar .van-icon) { color: var(--text); }
 .loading { margin-top: 80px; color: var(--text-2); }
 .hero {
-  margin: 8px 16px 16px;
+  margin: 8px var(--page-gutter) 14px;
   padding: 18px 20px;
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);
@@ -635,7 +638,7 @@ export default {
 .hero-kpi strong.risk,
 .perf-item .value.risk { color: var(--c-amber); }
 .card {
-  margin: 0 16px 14px;
+  margin: 0 var(--page-gutter) 12px;
   padding: 16px 18px;
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);
@@ -815,11 +818,15 @@ export default {
 }
 .footer-bar {
   position: fixed;
-  left: 0; right: 0; bottom: 0;
-  padding: 12px 16px calc(12px + var(--safe-area-bottom, 0px));
+  z-index: 90;
+  left: 0;
+  right: 0;
+  bottom: var(--shell-tabbar-height, calc(62px + var(--safe-area-bottom, 0px)));
+  padding: 10px 16px 12px;
   background: var(--bg-elevated);
   backdrop-filter: blur(22px);
   border-top: 1px solid var(--border);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, .16);
 }
 .price-line { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; }
 .price-label { color: var(--text-3); }

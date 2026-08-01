@@ -658,7 +658,7 @@ export default {
 }
 
 .nav-header {
-  padding: calc(12px + var(--safe-area-top, 0px)) 16px 12px 66px;
+  padding: calc(12px + var(--safe-area-top, 0px)) var(--page-gutter) 12px;
   background:
     linear-gradient(180deg, rgba(255,255,255,0.04), transparent),
     var(--bg);
@@ -740,7 +740,7 @@ export default {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 7px;
-  padding: 4px 16px 0;
+  padding: 4px var(--page-gutter) 0;
 }
 .kpi-card {
   display: flex;
@@ -785,7 +785,7 @@ export default {
 .kpi-value.kpi-down { color: var(--down); }
 
 .search-bar {
-  padding: 8px 16px 4px;
+  padding: 8px var(--page-gutter) 4px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -816,7 +816,7 @@ export default {
   display: flex;
   gap: 6px;
   overflow-x: auto;
-  padding: 8px 16px 14px;
+  padding: 8px var(--page-gutter) 14px;
   scrollbar-width: none;
 }
 .filter-tabs::-webkit-scrollbar { display: none; }
@@ -857,7 +857,7 @@ export default {
 }
 
 .strategy-list {
-  padding: 4px 16px;
+  padding: 4px var(--page-gutter);
 }
 
 .strategy-card {

@@ -107,6 +107,18 @@
     <div class="menu-section">
       <span class="menu-section-title">{{ $t('profile.section_preferences') }}</span>
       <div class="menu-group">
+        <div class="menu-item" @click="$router.push('/profile/language')">
+          <div class="menu-icon c-blue"><van-icon name="font-o" /></div>
+          <span class="label">{{ $t('profile.language') }}</span>
+          <span class="menu-value">{{ currentLanguageLabel }}</span>
+          <van-icon name="arrow" class="arrow" />
+        </div>
+        <div class="menu-item" role="switch" :aria-checked="isDarkTheme" @click="toggleTheme">
+          <div class="menu-icon c-violet"><van-icon :name="isDarkTheme ? 'closed-eye' : 'eye-o'" /></div>
+          <span class="label">{{ $t('profile.appearance') }}</span>
+          <span class="menu-value">{{ $t(isDarkTheme ? 'profile.theme_dark' : 'profile.theme_light') }}</span>
+          <van-switch :model-value="isDarkTheme" size="20" @click.stop="toggleTheme" />
+        </div>
         <div class="menu-item" @click="$router.push('/profile/notification-settings')">
           <div class="menu-icon c-orange"><van-icon name="setting-o" /></div>
           <span class="label">{{ $t('profile.notif_settings') }}</span>
@@ -175,7 +187,7 @@
 <script>
 import { showConfirmDialog, showToast } from 'vant'
 import { authApi, getBaseUrl, userApi } from '@/api'
-import { useUserStore } from '@/stores'
+import { useSettingsStore, useUserStore } from '@/stores'
 import logoUrl from '@/assets/slogo.png'
 
 export default {
@@ -213,6 +225,22 @@ export default {
     userInfo() {
       return this.userStore.userInfo
     },
+    settingsStore() {
+      return useSettingsStore()
+    },
+    isDarkTheme() {
+      return this.settingsStore.theme !== 'light'
+    },
+    currentLanguageLabel() {
+      const labels = {
+        'zh-CN': '简体中文',
+        'zh-TW': '繁體中文',
+        'en-US': 'English',
+        'ja-JP': '日本語',
+        'ko-KR': '한국어'
+      }
+      return labels[this.settingsStore.locale] || this.settingsStore.locale
+    },
     avatarUrl() {
       const raw = (this.userInfo?.avatar || '').trim()
       if (!raw) return this.logoUrl
@@ -241,6 +269,9 @@ export default {
   },
 
   methods: {
+    toggleTheme() {
+      this.settingsStore.setTheme(this.isDarkTheme ? 'light' : 'dark')
+    },
     async loadData() {
       try {
         const [profileRes, referralRes] = await Promise.allSettled([
@@ -348,7 +379,7 @@ export default {
 <style scoped>
 .profile-page {
   min-height: 100vh;
-  padding: calc(16px + var(--safe-area-top, 0px)) 16px calc(40px + var(--safe-area-bottom, 0px));
+  padding: calc(16px + var(--safe-area-top, 0px)) var(--page-gutter) calc(40px + var(--safe-area-bottom, 0px));
   background: var(--bg);
   color: var(--text);
 }
@@ -660,6 +691,14 @@ export default {
   font-size: 13px;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
+}
+.menu-value {
+  max-width: 96px;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .badge {

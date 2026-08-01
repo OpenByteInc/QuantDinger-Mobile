@@ -392,7 +392,7 @@ export default {
 .egress-card,
 .signup-card,
 .list-card {
-  margin: 14px 16px;
+  margin: 12px var(--page-gutter);
   padding: 16px;
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);

@@ -26,7 +26,21 @@
       </div>
 
       <button
-        v-if="hasUnmanagedPosition"
+        v-if="hasOwnershipDrift"
+        type="button"
+        class="risk-card"
+        @click="openOwnershipRepair"
+      >
+        <span class="risk-icon"><van-icon name="warning-o" /></span>
+        <span class="risk-copy">
+          <strong>{{ $t('trading.position_ownership_drift_title') }}</strong>
+          <small>{{ $t('trading.position_ownership_drift_desc') }}</small>
+        </span>
+        <van-icon name="arrow" />
+      </button>
+
+      <button
+        v-else-if="hasUnmanagedPosition"
         type="button"
         class="risk-card"
         @click="activeTab = 'positions'"
@@ -44,7 +58,12 @@
           <div class="panel overview-panel">
             <div class="overview-section">
               <div class="section-heading">{{ $t('trading.attention_items') }}</div>
-              <div v-if="hasUnmanagedPosition" class="attention-row danger">
+              <div v-if="hasOwnershipDrift" class="attention-row danger">
+                <van-icon name="warning-o" />
+                <span>{{ $t('trading.position_ownership_risk_desc') }}</span>
+                <button type="button" @click="openOwnershipRepair">{{ $t('trading.position_ownership_open_repair') }}</button>
+              </div>
+              <div v-else-if="hasUnmanagedPosition" class="attention-row danger">
                 <van-icon name="warning-o" />
                 <span>{{ $t('trading.position_requires_attention') }}</span>
                 <button type="button" @click="activeTab = 'positions'">{{ $t('trading.view_positions') }}</button>
@@ -86,6 +105,21 @@
         </van-tab>
         <van-tab :title="$t('trading.tab_positions')" name="positions">
           <div class="panel">
+            <button
+              v-if="isLiveStrategy"
+              type="button"
+              :class="['ownership-entry', { danger: hasOwnershipDrift }]"
+              @click="openOwnershipRepair"
+            >
+              <span class="ownership-entry-copy">
+                <strong>{{ $t('trading.position_ownership_title') }}</strong>
+                <small>{{ hasOwnershipDrift ? $t('trading.position_ownership_drift_desc') : $t('trading.position_ownership_summary') }}</small>
+              </span>
+              <span :class="['ownership-state', { danger: hasOwnershipDrift }]">
+                {{ $t(hasOwnershipDrift ? 'trading.position_ownership_blocked' : 'trading.position_ownership_normal') }}
+              </span>
+              <van-icon name="arrow" />
+            </button>
             <div v-if="positions.length" class="row-list">
               <div v-for="(item, index) in positions" :key="item.id || item.symbol || index" class="record">
                 <div><strong>{{ item.symbol || strategy.symbol }}</strong><span>{{ sideText(item.side) }}</span></div>
@@ -132,7 +166,10 @@
       </van-tabs>
 
       <div class="actions">
-        <van-button v-if="hasUnmanagedPosition" type="danger" round @click="activeTab = 'positions'">
+        <van-button v-if="hasOwnershipDrift" type="danger" round @click="openOwnershipRepair">
+          {{ $t('trading.position_ownership_open_repair') }}
+        </van-button>
+        <van-button v-else-if="hasUnmanagedPosition" type="danger" round @click="activeTab = 'positions'">
           {{ $t('trading.handle_positions') }}
         </van-button>
         <van-button v-else-if="strategy.status !== 'running'" type="primary" round :loading="actionLoading" @click="start">
@@ -161,6 +198,82 @@
       close-on-click-action
       @select="onStopAction"
     />
+
+    <van-popup
+      v-model:show="showOwnershipRepair"
+      position="bottom"
+      round
+      teleport="body"
+      class="ownership-sheet"
+    >
+      <div class="ownership-sheet-head">
+        <div>
+          <strong>{{ $t('trading.position_ownership_title') }}</strong>
+          <small>{{ $t('trading.position_ownership_risk_title') }}</small>
+        </div>
+        <button type="button" :aria-label="$t('common.close')" @click="showOwnershipRepair = false">
+          <van-icon name="cross" />
+        </button>
+      </div>
+
+      <div class="ownership-risk-note">
+        <van-icon name="warning-o" />
+        <span>{{ $t('trading.position_ownership_risk_desc') }}</span>
+      </div>
+
+      <van-loading v-if="ownershipLoading" class="ownership-loading" vertical>{{ $t('common.loading') }}</van-loading>
+      <div v-else-if="ownershipRows.length" class="ownership-list">
+        <article v-for="row in ownershipRows" :key="`${row.symbol}:${row.side}`" class="ownership-card">
+          <div class="ownership-card-head">
+            <div>
+              <strong>{{ row.symbol }}</strong>
+              <span>{{ sideText(row.side) }}</span>
+            </div>
+            <span :class="['ownership-state', { danger: row.status === 'drift_blocked' }]">
+              {{ $t(row.status === 'drift_blocked' ? 'trading.position_ownership_blocked' : 'trading.position_ownership_normal') }}
+            </span>
+          </div>
+          <div class="ownership-qty-grid">
+            <div><span>{{ $t('trading.position_ownership_account') }}</span><strong>{{ ownershipQty(row.account_qty) }}</strong></div>
+            <div><span>{{ $t('trading.position_ownership_strategy') }}</span><strong>{{ ownershipQty(row.strategy_qty) }}</strong></div>
+            <div><span>{{ $t('trading.position_ownership_protected') }}</span><strong>{{ ownershipQty(row.protected_qty) }}</strong></div>
+            <div><span>{{ $t('trading.position_ownership_unknown') }}</span><strong :class="{ loss: ownershipHasUnknown(row) }">{{ ownershipQty(row.unknown_qty) }}</strong></div>
+          </div>
+          <div class="ownership-meta">
+            <span>{{ $t('trading.position_ownership_mode') }}</span>
+            <strong>{{ $t(row.coexistence_mode === 'advanced' ? 'trading.position_ownership_advanced' : 'trading.position_ownership_strict') }}</strong>
+          </div>
+          <small v-if="row.updated_at" class="ownership-updated">
+            {{ $t('trading.position_ownership_updated', { time: time(row.updated_at) }) }}
+          </small>
+          <div class="ownership-actions">
+            <van-button
+              v-if="ownership.advanced_coexistence_available && (row.coexistence_mode !== 'advanced' || ownershipHasUnknown(row))"
+              size="small"
+              type="warning"
+              plain
+              :loading="ownershipRepairKey === `${row.symbol}:${row.side}:protect_manual`"
+              @click="repairOwnership(row, 'protect_manual')"
+            >{{ $t('trading.position_ownership_protect') }}</van-button>
+            <van-button
+              v-else-if="row.coexistence_mode === 'advanced'"
+              size="small"
+              plain
+              :loading="ownershipRepairKey === `${row.symbol}:${row.side}:strict_mode`"
+              @click="repairOwnership(row, 'strict_mode')"
+            >{{ $t('trading.position_ownership_use_strict') }}</van-button>
+            <van-button
+              size="small"
+              type="primary"
+              plain
+              :loading="ownershipRepairKey === `${row.symbol}:${row.side}:recheck`"
+              @click="repairOwnership(row, 'recheck')"
+            >{{ $t('trading.position_ownership_recheck') }}</van-button>
+          </div>
+        </article>
+      </div>
+      <van-empty v-else :description="$t('trading.no_positions')" />
+    </van-popup>
   </div>
 </template>
 
@@ -177,10 +290,14 @@ export default {
       positions: [],
       trades: [],
       logs: [],
+      ownership: { items: [], status: 'ok', advanced_coexistence_available: false },
       activeTab: 'overview',
       loading: false,
       actionLoading: false,
-      showStopActions: false
+      ownershipLoading: false,
+      ownershipRepairKey: '',
+      showStopActions: false,
+      showOwnershipRepair: false
     }
   },
   computed: {
@@ -203,6 +320,12 @@ export default {
     },
     hasUnmanagedPosition() {
       return this.strategy?.status !== 'running' && this.positions.length > 0
+    },
+    ownershipRows() {
+      return Array.isArray(this.ownership?.items) ? this.ownership.items : []
+    },
+    hasOwnershipDrift() {
+      return this.ownership?.status === 'drift_blocked' || this.ownershipRows.some((row) => row.status === 'drift_blocked')
     },
     sourceName() {
       return this.source?.name || this.source?.strategy_name || this.strategy?.source_name || this.$t('trading.custom_strategy')
@@ -274,8 +397,72 @@ export default {
         this.positions = positions.status === 'fulfilled' ? (positions.value.data || []) : []
         this.trades = trades.status === 'fulfilled' ? (trades.value.data || []) : []
         this.logs = logs.status === 'fulfilled' ? (logs.value.data || []) : []
+        if (this.isLiveStrategy) await this.loadOwnership(false)
+        else this.ownership = { items: [], status: 'ok', advanced_coexistence_available: false }
       } finally {
         this.loading = false
+      }
+    },
+    async loadOwnership(showFailure = true) {
+      this.ownershipLoading = true
+      try {
+        const response = await strategyApi.getPositionOwnership(this.strategyId)
+        this.ownership = response?.data || { items: [], status: 'ok', advanced_coexistence_available: false }
+      } catch (error) {
+        if (showFailure) showToast({ message: this.$t('trading.position_ownership_load_failed'), type: 'fail' })
+      } finally {
+        this.ownershipLoading = false
+      }
+    },
+    async openOwnershipRepair() {
+      this.activeTab = 'positions'
+      this.showOwnershipRepair = true
+      await this.loadOwnership()
+    },
+    ownershipQty(value) {
+      const amount = Number(value)
+      if (!Number.isFinite(amount)) return '-'
+      return amount.toLocaleString(undefined, { maximumFractionDigits: 8 })
+    },
+    ownershipHasUnknown(row) {
+      return Math.abs(Number(row?.unknown_qty || 0)) > Math.abs(Number(row?.tolerance || 0))
+    },
+    async repairOwnership(row, action) {
+      const key = `${row.symbol}:${row.side}:${action}`
+      if (this.ownershipRepairKey) return
+      if (action === 'protect_manual' || action === 'strict_mode') {
+        try {
+          const isProtect = action === 'protect_manual'
+          await showConfirmDialog({
+            title: this.$t(isProtect
+              ? 'trading.position_ownership_protect_confirm_title'
+              : 'trading.position_ownership_strict_confirm_title'),
+            message: this.$t(isProtect
+              ? 'trading.position_ownership_protect_confirm'
+              : 'trading.position_ownership_strict_confirm')
+          })
+        } catch {
+          return
+        }
+      }
+      this.ownershipRepairKey = key
+      try {
+        await strategyApi.repairPositionOwnership({
+          id: this.strategyId,
+          symbol: row.symbol,
+          side: row.side,
+          action
+        })
+        showToast({ message: this.$t('trading.position_ownership_repair_success'), type: 'success' })
+        const [positions] = await Promise.all([
+          strategyApi.getPositions(this.strategyId),
+          this.loadOwnership(false)
+        ])
+        this.positions = positions?.data || []
+      } catch (error) {
+        showToast({ message: this.$t('trading.position_ownership_repair_failed'), type: 'fail' })
+      } finally {
+        this.ownershipRepairKey = ''
       }
     },
     parseObject(value) {
@@ -338,6 +525,20 @@ export default {
     logSummary(item) {
       const raw = this.rawLogText(item)
       const text = raw.toLowerCase()
+      if (/(position ownership drift|position_drift_detected|account and strategy positions differ)/.test(text)) {
+        const readQty = (name) => {
+          const match = raw.match(new RegExp(`${name}\\s*[=:]\\s*(-?[\\d.e+-]+)`, 'i'))
+          return match ? this.ownershipQty(match[1]) : '-'
+        }
+        const quantities = ['account', 'strategy', 'protected', 'unknown'].reduce((result, name) => {
+          result[name] = readQty(name)
+          return result
+        }, {})
+        if (Object.values(quantities).some((value) => value !== '-')) {
+          return this.$t('trading.position_ownership_log', quantities)
+        }
+        return this.$t('trading.position_ownership_drift_event')
+      }
       if (/(open_long|enter_long|buy signal)/.test(text)) return this.$t('trading.event_open_long')
       if (/(open_short|enter_short|sell signal)/.test(text)) return this.$t('trading.event_open_short')
       if (/(close_long|exit_long)/.test(text)) return this.$t('trading.event_close_long')
@@ -419,21 +620,25 @@ export default {
 </script>
 
 <style scoped>
-.page { min-height: 100vh; padding-bottom: 92px; color: var(--text); }
+.page {
+  min-height: 100vh;
+  padding-bottom: calc(160px + var(--safe-area-bottom, 0px));
+  color: var(--text);
+}
 :deep(.van-nav-bar), :deep(.van-tabs__nav) { background: var(--bg); }
 :deep(.van-nav-bar__title), :deep(.van-nav-bar .van-icon), :deep(.van-tab) { color: var(--text); }
 .loading { margin-top: 80px; color: var(--text-2); }
 .summary-card, .panel {
-  margin: 12px 16px;
+  margin: 12px var(--page-gutter);
   padding: 16px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: var(--bg-elevated);
 }
 .risk-card {
-  width: calc(100% - 32px);
+  width: auto;
   min-height: 72px;
-  margin: 0 16px 12px;
+  margin: 0 var(--page-gutter) 12px;
   padding: 13px 14px;
   display: flex;
   align-items: center;
@@ -495,6 +700,37 @@ export default {
 .summary-grid div, .data-row, .record div { display: flex; justify-content: space-between; gap: 8px; }
 .summary-grid span, .data-row span, .record span { color: var(--text-2); font-size: 12px; }
 .summary-grid strong, .data-row strong, .record strong { color: var(--text); }
+.ownership-entry {
+  width: 100%;
+  min-height: 66px;
+  margin-bottom: 14px;
+  padding: 11px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+  text-align: left;
+}
+.ownership-entry.danger {
+  border-color: color-mix(in srgb, var(--down) 45%, var(--border));
+  background: color-mix(in srgb, var(--down) 8%, var(--bg));
+}
+.ownership-entry-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.ownership-entry-copy strong { font-size: 13px; }
+.ownership-entry-copy small { color: var(--text-2); font-size: 11px; line-height: 1.4; }
+.ownership-state {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: var(--up);
+  background: var(--up-soft);
+  font-size: 10px;
+  font-weight: 800;
+}
+.ownership-state.danger { color: var(--down); background: var(--down-soft); }
 .row-list { display: flex; flex-direction: column; gap: 12px; }
 .data-row { padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .record { display: grid; gap: 8px; padding: 12px; border-radius: var(--radius-sm); background: var(--bg); }
@@ -511,13 +747,84 @@ export default {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--shell-tabbar-height, calc(62px + var(--safe-area-bottom, 0px)));
   display: flex;
   gap: 8px;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  padding: 10px 16px 12px;
   border-top: 1px solid var(--border);
   background: var(--bg-elevated);
-  z-index: 10;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, .16);
+  z-index: 90;
 }
 .actions :deep(.van-button) { flex: 1; }
+.ownership-sheet {
+  max-height: min(82vh, 720px);
+  padding: 0 16px calc(18px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+.ownership-sheet-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: 0 -16px;
+  padding: 18px 16px 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--bg-elevated);
+}
+.ownership-sheet-head > div { display: flex; flex-direction: column; gap: 4px; }
+.ownership-sheet-head strong { font-size: 17px; }
+.ownership-sheet-head small { color: var(--text-2); font-size: 11px; }
+.ownership-sheet-head button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: 18px;
+}
+.ownership-risk-note {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: 10px;
+  color: var(--down);
+  background: var(--down-soft);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.ownership-loading { padding: 44px 0; color: var(--text-2); }
+.ownership-list { display: flex; flex-direction: column; gap: 12px; }
+.ownership-card {
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+}
+.ownership-card-head, .ownership-card-head > div, .ownership-meta, .ownership-actions {
+  display: flex;
+  align-items: center;
+}
+.ownership-card-head { justify-content: space-between; gap: 10px; }
+.ownership-card-head > div { gap: 7px; }
+.ownership-card-head > div span { color: var(--text-2); font-size: 11px; }
+.ownership-qty-grid { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ownership-qty-grid div { min-width: 0; padding: 9px; border-radius: 9px; background: var(--bg-elevated); }
+.ownership-qty-grid span, .ownership-qty-grid strong { display: block; }
+.ownership-qty-grid span { color: var(--text-3); font-size: 10px; }
+.ownership-qty-grid strong { margin-top: 4px; overflow-wrap: anywhere; font-size: 12px; }
+.ownership-meta { margin-top: 10px; justify-content: space-between; color: var(--text-2); font-size: 11px; }
+.ownership-meta strong { color: var(--text); }
+.ownership-updated { display: block; margin-top: 5px; color: var(--text-3); font-size: 10px; }
+.ownership-actions { margin-top: 12px; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 </style>

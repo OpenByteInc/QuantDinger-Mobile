@@ -2,18 +2,8 @@
   <div class="indicator-chart-page">
     <van-nav-bar
       :title="$t('indicator_chart.title')"
-      left-arrow
       :border="false"
-      @click-left="$router.back()"
     />
-
-    <section class="intro-card">
-      <div class="intro-icon"><van-icon name="chart-trending-o" /></div>
-      <div>
-        <h1>{{ $t('indicator_chart.title') }}</h1>
-        <p>{{ $t('indicator_chart.subtitle') }}</p>
-      </div>
-    </section>
 
     <section class="control-card">
       <button type="button" class="selector" @click="indicatorSheetOpen = true">
@@ -156,6 +146,7 @@
           />
 
           <g v-for="marker in signalMarkers" :key="marker.key" class="signal-marker">
+            <title>{{ marker.details }}</title>
             <path
               v-if="marker.side === 'buy'"
               :d="`M ${marker.x} ${marker.y - 7} l -5 8 h 10 z`"
@@ -167,7 +158,7 @@
               :fill="marker.color"
             />
             <circle v-else :cx="marker.x" :cy="marker.y" r="4" :fill="marker.color" />
-            <text :x="marker.x" :y="marker.side === 'sell' ? marker.y + 17 : marker.y - 11" text-anchor="middle">
+            <text v-if="marker.showLabel" :x="marker.x" :y="marker.labelY" text-anchor="middle">
               {{ marker.label }}
             </text>
           </g>
@@ -216,7 +207,10 @@
           <div><span>L</span><strong>{{ candleValue(displayCandle, 'low') }}</strong></div>
           <div><span>C</span><strong>{{ candleValue(displayCandle, 'close') }}</strong></div>
           <div><span>VOL</span><strong>{{ candleValue(displayCandle, 'volume') }}</strong></div>
-          <div><span>{{ $t('indicator_chart.signals_short') }}</span><strong>{{ visibleSignalCount }}</strong></div>
+          <div><span>{{ $t('indicator_chart.signals_short') }}</span><strong>{{ displayCandleSignalLabels.length }}</strong></div>
+        </div>
+        <div v-if="displayCandleSignalLabels.length" class="inspector-signals">
+          <span v-for="signal in displayCandleSignalLabels" :key="signal">{{ signal }}</span>
         </div>
       </div>
 
@@ -244,39 +238,52 @@
       </div>
     </section>
 
-    <section v-if="parameterDefinitions.length" class="parameter-card">
-      <div class="section-title">
-        <div>
-          <strong>{{ $t('indicator_chart.parameters') }}</strong>
-          <span>{{ $t('indicator_chart.parameters_hint') }}</span>
+    <ChartTradePanel
+      :market="form.market"
+      :symbol="form.symbol"
+      :chart-price="latestPrice"
+      :initial-open="String($route.query.trade || '') === '1'"
+      @context-change="onTradeContextChange"
+    />
+
+    <details v-if="parameterDefinitions.length" class="parameter-card">
+      <summary>
+        <div class="section-title">
+          <div>
+            <strong>{{ $t('indicator_chart.parameters') }}</strong>
+            <span>{{ $t('indicator_chart.parameters_hint') }}</span>
+          </div>
+          <van-icon name="arrow-down" />
         </div>
-      </div>
-      <div v-for="parameter in parameterDefinitions" :key="parameter.name" class="parameter-row">
-        <div>
-          <strong>{{ parameterLabel(parameter) }}</strong>
-          <span>{{ parameter.name }}</span>
+      </summary>
+      <div class="parameter-content">
+        <div v-for="parameter in parameterDefinitions" :key="parameter.name" class="parameter-row">
+          <div>
+            <strong>{{ parameterLabel(parameter) }}</strong>
+            <span>{{ parameter.name }}</span>
+          </div>
+          <van-switch
+            v-if="parameter.type === 'bool'"
+            v-model="form.params[parameter.name]"
+            size="20"
+          />
+          <van-field
+            v-else
+            v-model="form.params[parameter.name]"
+            :type="isNumericParameter(parameter) ? 'number' : 'text'"
+            input-align="right"
+            :placeholder="String(parameter.default ?? '')"
+          />
         </div>
-        <van-switch
-          v-if="parameter.type === 'bool'"
-          v-model="form.params[parameter.name]"
-          size="20"
-        />
-        <van-field
-          v-else
-          v-model="form.params[parameter.name]"
-          :type="isNumericParameter(parameter) ? 'number' : 'text'"
-          input-align="right"
-          :placeholder="String(parameter.default ?? '')"
-        />
+        <van-button block type="primary" :loading="loading" @click="loadChart">
+          {{ $t('indicator_chart.apply') }}
+        </van-button>
       </div>
-      <van-button round block type="primary" :loading="loading" @click="loadChart">
-        {{ $t('indicator_chart.apply') }}
-      </van-button>
-    </section>
+    </details>
 
     <div class="read-only-hint">
       <van-icon name="shield-o" />
-      <span>{{ $t('indicator_chart.read_only_hint') }}</span>
+      <span>{{ $t('chart_trade.chart_risk_hint') }}</span>
     </div>
 
     <van-action-sheet
@@ -298,6 +305,7 @@
 
 <script>
 import SymbolPicker from '@/components/SymbolPicker.vue'
+import ChartTradePanel from '@/components/ChartTradePanel.vue'
 import { indicatorApi } from '@/api'
 
 const CHART_LEFT = 12
@@ -312,7 +320,7 @@ const MAX_VISIBLE_BARS = 120
 
 export default {
   name: 'IndicatorChart',
-  components: { SymbolPicker },
+  components: { SymbolPicker, ChartTradePanel },
   data() {
     return {
       loading: false,
@@ -465,7 +473,7 @@ export default {
       const signals = Array.isArray(this.chartData?.signals) ? this.chartData.signals : []
       const count = this.candles.length || 1
       const step = (CHART_RIGHT - CHART_LEFT) / count
-      const markers = []
+      const groups = new Map()
       signals.forEach((signal, signalIndex) => {
         const data = Array.isArray(signal?.data) ? signal.data : []
         const textData = Array.isArray(signal?.textData) ? signal.textData : []
@@ -481,17 +489,81 @@ export default {
           const numeric = typeof value === 'number' && Number.isFinite(value) && value !== 0
           const fallback = side === 'sell' ? Number(candle.high) : Number(candle.low)
           const price = numeric ? value : fallback
-          markers.push({
-            key: `${signalIndex}-${absoluteIndex}`,
-            x: CHART_LEFT + step * index + step / 2,
-            y: this.yFor(price, this.mainRange, false),
+          const rawLabel = this.signalLabel(signal, textData[absoluteIndex])
+          const groupKey = `${absoluteIndex}-${side}`
+          const current = groups.get(groupKey) || {
+            key: groupKey,
+            absoluteIndex,
+            index,
             side,
-            label: String(textData[absoluteIndex] || signal.text || signal.type || '•').slice(0, 10),
-            color: signal.color || (side === 'buy' ? '#18b87a' : side === 'sell' ? '#ef5350' : '#f5b93f')
-          })
+            labels: [],
+            prices: [],
+            colors: []
+          }
+          if (!current.labels.includes(rawLabel)) current.labels.push(rawLabel)
+          if (Number.isFinite(price)) current.prices.push(price)
+          current.colors.push(signal.color)
+          groups.set(groupKey, current)
         })
       })
-      return markers
+      let mode = this.signalDisplayMode
+      const markerDensity = groups.size / Math.max(count, 1)
+      if (mode === 'full' && (groups.size > 12 || markerDensity > 0.18)) mode = 'compact'
+      if (mode === 'compact' && (groups.size > 24 || markerDensity > 0.34)) mode = 'marker'
+      const laneState = { buy: { index: -99, lane: 0 }, sell: { index: -99, lane: 0 }, neutral: { index: -99, lane: 0 } }
+      const minGapBars = mode === 'full' ? Math.max(3, Math.ceil(44 / Math.max(step, 1))) : Math.max(2, Math.ceil(26 / Math.max(step, 1)))
+      return Array.from(groups.values())
+        .sort((a, b) => a.index - b.index || a.side.localeCompare(b.side))
+        .map((group) => {
+          const state = laneState[group.side] || laneState.neutral
+          state.lane = group.index - state.index < minGapBars ? (state.lane + 1) % 3 : 0
+          state.index = group.index
+          const candle = this.candles[group.index]
+          const price = group.prices.length
+            ? (group.side === 'sell' ? Math.max(...group.prices) : Math.min(...group.prices))
+            : Number(group.side === 'sell' ? candle?.high : candle?.low)
+          const baseY = this.yFor(price, this.mainRange, false)
+          const laneOffset = 7 + state.lane * 10
+          const y = group.side === 'sell'
+            ? Math.max(25, baseY - laneOffset)
+            : group.side === 'buy'
+              ? Math.min(207, baseY + laneOffset)
+              : Math.max(25, Math.min(207, baseY))
+          const label = mode === 'full'
+            ? this.fullSignalLabel(group.labels)
+            : this.compactSignalLabel(group.labels, group.side)
+          return {
+            key: group.key,
+            x: CHART_LEFT + step * group.index + step / 2,
+            y,
+            labelY: group.side === 'sell' ? y - 10 : y + 13,
+            side: group.side,
+            label,
+            details: group.labels.join(' · '),
+            showLabel: mode !== 'marker',
+            color: group.colors.find(Boolean) || (group.side === 'buy' ? '#18b87a' : group.side === 'sell' ? '#ef5350' : '#f5b93f')
+          }
+        })
+    },
+    signalDisplayMode() {
+      if (this.candles.length <= 60) return 'full'
+      if (this.candles.length <= 96) return 'compact'
+      return 'marker'
+    },
+    displayCandleSignalLabels() {
+      if (!this.displayCandle) return []
+      const visibleIndex = this.selectedCandleIndex === null ? this.candles.length - 1 : this.selectedCandleIndex
+      const absoluteIndex = this.viewStart + visibleIndex
+      const labels = []
+      const signals = Array.isArray(this.chartData?.signals) ? this.chartData.signals : []
+      signals.forEach((signal) => {
+        const value = Array.isArray(signal?.data) ? signal.data[absoluteIndex] : null
+        if (!this.markerActive(value)) return
+        const text = Array.isArray(signal?.textData) ? signal.textData[absoluteIndex] : ''
+        const label = this.signalLabel(signal, text)
+        if (!labels.includes(label)) labels.push(label)
+      })
+      return labels.slice(0, 5)
     },
     latestSignal() {
       return this.chartData?.latest_signal || null
@@ -625,6 +697,14 @@ export default {
       this.form.timeframe = timeframe
       this.loadChart()
     },
+    onTradeContextChange(context = {}) {
+      const exchangeId = String(context.exchangeId || '')
+      const marketType = String(context.marketType || '')
+      if (exchangeId === this.form.exchangeId && marketType === this.form.marketType) return
+      this.form.exchangeId = exchangeId
+      this.form.marketType = marketType
+      if (this.form.indicatorId && this.form.symbol) this.loadChart()
+    },
     normalizedParams() {
       const output = {}
       this.parameterDefinitions.forEach((parameter) => {
@@ -707,10 +787,28 @@ export default {
       if (typeof value === 'object') return this.markerActive(value.active ?? value.signal ?? value.price ?? value.value)
       return Boolean(value)
     },
+    signalLabel(signal, text) {
+      return String(text || signal?.text || signal?.type || 'Signal').trim().replace(/\s+/g, ' ')
+    },
+    fullSignalLabel(labels) {
+      const first = String(labels[0] || 'Signal')
+      const suffix = labels.length > 1 ? ` +${labels.length - 1}` : ''
+      return `${first.slice(0, 13)}${suffix}`
+    },
+    compactSignalLabel(labels, side) {
+      const source = labels.join(' ').toLowerCase()
+      const direction = side === 'buy' ? 'L' : side === 'sell' ? 'S' : 'N'
+      const kind = /(reversal|rever|反转|反轉)/.test(source)
+        ? 'REV'
+        : /(trend|趋势|趨勢)/.test(source)
+          ? 'TRD'
+          : 'SIG'
+      return `${direction}·${kind}${labels.length > 1 ? `+${labels.length - 1}` : ''}`
+    },
     signalSide(signal) {
       const text = `${signal?.side || ''} ${signal?.type || ''} ${signal?.text || ''}`.toLowerCase()
-      if (/(buy|long|enter|买)/.test(text)) return 'buy'
-      if (/(sell|short|exit|卖)/.test(text)) return 'sell'
+      if (/(buy|long|bull|enter|买|做多|多头|多頭)/.test(text)) return 'buy'
+      if (/(sell|short|bear|exit|卖|做空|空头|空頭)/.test(text)) return 'sell'
       return 'neutral'
     },
     formatSignalTime(value) {
@@ -821,38 +919,27 @@ export default {
   padding-bottom: calc(30px + env(safe-area-inset-bottom));
   background: var(--bg);
 }
-.intro-card,
 .control-card,
 .chart-card,
 .parameter-card,
 .latest-card {
-  margin: 12px 14px 0;
+  margin: 10px var(--page-gutter) 0;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
-.intro-card {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  padding: 16px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 14%, var(--surface)), var(--surface));
-}
-.intro-icon,
 .latest-icon {
   display: grid;
   place-items: center;
   width: 42px;
   height: 42px;
   flex: 0 0 auto;
-  border-radius: 13px;
+  border-radius: 10px;
   background: var(--primary);
   color: #fff;
   font-size: 21px;
 }
-.intro-card h1 { margin: 0; color: var(--text-1); font-size: 18px; }
-.intro-card p { margin: 5px 0 0; color: var(--text-3); font-size: 12px; line-height: 1.5; }
 .control-card { overflow: hidden; }
 .selector {
   display: grid;
@@ -860,7 +947,7 @@ export default {
   align-items: center;
   width: 100%;
   min-height: 52px;
-  padding: 0 14px;
+  padding: 0 10px;
   border: 0;
   border-bottom: 1px solid var(--border);
   background: transparent;
@@ -881,7 +968,7 @@ export default {
   font-weight: 700;
 }
 .timeframes button.active { border-color: var(--primary); background: var(--primary); color: #fff; }
-.chart-card { padding: 14px; }
+.chart-card { padding: 12px 10px; }
 .chart-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .chart-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .quote-row { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
@@ -998,6 +1085,24 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.inspector-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+.inspector-signals span {
+  max-width: 100%;
+  padding: 3px 7px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .legend { display: flex; flex-wrap: wrap; gap: 7px 12px; min-height: 18px; margin-top: 4px; }
 .legend span { display: inline-flex; align-items: center; gap: 5px; color: var(--text-3); font-size: 10px; }
 .legend i { width: 11px; height: 3px; border-radius: 2px; }
@@ -1009,7 +1114,13 @@ export default {
 .latest-card > div:last-child { display: flex; flex-direction: column; gap: 2px; }
 .latest-card span, .latest-card small { color: var(--text-3); font-size: 11px; }
 .latest-card strong { color: var(--text-1); font-size: 15px; }
-.parameter-card { padding: 15px; }
+.parameter-card { padding: 0; overflow: hidden; }
+.parameter-card > summary { padding: 13px 14px; list-style: none; cursor: pointer; }
+.parameter-card > summary::-webkit-details-marker { display: none; }
+.parameter-card > summary .section-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.parameter-card[open] > summary .van-icon { transform: rotate(180deg); }
+.parameter-card > summary .van-icon { color: var(--text-3); transition: transform .18s ease; }
+.parameter-content { padding: 0 14px 14px; border-top: 1px solid var(--hairline); }
 .section-title strong { display: block; color: var(--text-1); font-size: 15px; }
 .section-title span { display: block; margin-top: 3px; color: var(--text-3); font-size: 11px; }
 .parameter-row { display: flex; align-items: center; gap: 12px; min-height: 54px; border-bottom: 1px solid var(--border); }
@@ -1017,6 +1128,6 @@ export default {
 .parameter-row strong { color: var(--text-2); font-size: 13px; }
 .parameter-row span { color: var(--text-3); font-size: 10px; }
 .parameter-row :deep(.van-field) { padding-right: 0; background: transparent; }
-.parameter-card > .van-button { margin-top: 14px; }
+.parameter-content > .van-button { margin-top: 14px; border-radius: 8px; }
 .read-only-hint { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 14px 24px 0; color: var(--text-3); font-size: 11px; text-align: center; }
 </style>

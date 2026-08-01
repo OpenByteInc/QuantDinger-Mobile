@@ -219,7 +219,7 @@ export default {
 :deep(.van-nav-bar .van-icon) { color: var(--text); }
 
 .history-item {
-  margin: 12px 16px;
+  margin: 12px var(--page-gutter);
   padding: 14px 16px;
   border-radius: var(--radius);
   background: var(--bg-elevated);

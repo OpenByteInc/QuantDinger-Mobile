@@ -6,11 +6,6 @@
       </template>
     </van-nav-bar>
 
-    <div class="hero">
-      <div class="hero-title">{{ assetTitle }}</div>
-      <p class="hero-desc">{{ assetDesc }}</p>
-    </div>
-
     <div class="toolbar">
       <div class="asset-tabs" role="tablist" :aria-label="$t('market.asset_type_label')">
         <button
@@ -177,16 +172,6 @@ export default {
         { value: ASSET_TYPES.INDICATOR, label: this.$t('market.asset_indicator'), icon: 'bar-chart-o' },
         { value: ASSET_TYPES.SCRIPT_TEMPLATE, label: this.$t('market.asset_script_template'), icon: 'description' }
       ]
-    },
-    assetTitle() {
-      return getAssetLabel(this.assetType, this.$t)
-    },
-    assetDesc() {
-      const map = {
-        [ASSET_TYPES.INDICATOR]: this.$t('market.asset_indicator_desc'),
-        [ASSET_TYPES.SCRIPT_TEMPLATE]: this.$t('market.asset_script_template_desc')
-      }
-      return map[this.assetType] || this.$t('market.subtitle')
     },
     filterOptions() {
       return [
@@ -403,26 +388,7 @@ export default {
 :deep(.van-nav-bar) { background: transparent; }
 :deep(.van-nav-bar .van-nav-bar__title),
 :deep(.van-nav-bar .van-icon) { color: var(--text); }
-.hero {
-  margin: 8px 16px 16px;
-  padding: 16px 20px;
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  position: relative;
-  overflow: hidden;
-}
-.hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(260px 180px at 100% 0%, var(--c-amber-soft), transparent 62%);
-}
-.hero > * { position: relative; }
-.hero-title { font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 6px; letter-spacing: -0.02em; }
-.hero-desc { font-size: 12px; color: var(--text-2); }
-.toolbar { padding: 0 8px; }
+.toolbar { padding: 10px 8px 0; }
 .asset-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -524,7 +490,7 @@ export default {
   text-overflow: ellipsis;
 }
 .grid {
-  padding: 6px 16px 24px;
+  padding: 6px var(--page-gutter) 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -699,7 +665,7 @@ export default {
 .price.paid { color: var(--c-amber); }
 .price.free { color: var(--up); }
 .market-empty {
-  margin: 18px 16px 28px;
+  margin: 18px var(--page-gutter) 28px;
   padding: 28px 20px;
   display: flex;
   flex-direction: column;

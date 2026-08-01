@@ -294,4 +294,36 @@ export const useWatchlistStore = defineStore('watchlist', {
   }
 })
 
+export const useQuickTradeStore = defineStore('quickTrade', {
+  state: () => ({
+    selectedCredentialId: null,
+    marketType: 'swap',
+    balance: null,
+    positions: [],
+    history: [],
+    loading: false
+  }),
+
+  actions: {
+    setSelectedCredential(id) {
+      this.selectedCredentialId = id || null
+    },
+    setMarketType(type) {
+      this.marketType = type || 'swap'
+    },
+    setBalance(data) {
+      this.balance = data || null
+    },
+    setPositions(list) {
+      this.positions = Array.isArray(list) ? list : []
+    },
+    setHistory(list) {
+      this.history = Array.isArray(list) ? list : []
+    },
+    setLoading(value) {
+      this.loading = Boolean(value)
+    }
+  }
+})
+
 export default pinia

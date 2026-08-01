@@ -292,7 +292,7 @@ export default {
 .credential-form-page :deep(.van-nav-bar .van-icon) { color: var(--text); }
 
 .form-card {
-  margin: 16px;
+  margin: 16px var(--page-gutter);
   padding: 18px 16px;
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);

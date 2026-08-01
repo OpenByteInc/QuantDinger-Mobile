@@ -415,7 +415,7 @@ export default {
 .notification-filters {
   display: flex;
   gap: 8px;
-  padding: 12px 16px 2px;
+  padding: 12px var(--page-gutter) 2px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -435,7 +435,7 @@ export default {
 }
 .notification-filters button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .notification-filters small { color: var(--text-3); }
-.notification-list { padding: 12px 16px 16px; }
+.notification-list { padding: 12px var(--page-gutter) 16px; }
 
 .notification-item {
   width: 100%;

@@ -218,12 +218,12 @@ export default {
 :deep(.van-nav-bar) { background: transparent; }
 :deep(.van-nav-bar .van-nav-bar__title),
 :deep(.van-nav-bar .van-icon) { color: var(--text); }
-.list { padding: 8px 16px; display: flex; flex-direction: column; gap: 12px; }
+.list { padding: 8px var(--page-gutter); display: flex; flex-direction: column; gap: 12px; }
 .library-tabs {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding: 10px 16px 6px;
+  padding: 10px var(--page-gutter) 6px;
   scrollbar-width: none;
 }
 .library-tabs::-webkit-scrollbar {

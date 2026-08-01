@@ -147,7 +147,7 @@ export default {
 :deep(.van-nav-bar .van-icon) { color: var(--text); }
 
 .hero {
-  margin: 18px 16px 16px;
+  margin: 18px var(--page-gutter) 16px;
   padding: 22px 20px;
   text-align: center;
   border-radius: var(--radius-lg);
@@ -185,7 +185,7 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 10px;
-  margin: 0 16px 16px;
+  margin: 0 var(--page-gutter) 16px;
 }
 
 .stat-card {
@@ -210,7 +210,7 @@ export default {
 }
 
 .card {
-  margin: 0 16px 14px;
+  margin: 0 var(--page-gutter) 14px;
   padding: 16px 18px;
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);

@@ -51,7 +51,7 @@ export default {
 :deep(.van-nav-bar .van-nav-bar__title),
 :deep(.van-nav-bar .van-icon) { color: var(--text); }
 :deep(.van-cell-group--inset) {
-  margin: 16px;
+  margin: 16px var(--page-gutter);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
 }

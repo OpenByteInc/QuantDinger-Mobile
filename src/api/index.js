@@ -432,6 +432,40 @@ export const credentialsApi = {
   }
 }
 
+export const quickTradeApi = {
+  getBalance: async (credentialId, marketType = 'swap') => {
+    const res = await http.get('/api/quick-trade/balance', {
+      params: { credential_id: credentialId, market_type: marketType }
+    })
+    return {
+      ...res,
+      data: res.data || { available: 0, total: 0, currency: 'USDT' }
+    }
+  },
+  getPosition: async ({ credentialId, symbol, marketType = 'swap' }) => {
+    const res = await http.get('/api/quick-trade/position', {
+      params: {
+        credential_id: credentialId,
+        symbol,
+        market_type: marketType
+      }
+    })
+    return {
+      ...res,
+      data: unwrapItems(res.data, 'positions')
+    }
+  },
+  placeOrder: (payload) => http.post('/api/quick-trade/place-order', payload),
+  closePosition: (payload) => http.post('/api/quick-trade/close-position', payload),
+  getHistory: async (params = {}) => {
+    const res = await http.get('/api/quick-trade/history', { params })
+    return {
+      ...res,
+      data: unwrapItems(res.data, 'trades')
+    }
+  }
+}
+
 export const strategyApi = {
   getTemplates: async (params = {}) => {
     const res = await http.get('/api/templates', { params })
@@ -486,6 +520,16 @@ export const strategyApi = {
       data: unwrapItems(res.data, 'positions').map(normalizePosition)
     }
   },
+  getPositionOwnership: async (id) => {
+    const res = await http.get('/api/strategies/position-ownership', {
+      params: { id }
+    })
+    return {
+      ...res,
+      data: res.data || { items: [], status: 'ok' }
+    }
+  },
+  repairPositionOwnership: (payload) => http.post('/api/strategies/position-ownership/repair', payload),
   getEquityCurve: async (id) => {
     const res = await http.get('/api/strategies/equityCurve', {
       params: { id }

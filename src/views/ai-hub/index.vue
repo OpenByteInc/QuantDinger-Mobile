@@ -1,9 +1,6 @@
 <template>
   <div class="ai-copilot-page">
     <div class="top-bar">
-      <button type="button" class="nav-menu-btn" :aria-label="$t('sidebar.open_navigation')" @click="openNav">
-        <van-icon name="wap-nav" />
-      </button>
       <div class="top-copy">
         <span class="eyebrow">
           {{ text.title }}
@@ -30,10 +27,6 @@
             :key="msg.localId || msg.id"
             :class="['message-row', msg.role]"
           >
-            <div class="avatar">
-              <van-icon v-if="msg.role === 'user'" name="user-o" />
-              <span v-else class="ai-avatar-mark">AI</span>
-            </div>
             <div class="bubble-wrap">
               <div :class="['bubble', { 'report-bubble': msg.report || msg.reportLoading || msg.reportError }]">
                 <div v-if="msg.attachments?.length" class="attachment-preview">
@@ -134,9 +127,22 @@
                   {{ text.copy }}
                 </button>
               </div>
-              <div v-if="msg.actions?.length" class="action-strip">
+              <div v-if="agentUsageItems(msg).length" class="agent-usage">
+                <span class="agent-usage-title">
+                  <van-icon name="cluster-o" />
+                  {{ agentUsageLabel(msg) }}
+                </span>
+                <span
+                  v-for="item in agentUsageItems(msg)"
+                  :key="`${item.kind}-${item.id}`"
+                  :class="['agent-usage-chip', `agent-usage-chip--${item.kind}`]"
+                >
+                  {{ item.label }}
+                </span>
+              </div>
+              <div v-if="visibleMessageActions(msg).length" class="action-strip">
                 <button
-                  v-for="action in msg.actions"
+                  v-for="action in visibleMessageActions(msg)"
                   :key="action.type + action.label"
                   type="button"
                   @click="handleCopilotAction(action)"
@@ -346,6 +352,7 @@ const COPY = {
     streamIncomplete: '响应未正常结束，请重试。',
     outputLimit: '回答已达到输出上限，当前内容可能不完整。',
     desktopOnly: '手机端仅支持使用与监控，请在电脑端完成代码编辑或回测。',
+    usedThisTurn: '本次使用',
     taskDiagnose: '诊断标的',
     taskDiagnoseDesc: '趋势、量能、支撑阻力和风险',
     taskChart: '看图诊断',
@@ -393,6 +400,7 @@ const COPY = {
     streamIncomplete: '回應未正常結束，請重試。',
     outputLimit: '回答已達到輸出上限，目前內容可能不完整。',
     desktopOnly: '手機端僅支援使用與監控，請在電腦端完成程式碼編輯或回測。',
+    usedThisTurn: '本次使用',
     taskDiagnose: '診斷標的',
     taskDiagnoseDesc: '趨勢、量能、支撐阻力和風險',
     taskChart: '看圖診斷',
@@ -440,6 +448,7 @@ const COPY = {
     streamIncomplete: 'The response did not finish correctly. Please retry.',
     outputLimit: 'The response reached the output limit and may be incomplete.',
     desktopOnly: 'Mobile supports usage and monitoring only. Use desktop for code editing or backtesting.',
+    usedThisTurn: 'Used this turn',
     taskDiagnose: 'Diagnose',
     taskDiagnoseDesc: 'Trend, volume, levels, and risk',
     taskChart: 'Chart review',
@@ -487,6 +496,7 @@ const COPY = {
     streamIncomplete: '応答が正常に完了しませんでした。もう一度お試しください。',
     outputLimit: '出力上限に達したため、回答が不完全な可能性があります。',
     desktopOnly: 'モバイルは利用と監視専用です。コード編集やバックテストはデスクトップで行ってください。',
+    usedThisTurn: '今回使用',
     taskDiagnose: '銘柄診断',
     taskDiagnoseDesc: 'トレンド、出来高、重要水準、リスク',
     taskChart: 'チャート診断',
@@ -534,6 +544,7 @@ const COPY = {
     streamIncomplete: '응답이 정상적으로 완료되지 않았습니다. 다시 시도해 주세요.',
     outputLimit: '출력 한도에 도달하여 답변이 불완전할 수 있습니다.',
     desktopOnly: '모바일은 사용 및 모니터링 전용입니다. 코드 편집과 백테스트는 데스크톱에서 진행하세요.',
+    usedThisTurn: '이번에 사용',
     taskDiagnose: '종목 진단',
     taskDiagnoseDesc: '추세, 거래량, 레벨, 리스크',
     taskChart: '차트 진단',
@@ -549,11 +560,6 @@ const COPY = {
 
 export default {
   name: 'AiHub',
-  inject: {
-    openAppNav: {
-      default: null
-    }
-  },
   components: { SymbolPicker },
   data() {
     return {
@@ -740,9 +746,6 @@ export default {
       } catch (err) {
         showToast({ message: this.text.copyFailed, type: 'fail' })
       }
-    },
-    openNav() {
-      if (typeof this.openAppNav === 'function') this.openAppNav()
     },
     taskPrompt(task) {
       const label = `${this.context.market}:${this.context.symbol}`
@@ -1039,6 +1042,37 @@ export default {
     },
     filterMobileActions(actions) {
       return (actions || []).filter((action) => action && !this.isUnsupportedMobileAction(action))
+    },
+    agentUsageAction(message) {
+      const actions = Array.isArray(message?.actions) ? message.actions : []
+      return actions.find((action) => action?.type === 'agent_usage') || null
+    },
+    agentUsageItems(message) {
+      const payload = this.agentUsageAction(message)?.payload || {}
+      const seen = new Set()
+      const normalize = (items, kind) => (Array.isArray(items) ? items : [])
+        .map((item) => ({
+          kind,
+          id: String(item?.id || '').trim(),
+          label: String(item?.label || item?.id || '').trim()
+        }))
+        .filter((item) => {
+          const key = `${item.kind}:${item.id}`
+          if (!item.id || !item.label || seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+      return [
+        ...normalize(payload.skills, 'skill'),
+        ...normalize(payload.tools, 'tool')
+      ].slice(0, 8)
+    },
+    agentUsageLabel(message) {
+      return this.agentUsageAction(message)?.label || this.text.usedThisTurn
+    },
+    visibleMessageActions(message) {
+      const actions = Array.isArray(message?.actions) ? message.actions : []
+      return actions.filter((action) => action?.type !== 'agent_usage')
     },
     mobileActionRoute(action) {
       const payload = action?.payload || {}
@@ -1407,7 +1441,7 @@ export default {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: calc(12px + var(--safe-area-top, 0px)) 18px calc(10px + var(--safe-area-bottom, 0px));
+  padding: calc(12px + var(--safe-area-top, 0px)) var(--page-gutter) calc(10px + var(--safe-area-bottom, 0px));
   color: var(--text);
   background: var(--bg);
 }
@@ -1425,20 +1459,6 @@ export default {
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.nav-menu-btn {
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  color: var(--text);
-  background: var(--surface-raised);
-  font-size: 18px;
 }
 
 .top-copy {
@@ -1777,51 +1797,32 @@ export default {
   min-height: 300px;
   max-height: none;
   overflow-y: auto;
-  padding: 14px 12px calc(92px + var(--safe-area-bottom, 0px));
+  padding: 10px 0 calc(92px + var(--safe-area-bottom, 0px));
   scroll-padding-bottom: calc(92px + var(--safe-area-bottom, 0px));
 }
 
 .message-row {
   display: flex;
-  gap: 9px;
-  margin-bottom: 14px;
+  width: 100%;
+  margin-bottom: 12px;
 }
 
 .message-row.user {
-  flex-direction: row-reverse;
-}
-
-.avatar {
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-2);
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  font-size: 12px;
-}
-
-.message-row.assistant .avatar {
-  color: #d8f4ff;
-  border-color: color-mix(in srgb, #38bdf8 36%, var(--border));
-  background:
-    linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(167, 139, 250, 0.18)),
-    var(--surface-raised);
-  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.12);
-}
-
-.ai-avatar-mark {
-  font-size: 10px;
-  font-weight: 950;
-  letter-spacing: 0;
+  justify-content: flex-end;
 }
 
 .bubble-wrap {
-  max-width: calc(100% - 48px);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.message-row.assistant .bubble-wrap {
+  width: 100%;
+}
+
+.message-row.user .bubble-wrap {
+  width: fit-content;
+  max-width: 94%;
 }
 
 .bubble {
@@ -2248,6 +2249,48 @@ export default {
   background: var(--accent-soft);
   font-size: 11px;
   font-weight: 800;
+}
+
+.agent-usage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.agent-usage-title,
+.agent-usage-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.agent-usage-title {
+  gap: 5px;
+  color: var(--text-3);
+  font-weight: 700;
+}
+
+.agent-usage-chip {
+  max-width: min(190px, 70vw);
+  padding: 0 9px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text-1);
+  text-overflow: ellipsis;
+}
+
+.agent-usage-chip--tool {
+  border-color: rgba(56, 189, 248, 0.28);
+  background: rgba(56, 189, 248, 0.08);
 }
 
 .pending-attachments {

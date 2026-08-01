@@ -53,7 +53,7 @@ const routes = [
   },
   {
     path: '/quick-trade',
-    redirect: '/trading'
+    redirect: { path: '/indicators/chart', query: { trade: '1' } }
   },
   {
     path: '/ai-analysis',

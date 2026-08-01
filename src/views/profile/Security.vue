@@ -184,7 +184,7 @@ export default {
 :deep(.van-nav-bar .van-icon) { color: var(--text); }
 
 .hero {
-  margin: 18px 16px 20px;
+  margin: 18px var(--page-gutter) 20px;
   padding: 24px 20px;
   text-align: center;
   border-radius: var(--radius-lg);
@@ -231,7 +231,7 @@ export default {
 }
 
 .form-card {
-  margin: 0 16px;
+  margin: 0 var(--page-gutter);
   padding: 12px 4px;
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);
@@ -289,7 +289,7 @@ export default {
 }
 
 .actions {
-  margin: 20px 16px 0;
+  margin: 20px var(--page-gutter) 0;
 }
 
 .actions :deep(.van-button) {

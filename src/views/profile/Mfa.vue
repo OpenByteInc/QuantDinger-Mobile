@@ -274,7 +274,7 @@ export default {
 .status-card,
 .feature-card,
 .hint-card {
-  margin: 14px 16px;
+  margin: 14px var(--page-gutter);
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);
   border: 1px solid var(--border);

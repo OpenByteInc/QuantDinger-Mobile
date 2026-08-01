@@ -909,7 +909,7 @@ export default {
 
 /* Hero card */
 .hero-card {
-  margin: 8px 16px 14px;
+  margin: 8px var(--page-gutter) 14px;
   padding: 20px;
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);
@@ -1014,7 +1014,7 @@ export default {
 
 /* Loading card */
 .loading-card {
-  margin: 0 16px 14px;
+  margin: 0 var(--page-gutter) 14px;
   padding: 22px 20px;
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);
@@ -1044,7 +1044,7 @@ export default {
 .loading-footer { margin-top: 16px; font-size: 11px; color: var(--text-4); text-align: right; }
 
 /* Result wrapper */
-.result-wrapper { padding: 0 16px; display: flex; flex-direction: column; gap: 12px; }
+.result-wrapper { padding: 0 var(--page-gutter); display: flex; flex-direction: column; gap: 12px; }
 
 /* Decision card */
 .decision-card {

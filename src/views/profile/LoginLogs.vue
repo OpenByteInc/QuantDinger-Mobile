@@ -154,7 +154,7 @@ export default {
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  margin: 14px 16px;
+  margin: 14px var(--page-gutter);
   padding: 12px 14px;
   border-radius: 14px;
   background: var(--c-blue-soft);
@@ -164,7 +164,7 @@ export default {
 }
 
 .log-list {
-  padding: 0 16px 14px;
+  padding: 0 var(--page-gutter) 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -260,7 +260,7 @@ export default {
   text-align: center;
 }
 .load-more {
-  margin: 4px 16px 18px;
+  margin: 4px var(--page-gutter) 18px;
 }
 .load-more :deep(.van-button) {
   border-radius: 13px;

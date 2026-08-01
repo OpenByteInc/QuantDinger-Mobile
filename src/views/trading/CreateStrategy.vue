@@ -122,6 +122,41 @@
           <div class="field-hint">
             {{ executionModeHint }}
           </div>
+          <div class="notification-config">
+            <div class="notification-config-head">
+              <div>
+                <strong>{{ $t('script_strategy.notification_channels') }}</strong>
+                <span>{{ $t('script_strategy.required') }}</span>
+              </div>
+              <button type="button" @click="openNotificationSettings">
+                {{ $t('script_strategy.manage_notification_channels') }}
+                <van-icon name="arrow" />
+              </button>
+            </div>
+            <p>{{ $t('script_strategy.notification_channels_hint') }}</p>
+            <van-checkbox-group v-model="notificationChannels" class="notification-channel-grid">
+              <van-checkbox
+                v-for="channel in notificationChannelOptions"
+                :key="channel.value"
+                :name="channel.value"
+                :disabled="!channel.available"
+                :class="{ 'notification-channel--selected': notificationChannels.includes(channel.value) }"
+                shape="square"
+              >
+                <div class="notification-channel-option">
+                  <van-icon :name="channel.icon" :class="['notification-channel-icon', channel.value]" />
+                  <div>
+                    <strong>{{ channel.label }}</strong>
+                    <small>{{ channel.available ? $t('script_strategy.channel_ready') : $t('script_strategy.channel_not_configured') }}</small>
+                  </div>
+                </div>
+              </van-checkbox>
+            </van-checkbox-group>
+            <div v-if="!activeNotificationChannels.length" class="notification-channel-error">
+              <van-icon name="warning-o" />
+              {{ $t('script_strategy.notification_channel_required') }}
+            </div>
+          </div>
           <van-cell
             v-if="form.executionMode === 'live'"
             :title="$t('bot_create.exchange_account')"
@@ -181,7 +216,8 @@ import { credentialsApi, scriptSourceApi, strategyApi, userApi } from '@/api'
 import { useCredentialsStore } from '@/stores'
 
 const LIVE_CRYPTO_EXCHANGES = new Set(['binance', 'okx', 'bitget', 'bybit', 'gate', 'htx'])
-const DEFAULT_NOTIFICATION_CHANNELS = ['browser', 'email']
+const DEFAULT_NOTIFICATION_CHANNELS = ['browser']
+const SUPPORTED_NOTIFICATION_CHANNELS = new Set(['browser', 'email', 'telegram', 'phone', 'discord', 'webhook'])
 
 export default {
   name: 'CreateStrategy',
@@ -267,6 +303,20 @@ export default {
       return this.form.executionMode === 'live'
         ? this.$t('indicator_bot.execution_mode_live_desc')
         : this.$t('indicator_bot.execution_mode_signal_desc')
+    },
+    notificationChannelOptions() {
+      return [
+        { value: 'browser', label: this.$t('notif_settings.ch_browser'), icon: 'bell', available: true },
+        { value: 'email', label: this.$t('notif_settings.ch_email'), icon: 'envelop-o', available: this.hasNotificationTarget('email') },
+        { value: 'telegram', label: 'Telegram', icon: 'chat-o', available: this.hasNotificationTarget('telegram') },
+        { value: 'phone', label: this.$t('notif_settings.ch_sms'), icon: 'phone-o', available: this.hasNotificationTarget('phone') },
+        { value: 'discord', label: 'Discord', icon: 'comment-o', available: this.hasNotificationTarget('discord') },
+        { value: 'webhook', label: 'Webhook', icon: 'link-o', available: this.hasNotificationTarget('webhook') }
+      ]
+    },
+    activeNotificationChannels() {
+      return [...new Set(this.notificationChannels)]
+        .filter(channel => SUPPORTED_NOTIFICATION_CHANNELS.has(channel) && this.hasNotificationTarget(channel))
     },
     triggerContract() {
       const metadata = this.parseObject(this.source?.metadata)
@@ -355,6 +405,7 @@ export default {
       if (!this.sourceId || this.contractError || !this.form.name.trim()) return false
       const initialCapital = Number(this.form.initialCapital)
       if (!Number.isFinite(initialCapital) || initialCapital < 10 || initialCapital > 1000000) return false
+      if (!this.activeNotificationChannels.length) return false
       if (this.form.executionMode !== 'live') return true
       if (!this.form.credentialId) return false
       if (this.requiresPositionSide && !this.form.positionSide) return false
@@ -384,11 +435,10 @@ export default {
       try {
         const response = await userApi.getNotificationSettings()
         this.notificationSettings = response?.data || {}
-        if (Array.isArray(this.notificationSettings.default_channels) && this.notificationSettings.default_channels.length) {
-          this.notificationChannels = [...this.notificationSettings.default_channels]
-        }
+        this.applyNotificationChannelDefaults(this.notificationSettings.default_channels)
       } catch {
         this.notificationSettings = {}
+        this.applyNotificationChannelDefaults(DEFAULT_NOTIFICATION_CHANNELS)
       }
     },
     async loadEdit() {
@@ -410,7 +460,7 @@ export default {
       this.form.leverage = Number(config.leverage || deployment.leverage) || 1
       this.form.positionSide = config.position_side || ''
       const channels = deployment.notification_config?.channels
-      if (Array.isArray(channels) && channels.length) this.notificationChannels = [...channels]
+      if (Array.isArray(channels)) this.applyNotificationChannelDefaults(channels)
       if (this.sourceId) await this.loadSource(this.sourceId)
     },
     async loadSourceFromRoute() {
@@ -483,6 +533,26 @@ export default {
       const ratio = Math.max(0, Number(value) || 0)
       return `${Number((ratio * 100).toFixed(2))}%`
     },
+    hasNotificationTarget(channel) {
+      if (channel === 'browser') return true
+      const targetFields = {
+        email: ['email'],
+        telegram: ['telegram_chat_id'],
+        phone: ['phone'],
+        discord: ['discord_webhook'],
+        webhook: ['webhook_url']
+      }
+      return (targetFields[channel] || []).some(field => String(this.notificationSettings?.[field] || '').trim())
+    },
+    applyNotificationChannelDefaults(channels) {
+      const requested = Array.isArray(channels) ? channels : DEFAULT_NOTIFICATION_CHANNELS
+      const available = [...new Set(requested.map(channel => String(channel || '').toLowerCase()))]
+        .filter(channel => SUPPORTED_NOTIFICATION_CHANNELS.has(channel) && this.hasNotificationTarget(channel))
+      this.notificationChannels = available.length ? available : [...DEFAULT_NOTIFICATION_CHANNELS]
+    },
+    openNotificationSettings() {
+      this.$router.push('/profile/notification-settings')
+    },
     openCredentialPicker() {
       if (!this.credentials.length) {
         showToast({ message: this.$t('script_strategy.no_compatible_credential'), type: 'fail' })
@@ -518,13 +588,17 @@ export default {
           : 1,
         params: this.params,
         positionSide: this.requiresPositionSide ? this.form.positionSide : undefined,
-        notificationChannels: [...this.notificationChannels],
+        notificationChannels: [...this.activeNotificationChannels],
         notificationTargets: targets
       }
     },
     async submit() {
       if (!this.sourceId) {
         showToast({ message: this.$t('script_strategy.source_missing'), type: 'fail' })
+        return
+      }
+      if (!this.activeNotificationChannels.length) {
+        showToast({ message: this.$t('script_strategy.notification_channel_required'), type: 'fail' })
         return
       }
       if (this.form.executionMode === 'live' && !this.form.credentialId) {
@@ -575,7 +649,7 @@ export default {
 .source-card,
 .warning-card,
 .section {
-  margin: 12px 16px;
+  margin: 12px var(--page-gutter);
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -601,7 +675,7 @@ export default {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin: 12px 16px;
+  margin: 12px var(--page-gutter);
   padding: 14px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
@@ -613,7 +687,7 @@ export default {
 .trigger-card {
   display: flex;
   gap: 11px;
-  margin: 12px 16px;
+  margin: 12px var(--page-gutter);
   padding: 13px;
   border: 1px solid rgba(45, 145, 255, 0.24);
   border-radius: var(--radius-lg);
@@ -634,7 +708,7 @@ export default {
 .trigger-card p { margin: 4px 0 8px; color: var(--text-3); font-size: 11px; line-height: 1.5; }
 .trigger-card span { display: inline-block; margin: 0 5px 4px 0; padding: 3px 7px; border-radius: 999px; color: #7bbdff; background: rgba(45, 145, 255, 0.1); font-size: 10px; }
 .risk-summary-card {
-  margin: 12px 16px;
+  margin: 12px var(--page-gutter);
   padding: 14px;
   border: 1px solid rgba(246, 187, 35, 0.28);
   border-radius: var(--radius-lg);
@@ -669,6 +743,29 @@ export default {
 :deep(.van-radio-group--horizontal) { justify-content: flex-end; row-gap: 8px; }
 .capital-hint { padding-top: 2px; }
 .field-hint { padding: 0 16px 12px; color: var(--text-3); font-size: 12px; line-height: 1.5; }
+.notification-config { margin: 0 12px 12px; padding: 13px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255, 255, 255, 0.018); }
+.notification-config-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.notification-config-head > div { display: flex; align-items: center; gap: 7px; }
+.notification-config-head strong { color: var(--text); font-size: 13px; }
+.notification-config-head span { padding: 2px 6px; border-radius: 999px; color: var(--accent); background: rgba(246, 187, 35, 0.12); font-size: 10px; }
+.notification-config-head button { display: inline-flex; align-items: center; gap: 3px; padding: 0; border: 0; color: var(--accent); background: transparent; font-size: 11px; }
+.notification-config > p { margin: 7px 0 11px; color: var(--text-3); font-size: 11px; line-height: 1.5; }
+.notification-channel-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.notification-channel-grid :deep(.van-checkbox) { min-width: 0; padding: 9px; border: 1px solid var(--border); border-radius: 11px; }
+.notification-channel-grid :deep(.notification-channel--selected) { border-color: rgba(246, 187, 35, 0.42); background: rgba(246, 187, 35, 0.06); }
+.notification-channel-grid :deep(.van-checkbox__label) { min-width: 0; margin-left: 7px; }
+.notification-channel-option { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.notification-channel-option > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.notification-channel-option strong { overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.notification-channel-option small { color: var(--text-3); font-size: 9px; white-space: nowrap; }
+.notification-channel-icon { display: inline-flex; flex: 0 0 24px; width: 24px; height: 24px; align-items: center; justify-content: center; border-radius: 8px; background: var(--c-slate-soft); color: var(--c-slate); }
+.notification-channel-icon.browser { background: var(--c-indigo-soft); color: var(--c-indigo); }
+.notification-channel-icon.email { background: var(--c-violet-soft); color: var(--c-violet); }
+.notification-channel-icon.telegram { background: var(--c-blue-soft); color: var(--c-blue); }
+.notification-channel-icon.phone { background: var(--c-green-soft); color: var(--c-green); }
+.notification-channel-icon.discord { background: var(--c-indigo-soft); color: var(--c-indigo); }
+.notification-channel-icon.webhook { background: var(--c-orange-soft); color: var(--c-orange); }
+.notification-channel-error { display: flex; align-items: center; gap: 5px; margin-top: 10px; color: var(--down); font-size: 11px; }
 .loading { margin-top: 80px; color: var(--text-2); }
-.submit-wrap { padding: 16px; }
+.submit-wrap { padding: 16px var(--page-gutter); }
 </style>
