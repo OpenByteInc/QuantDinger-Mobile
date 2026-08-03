@@ -529,6 +529,15 @@ export const strategyApi = {
       data: res.data || { items: [], status: 'ok' }
     }
   },
+  getGridRestingOrders: async (id, sync = false) => {
+    const res = await http.get('/api/strategies/grid-resting-orders', {
+      params: { id, sync: sync ? '1' : undefined }
+    })
+    return {
+      ...res,
+      data: res.data || { items: [], orders: [], summary: {} }
+    }
+  },
   repairPositionOwnership: (payload) => http.post('/api/strategies/position-ownership/repair', payload),
   getEquityCurve: async (id) => {
     const res = await http.get('/api/strategies/equityCurve', {

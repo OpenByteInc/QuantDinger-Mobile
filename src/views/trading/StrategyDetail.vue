@@ -132,6 +132,35 @@
             <van-empty v-else :description="$t('trading.no_positions')" />
           </div>
         </van-tab>
+        <van-tab v-if="isGridStrategy" :title="$t('trading.tab_grid_orders')" name="grid-orders">
+          <div class="panel">
+            <div class="grid-sync-head">
+              <div>
+                <strong>{{ $t('trading.grid_orders_title') }}</strong>
+                <small>{{ $t('trading.grid_orders_hint') }}</small>
+              </div>
+              <van-button size="small" plain :loading="gridOrdersLoading" @click="loadGridOrders(true)">
+                {{ $t('trading.grid_orders_sync') }}
+              </van-button>
+            </div>
+            <div class="grid-order-kpis">
+              <div><span>{{ $t('trading.grid_orders_open') }}</span><strong>{{ gridOrderSummary.total || gridOrders.length }}</strong></div>
+              <div><span>{{ $t('trading.grid_orders_verified') }}</span><strong>{{ gridOrderSummary.verified_exchange_orders || 0 }}</strong></div>
+              <div :class="{ danger: Number(gridOrderSummary.unverified_orders || 0) > 0 }"><span>{{ $t('trading.grid_orders_unverified') }}</span><strong>{{ gridOrderSummary.unverified_orders || 0 }}</strong></div>
+            </div>
+            <div v-if="gridOrders.length" class="row-list">
+              <article v-for="order in gridOrders" :key="order.id" class="record grid-order-card">
+                <div><strong>#{{ order.cell_index }} · {{ order.purpose_label || order.purpose }}</strong><span>{{ order.status }}</span></div>
+                <div><span>{{ $t('trading.grid_orders_side') }}</span><strong>{{ order.side }}</strong></div>
+                <div><span>{{ $t('trading.grid_orders_price') }}</span><strong>{{ number(order.price) }}</strong></div>
+                <div><span>{{ $t('trading.grid_orders_quantity') }}</span><strong>{{ number(order.quantity) }}</strong></div>
+                <div><span>{{ $t('trading.grid_orders_exchange_id') }}</span><code :class="{ missing: !order.exchange_order_id }">{{ order.exchange_order_id || $t('trading.grid_orders_not_verified') }}</code></div>
+                <time>{{ time(order.updated_at) }}</time>
+              </article>
+            </div>
+            <van-empty v-else :description="$t('trading.grid_orders_empty')" />
+          </div>
+        </van-tab>
         <van-tab :title="$t('trading.tab_trades')" name="trades">
           <div class="panel">
             <div v-if="trades.length" class="row-list">
@@ -290,11 +319,14 @@ export default {
       positions: [],
       trades: [],
       logs: [],
+      gridOrders: [],
+      gridOrderSummary: {},
       ownership: { items: [], status: 'ok', advanced_coexistence_available: false },
       activeTab: 'overview',
       loading: false,
       actionLoading: false,
       ownershipLoading: false,
+      gridOrdersLoading: false,
       ownershipRepairKey: '',
       showStopActions: false,
       showOwnershipRepair: false
@@ -313,6 +345,12 @@ export default {
     },
     isLiveStrategy() {
       return this.strategy?.execution_mode === 'live'
+    },
+    isGridStrategy() {
+      const config = this.strategy?.trading_config || {}
+      const type = String(this.strategy?.bot_type || config.bot_type || config.executor_type || '').toLowerCase()
+      const template = String(this.strategy?.template_key || config.template_key || '').toLowerCase()
+      return type === 'grid' || template.includes('robot_v2_grid')
     },
     hasOpenExposure() {
       const pending = Number(this.strategy?.pending_order_count || this.strategy?.open_order_count || 0)
@@ -399,6 +437,11 @@ export default {
         this.logs = logs.status === 'fulfilled' ? (logs.value.data || []) : []
         if (this.isLiveStrategy) await this.loadOwnership(false)
         else this.ownership = { items: [], status: 'ok', advanced_coexistence_available: false }
+        if (this.isGridStrategy) await this.loadGridOrders(false)
+        else {
+          this.gridOrders = []
+          this.gridOrderSummary = {}
+        }
       } finally {
         this.loading = false
       }
@@ -412,6 +455,22 @@ export default {
         if (showFailure) showToast({ message: this.$t('trading.position_ownership_load_failed'), type: 'fail' })
       } finally {
         this.ownershipLoading = false
+      }
+    },
+    async loadGridOrders(sync = false) {
+      this.gridOrdersLoading = true
+      try {
+        const response = await strategyApi.getGridRestingOrders(this.strategyId, sync)
+        const data = response?.data || {}
+        this.gridOrders = data.orders || data.items || []
+        this.gridOrderSummary = data.summary || {}
+        if (sync && this.gridOrderSummary.sync_ok === false) {
+          showToast({ message: this.$t('trading.grid_orders_sync_failed'), type: 'fail' })
+        }
+      } catch (error) {
+        if (sync) showToast({ message: this.$t('trading.grid_orders_sync_failed'), type: 'fail' })
+      } finally {
+        this.gridOrdersLoading = false
       }
     },
     async openOwnershipRepair() {
@@ -735,6 +794,16 @@ export default {
 .data-row { padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .record { display: grid; gap: 8px; padding: 12px; border-radius: var(--radius-sm); background: var(--bg); }
 .record time { color: var(--text-3); font-size: 11px; text-align: right; }
+.grid-sync-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.grid-sync-head > div { display: flex; flex-direction: column; gap: 4px; }
+.grid-sync-head small { color: var(--text-2); font-size: 11px; line-height: 1.4; }
+.grid-order-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.grid-order-kpis div { padding: 9px; border-radius: 10px; background: var(--bg); }
+.grid-order-kpis span, .grid-order-kpis strong { display: block; }
+.grid-order-kpis span { color: var(--text-2); font-size: 10px; }
+.grid-order-kpis strong { margin-top: 4px; }
+.grid-order-kpis .danger strong, .grid-order-card code.missing { color: var(--down); }
+.grid-order-card code { max-width: 62%; color: var(--primary); font-size: 10px; text-align: right; word-break: break-all; }
 .profit { color: var(--up) !important; }
 .loss { color: var(--down) !important; }
 .log-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
