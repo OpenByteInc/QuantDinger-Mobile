@@ -177,14 +177,31 @@
             :label="$t('bot_create.leverage')"
             :placeholder="$t('script_strategy.max_leverage', { value: maxLeverage })"
           />
-          <van-cell v-if="form.executionMode === 'live' && requiresPositionSide" :title="$t('script_strategy.position_side')">
-            <template #right-icon>
-              <van-radio-group v-model="form.positionSide" direction="horizontal">
-                <van-radio name="long">{{ $t('trading.side_long') }}</van-radio>
-                <van-radio name="short">{{ $t('trading.side_short') }}</van-radio>
-              </van-radio-group>
+          <div v-if="form.executionMode === 'live' && requiresDirectionMode" class="direction-config">
+            <div class="direction-config-head">
+              <strong>{{ $t('script_strategy.direction_mode') }}</strong>
+              <span v-if="manifestDirectionMode" class="direction-mode-badge">
+                {{ directionModeLabel(manifestDirectionMode) }}
+              </span>
+              <span v-else class="required-badge">{{ $t('script_strategy.required') }}</span>
+            </div>
+            <template v-if="manifestDirectionMode">
+              <p>{{ $t('script_strategy.direction_detected_hint') }}</p>
             </template>
-          </van-cell>
+            <template v-else>
+              <van-radio-group v-model="form.directionMode" class="direction-mode-grid">
+                <van-radio name="long_only">{{ $t('script_strategy.direction_long_only') }}</van-radio>
+                <van-radio name="short_only">{{ $t('script_strategy.direction_short_only') }}</van-radio>
+                <van-radio name="both">{{ $t('script_strategy.direction_both') }}</van-radio>
+                <van-radio name="neutral">{{ $t('script_strategy.direction_neutral') }}</van-radio>
+              </van-radio-group>
+              <p>{{ $t('script_strategy.direction_legacy_hint') }}</p>
+            </template>
+            <div v-if="requiresHedgeAccount" class="hedge-mode-warning">
+              <van-icon name="warning-o" />
+              <span>{{ hedgeModeHint }}</span>
+            </div>
+          </div>
         </van-cell-group>
       </div>
 
@@ -218,6 +235,31 @@ import { useCredentialsStore } from '@/stores'
 const LIVE_CRYPTO_EXCHANGES = new Set(['binance', 'okx', 'bitget', 'bybit', 'gate', 'htx'])
 const DEFAULT_NOTIFICATION_CHANNELS = ['browser']
 const SUPPORTED_NOTIFICATION_CHANNELS = new Set(['browser', 'email', 'telegram', 'phone', 'discord', 'webhook'])
+const DIRECTION_MODES = new Set(['long_only', 'short_only', 'both', 'neutral'])
+const DIRECTION_MODE_ALIASES = {
+  long: 'long_only',
+  longonly: 'long_only',
+  short: 'short_only',
+  shortonly: 'short_only',
+  dual: 'both',
+  hedged: 'both',
+  bidirectional: 'both',
+  two_way: 'both'
+}
+
+const normalizeDirectionMode = (value) => {
+  const normalized = String(value || '').trim().toLowerCase().replace(/-/g, '_')
+  const result = DIRECTION_MODE_ALIASES[normalized] || normalized
+  return DIRECTION_MODES.has(result) ? result : ''
+}
+
+const directionModePositionSide = (value) => {
+  const mode = normalizeDirectionMode(value)
+  if (mode === 'long_only') return 'long'
+  if (mode === 'short_only') return 'short'
+  if (mode === 'both' || mode === 'neutral') return 'neutral'
+  return ''
+}
 
 export default {
   name: 'CreateStrategy',
@@ -240,7 +282,7 @@ export default {
         credentialId: null,
         leverageEnabled: false,
         leverage: 1,
-        positionSide: ''
+        directionMode: ''
       },
       showCredentialPicker: false
     }
@@ -293,10 +335,36 @@ export default {
     maxLeverage() {
       return Math.max(1, Number(this.manifest?.maxLeverage || 1))
     },
-    requiresPositionSide() {
+    requiresDirectionMode() {
       return this.marketCategory === 'Crypto' && this.instruments.length > 0 && this.instruments.every(item => (
         String(item.market_type || '').toLowerCase() === 'swap'
       ))
+    },
+    manifestDirectionMode() {
+      const metadata = this.parseObject(this.manifest?.metadata)
+      return normalizeDirectionMode(
+        this.manifest?.directionMode
+        || this.manifest?.direction_mode
+        || metadata.direction_mode
+        || metadata.directionMode
+        || metadata.trade_direction
+        || metadata.position_side
+        || metadata.side
+      )
+    },
+    effectiveDirectionMode() {
+      return this.manifestDirectionMode || normalizeDirectionMode(this.form.directionMode)
+    },
+    selectedCredentialExchange() {
+      return String(this.credentials.find(item => item.id === this.form.credentialId)?.exchange_id || '').toLowerCase()
+    },
+    requiresHedgeAccount() {
+      return this.requiresDirectionMode && ['both', 'neutral'].includes(this.effectiveDirectionMode)
+    },
+    hedgeModeHint() {
+      const exchange = this.selectedCredentialExchange
+      if (exchange === 'okx') return this.$t('script_strategy.hedge_mode_hint_okx')
+      return this.$t('script_strategy.hedge_mode_hint')
     },
     executionModeHint() {
       if (!this.supportsLive) return this.$t('script_strategy.live_unavailable')
@@ -408,7 +476,7 @@ export default {
       if (!this.activeNotificationChannels.length) return false
       if (this.form.executionMode !== 'live') return true
       if (!this.form.credentialId) return false
-      if (this.requiresPositionSide && !this.form.positionSide) return false
+      if (this.requiresDirectionMode && !this.effectiveDirectionMode) return false
       return true
     }
   },
@@ -458,7 +526,7 @@ export default {
       this.form.credentialId = config.credential_id || exchange.credential_id || null
       this.form.leverageEnabled = Boolean(config.leverage_enabled)
       this.form.leverage = Number(config.leverage || deployment.leverage) || 1
-      this.form.positionSide = config.position_side || ''
+      this.form.directionMode = normalizeDirectionMode(config.direction_mode || config.position_side)
       const channels = deployment.notification_config?.channels
       if (Array.isArray(channels)) this.applyNotificationChannelDefaults(channels)
       if (this.sourceId) await this.loadSource(this.sourceId)
@@ -496,6 +564,16 @@ export default {
         return {}
       }
     },
+    directionModeLabel(mode) {
+      const normalized = normalizeDirectionMode(mode)
+      const key = {
+        long_only: 'direction_long_only',
+        short_only: 'direction_short_only',
+        both: 'direction_both',
+        neutral: 'direction_neutral'
+      }[normalized]
+      return key ? this.$t(`script_strategy.${key}`) : '-'
+    },
     applyParameterDefaults() {
       const templateParams = this.parseObject(this.source?.template_params)
       const next = { ...templateParams }
@@ -517,7 +595,7 @@ export default {
       } else if (Number(this.form.leverage) > this.maxLeverage) {
         this.form.leverage = this.maxLeverage
       }
-      if (!this.requiresPositionSide) this.form.positionSide = ''
+      if (!this.requiresDirectionMode) this.form.directionMode = ''
       if (!this.credentials.some(item => item.id === this.form.credentialId)) this.form.credentialId = null
     },
     isNumericParameter(parameter) {
@@ -587,7 +665,8 @@ export default {
           ? Math.min(this.maxLeverage, Number(this.form.leverage) || 1)
           : 1,
         params: this.params,
-        positionSide: this.requiresPositionSide ? this.form.positionSide : undefined,
+        directionMode: this.requiresDirectionMode ? this.effectiveDirectionMode : undefined,
+        positionSide: this.requiresDirectionMode ? directionModePositionSide(this.effectiveDirectionMode) : undefined,
         notificationChannels: [...this.activeNotificationChannels],
         notificationTargets: targets
       }
@@ -614,8 +693,8 @@ export default {
         showToast({ message: this.$t('script_strategy.capital_required'), type: 'fail' })
         return
       }
-      if (this.form.executionMode === 'live' && this.requiresPositionSide && !this.form.positionSide) {
-        showToast({ message: this.$t('script_strategy.position_side_required'), type: 'fail' })
+      if (this.form.executionMode === 'live' && this.requiresDirectionMode && !this.effectiveDirectionMode) {
+        showToast({ message: this.$t('script_strategy.direction_mode_required'), type: 'fail' })
         return
       }
       this.submitting = true
@@ -743,6 +822,18 @@ export default {
 :deep(.van-radio-group--horizontal) { justify-content: flex-end; row-gap: 8px; }
 .capital-hint { padding-top: 2px; }
 .field-hint { padding: 0 16px 12px; color: var(--text-3); font-size: 12px; line-height: 1.5; }
+.direction-config { margin: 0 12px 12px; padding: 13px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255, 255, 255, 0.018); }
+.direction-config-head { display: flex; align-items: center; gap: 8px; }
+.direction-config-head strong { color: var(--text); font-size: 13px; }
+.direction-mode-badge,
+.required-badge { margin-left: auto; padding: 3px 8px; border-radius: 999px; color: var(--accent); background: rgba(246, 187, 35, 0.12); font-size: 10px; font-weight: 800; }
+.direction-config > p { margin: 8px 0 0; color: var(--text-3); font-size: 11px; line-height: 1.5; }
+.direction-mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 11px; }
+.direction-mode-grid :deep(.van-radio) { min-width: 0; min-height: 42px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); }
+.direction-mode-grid :deep(.van-radio[aria-checked='true']) { border-color: rgba(246, 187, 35, 0.48); background: rgba(246, 187, 35, 0.07); }
+.direction-mode-grid :deep(.van-radio__label) { margin-left: 7px; color: var(--text-2); font-size: 12px; }
+.hedge-mode-warning { display: flex; align-items: flex-start; gap: 6px; margin-top: 10px; padding: 9px 10px; border: 1px solid rgba(246, 187, 35, 0.25); border-radius: 10px; color: var(--accent); background: rgba(246, 187, 35, 0.06); font-size: 11px; line-height: 1.5; }
+.hedge-mode-warning :deep(.van-icon) { flex: 0 0 auto; margin-top: 2px; }
 .notification-config { margin: 0 12px 12px; padding: 13px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255, 255, 255, 0.018); }
 .notification-config-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .notification-config-head > div { display: flex; align-items: center; gap: 7px; }
