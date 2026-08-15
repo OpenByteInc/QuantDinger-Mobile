@@ -81,7 +81,7 @@
       <span class="menu-section-title">{{ $t('profile.section_account') }}</span>
       <div class="menu-group">
         <div class="menu-item" @click="$router.push('/profile/credentials')">
-          <div class="menu-icon c-amber"><van-icon name="key-o" /></div>
+          <div class="menu-icon c-amber"><van-icon name="exchange" /></div>
           <div class="menu-copy">
             <span class="label">{{ $t('profile.credentials') }}</span>
             <span class="menu-description">{{ $t('profile.credentials_sub') }}</span>

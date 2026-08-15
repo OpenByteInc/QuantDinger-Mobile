@@ -68,38 +68,6 @@
       </van-empty>
     </div>
 
-    <!-- Egress IP card -->
-    <div class="egress-card">
-      <div class="card-head">
-        <div class="card-head-left">
-          <div class="card-icon"><van-icon name="shield-o" /></div>
-          <div>
-            <div class="card-title">{{ $t('credentials.egress_title') }}</div>
-            <p class="card-desc">{{ $t('credentials.egress_desc') }}</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="ip-row">
-        <div class="ip-box">{{ egressIpText }}</div>
-        <van-button size="small" plain class="copy-btn" @click="copyIp">
-          <van-icon name="records" /> {{ $t('credentials.copy') }}
-        </van-button>
-      </div>
-
-      <div class="tutorial-toggle" @click="showTutorial = !showTutorial">
-        <van-icon name="question-o" />
-        <span>{{ $t('credentials.how_to_whitelist') }}</span>
-        <van-icon :name="showTutorial ? 'arrow-up' : 'arrow-down'" />
-      </div>
-      <div v-if="showTutorial" class="tutorial">
-        <div v-for="(step, idx) in tutorialSteps" :key="idx" class="tutorial-step">
-          <span class="step-num">{{ idx + 1 }}</span>
-          <span class="step-text">{{ step }}</span>
-        </div>
-      </div>
-    </div>
-
     <!-- One-click signup -->
     <div class="signup-card">
       <button type="button" class="card-head signup-toggle" @click="showSignup = !showSignup">
@@ -168,7 +136,6 @@ export default {
   data() {
     return {
       loading: false,
-      showTutorial: false,
       showSignup: false,
       showRename: false,
       renaming: false,
@@ -184,29 +151,6 @@ export default {
     credentials() {
       return this.credentialsStore.cryptoItems
     },
-    egressIpText() {
-      const data = this.credentialsStore.egressIp
-      if (!data) return this.$t('credentials.egress_loading')
-      const parts = [
-        data.ipv4 && `IPv4: ${data.ipv4}`,
-        data.ipv6 && `IPv6: ${data.ipv6}`
-      ].filter(Boolean)
-      return parts.join('\n') || data.ip || data.address || this.$t('credentials.egress_loading')
-    },
-    egressIpRaw() {
-      const data = this.credentialsStore.egressIp
-      if (!data) return ''
-      return [data.ipv4, data.ipv6, data.ip, data.address].filter(Boolean).join('\n')
-    },
-    tutorialSteps() {
-      return [
-        this.$t('credentials.tutorial_1'),
-        this.$t('credentials.tutorial_2'),
-        this.$t('credentials.tutorial_3'),
-        this.$t('credentials.tutorial_4'),
-        this.$t('credentials.tutorial_5')
-      ]
-    },
     signupCards() {
       return EXCHANGE_SIGNUP_CARDS
     }
@@ -220,12 +164,8 @@ export default {
     async loadData() {
       this.loading = true
       try {
-        const [listRes, egressRes] = await Promise.all([
-          credentialsApi.list(),
-          credentialsApi.getEgressIp()
-        ])
+        const listRes = await credentialsApi.list()
         this.credentialsStore.setItems(listRes.data || [])
-        this.credentialsStore.setEgressIp(egressRes.data || null)
       } catch (error) {
         console.error('Load credentials failed:', error)
       } finally {
@@ -249,26 +189,6 @@ export default {
       const brand = EXCHANGE_BRANDS[key]
       if (!brand) return { background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.75)' }
       return { background: brand.brandBg, color: brand.brandColor }
-    },
-
-    async copyIp() {
-      const text = this.egressIpRaw
-      if (!text) {
-        showToast({ message: this.$t('credentials.egress_loading'), type: 'fail' })
-        return
-      }
-      try {
-        await navigator.clipboard.writeText(text)
-        showToast({ message: this.$t('credentials.copied'), type: 'success' })
-      } catch (err) {
-        const ta = document.createElement('textarea')
-        ta.value = text
-        document.body.appendChild(ta)
-        ta.select()
-        try { document.execCommand('copy') } catch {}
-        ta.remove()
-        showToast({ message: this.$t('credentials.copied'), type: 'success' })
-      }
     },
 
     openExchangeSignup(item) {
@@ -389,7 +309,6 @@ export default {
   font-weight: 600;
 }
 
-.egress-card,
 .signup-card,
 .list-card {
   margin: 12px var(--page-gutter);
@@ -456,78 +375,6 @@ export default {
   line-height: 1.5;
   color: var(--text-2);
 }
-
-/* Egress IP */
-.ip-row {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-  margin: 10px 0 4px;
-}
-.ip-box {
-  flex: 1;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--surface-deep);
-  border: 1px solid var(--border);
-  color: var(--accent);
-  font-size: 13px;
-  font-weight: 600;
-  font-family: 'SF Mono', monospace;
-  word-break: break-all;
-  white-space: pre-line;
-  line-height: 1.6;
-}
-.copy-btn {
-  flex-shrink: 0;
-  border-radius: 12px !important;
-  height: auto !important;
-  padding: 0 14px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
-}
-.tutorial-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  margin-top: 10px;
-  padding: 8px 2px;
-  font-size: 13px;
-  color: var(--accent-light);
-  font-weight: 600;
-}
-.tutorial-toggle .van-icon:first-child { color: var(--accent); }
-.tutorial-toggle > span { flex: 1; }
-.tutorial {
-  margin-top: 8px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.tutorial-step {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: 13px;
-  color: var(--text-2);
-  line-height: 1.5;
-}
-.step-num {
-  flex-shrink: 0;
-  width: 22px; height: 22px;
-  border-radius: 7px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--accent);
-  color: var(--text-on-accent);
-  font-size: 11px;
-  font-weight: 800;
-}
-.step-text { flex: 1; padding-top: 1px; }
 
 /* Signup cards */
 .signup-grid {

@@ -7,8 +7,14 @@
       @click-left="$router.back()"
     />
 
-    <div class="form-card">
-      <div class="section-title">{{ $t('credentials.section_basic') }}</div>
+    <div class="form-card account-card">
+      <div class="section-heading">
+        <span class="section-icon blue"><van-icon name="records" /></span>
+        <div>
+          <div class="section-title">{{ $t('credentials.section_basic') }}</div>
+          <p>{{ $t('credentials.section_basic_desc') }}</p>
+        </div>
+      </div>
       <van-field
         v-model="form.name"
         :label="$t('credentials.name')"
@@ -33,6 +39,46 @@
         is-link
         @click="showMarketScopePicker = true"
       />
+    </div>
+
+    <div class="egress-card">
+      <div class="section-heading">
+        <span class="section-icon amber"><van-icon name="shield-o" /></span>
+        <div>
+          <div class="section-title">{{ $t('credentials.egress_title') }}</div>
+          <p>{{ $t('credentials.egress_desc') }}</p>
+        </div>
+      </div>
+
+      <div class="ip-row">
+        <div class="ip-box">{{ egressIpText }}</div>
+        <button type="button" class="copy-ip-button" :disabled="!egressIpRaw" @click="copyIp">
+          <van-icon name="records" />
+          <span>{{ $t('credentials.copy') }}</span>
+        </button>
+      </div>
+
+      <button type="button" class="tutorial-toggle" @click="showTutorial = !showTutorial">
+        <van-icon name="question-o" />
+        <span>{{ $t('credentials.how_to_whitelist') }}</span>
+        <van-icon :name="showTutorial ? 'arrow-up' : 'arrow-down'" />
+      </button>
+      <div v-if="showTutorial" class="tutorial">
+        <div v-for="(step, idx) in tutorialSteps" :key="idx" class="tutorial-step">
+          <span class="step-num">{{ idx + 1 }}</span>
+          <span class="step-text">{{ step }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-card key-card">
+      <div class="section-heading">
+        <span class="section-icon violet"><van-icon name="exchange" /></span>
+        <div>
+          <div class="section-title">{{ $t('credentials.section_keys') }}</div>
+          <p>{{ $t('credentials.section_keys_desc') }}</p>
+        </div>
+      </div>
       <div v-if="selectedExchangeDocsUrl" class="api-doc-card">
         <div class="api-doc-copy">
           <span class="api-doc-title">{{ $t('credentials.api_doc_title') }}</span>
@@ -59,27 +105,33 @@
         :label="$t('credentials.passphrase')"
         :placeholder="$t('credentials.passphrase_placeholder')"
       />
+    </div>
 
-      <div class="form-actions">
-        <van-button
-          block
-          plain
-          :loading="testing"
-          :disabled="saving"
-          @click="testConnection"
-        >
-          {{ $t('credentials.test_connection') }}
-        </van-button>
-        <van-button
-          block
-          type="primary"
-          :loading="saving"
-          :disabled="testing"
-          @click="submit"
-        >
-          {{ $t('credentials.save') }}
-        </van-button>
-      </div>
+    <div class="form-actions">
+      <van-button
+        block
+        round
+        plain
+        class="test-button"
+        :loading="testing"
+        :disabled="saving"
+        @click="testConnection"
+      >
+        <van-icon name="exchange" />
+        {{ $t('credentials.test_connection') }}
+      </van-button>
+      <van-button
+        block
+        round
+        type="primary"
+        class="save-button"
+        :loading="saving"
+        :disabled="testing"
+        @click="submit"
+      >
+        <van-icon name="success" />
+        {{ $t('credentials.save') }}
+      </van-button>
     </div>
 
     <van-popup v-model:show="showExchangePicker" position="bottom" round>
@@ -109,6 +161,7 @@
 <script>
 import { showToast } from 'vant'
 import { credentialsApi } from '@/api'
+import { useCredentialsStore } from '@/stores'
 import { EXCHANGE_BRANDS, EXCHANGE_OPTIONS } from '@/constants/exchanges'
 import { openExternal } from '@/utils/external'
 
@@ -121,6 +174,7 @@ export default {
     return {
       saving: false,
       testing: false,
+      showTutorial: false,
       showExchangePicker: false,
       showEnvironmentPicker: false,
       showMarketScopePicker: false,
@@ -137,6 +191,9 @@ export default {
   },
 
   computed: {
+    credentialsStore() {
+      return useCredentialsStore()
+    },
     exchangeColumns() {
       return EXCHANGE_OPTIONS.map((item) => ({
         text: item.label,
@@ -183,10 +240,65 @@ export default {
     },
     marketScopeLabel() {
       return this.marketScopeColumns.find(item => item.value === this.form.market_scope)?.text || ''
+    },
+    egressIpText() {
+      const data = this.credentialsStore.egressIp
+      if (!data) return this.$t('credentials.egress_loading')
+      const parts = [
+        data.ipv4 && `IPv4: ${data.ipv4}`,
+        data.ipv6 && `IPv6: ${data.ipv6}`
+      ].filter(Boolean)
+      return parts.join('\n') || data.ip || data.address || this.$t('credentials.egress_loading')
+    },
+    egressIpRaw() {
+      const data = this.credentialsStore.egressIp
+      if (!data) return ''
+      return [data.ipv4, data.ipv6, data.ip, data.address].filter(Boolean).join('\n')
+    },
+    tutorialSteps() {
+      return [
+        this.$t('credentials.tutorial_1'),
+        this.$t('credentials.tutorial_2'),
+        this.$t('credentials.tutorial_3'),
+        this.$t('credentials.tutorial_4'),
+        this.$t('credentials.tutorial_5')
+      ]
     }
   },
 
+  mounted() {
+    this.loadEgressIp()
+  },
+
   methods: {
+    async loadEgressIp() {
+      try {
+        const response = await credentialsApi.getEgressIp()
+        this.credentialsStore.setEgressIp(response.data || null)
+      } catch (error) {
+        console.error('Load exchange whitelist IP failed:', error)
+      }
+    },
+
+    async copyIp() {
+      const text = this.egressIpRaw
+      if (!text) {
+        showToast({ message: this.$t('credentials.egress_loading'), type: 'fail' })
+        return
+      }
+      try {
+        await navigator.clipboard.writeText(text)
+      } catch (error) {
+        const textarea = document.createElement('textarea')
+        textarea.value = text
+        document.body.appendChild(textarea)
+        textarea.select()
+        try { document.execCommand('copy') } catch {}
+        textarea.remove()
+      }
+      showToast({ message: this.$t('credentials.copied'), type: 'success' })
+    },
+
     onSelectExchange(payload) {
       const selected = payload?.selectedOptions?.[0] || payload?.selectedOption || payload?.[0] || payload
       this.form.exchange_id = selected?.value || ''
@@ -282,7 +394,7 @@ export default {
 <style scoped>
 .credential-form-page {
   min-height: 100vh;
-  padding-bottom: 24px;
+  padding-bottom: calc(28px + var(--safe-area-bottom, 0px));
   background: transparent;
 }
 
@@ -291,28 +403,192 @@ export default {
 .credential-form-page :deep(.van-nav-bar__arrow),
 .credential-form-page :deep(.van-nav-bar .van-icon) { color: var(--text); }
 
-.form-card {
-  margin: 16px var(--page-gutter);
+.form-card,
+.egress-card {
+  margin: 12px var(--page-gutter);
   padding: 18px 16px;
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
 .form-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.3fr);
   gap: 10px;
-  margin-top: 16px;
+  margin: 14px var(--page-gutter) 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-card);
 }
 
 .section-title {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-bottom: 12px;
+}
+
+.section-heading > div:last-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.section-heading p {
+  margin: 3px 0 0;
   color: var(--text-2);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.section-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 17px;
+}
+
+.section-icon.blue { background: var(--c-blue); }
+.section-icon.amber { background: var(--c-amber); color: #0a0a0d; }
+.section-icon.violet { background: var(--c-violet); }
+
+.egress-card {
+  border-color: color-mix(in srgb, var(--c-amber) 30%, var(--border));
+  background:
+    radial-gradient(240px 140px at 100% 0%, color-mix(in srgb, var(--c-amber) 12%, transparent), transparent 65%),
+    var(--bg-elevated);
+}
+
+.ip-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.ip-box {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: var(--surface-deep);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font: 700 12px/1.55 'SFMono-Regular', Consolas, monospace;
+  word-break: break-all;
+  white-space: pre-line;
+}
+
+.copy-ip-button {
+  width: 68px;
+  flex: 0 0 68px;
+  border: 1px solid color-mix(in srgb, var(--c-amber) 44%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--c-amber) 12%, var(--surface-raised));
+  color: var(--c-amber);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.copy-ip-button .van-icon { font-size: 17px; }
+.copy-ip-button:disabled { opacity: 0.45; }
+
+.tutorial-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 9px 2px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.tutorial-toggle > span { flex: 1; }
+.tutorial-toggle .van-icon:first-child { color: var(--c-amber); }
+
+.tutorial {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.tutorial-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.step-num {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 21px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--c-amber);
+  color: #0a0a0d;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.step-text { flex: 1; }
+
+.form-actions :deep(.van-button) {
+  height: 48px;
+  margin: 0;
+  border-radius: 14px;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.form-actions :deep(.van-button__content),
+.form-actions :deep(.van-button__text) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.test-button {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border)) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text) !important;
+}
+
+.save-button {
+  border: 0 !important;
+  background: var(--accent) !important;
+  color: var(--text-on-accent) !important;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .api-doc-card {
@@ -399,13 +675,4 @@ export default {
   color: var(--text);
 }
 
-.credential-form-page :deep(.van-button--primary) {
-  margin-top: 10px;
-  border-radius: 14px;
-  height: 48px;
-  font-weight: 700;
-  background: var(--accent);
-  color: var(--text-on-accent);
-  border: none;
-}
 </style>
