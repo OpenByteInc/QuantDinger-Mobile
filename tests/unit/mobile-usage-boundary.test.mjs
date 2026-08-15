@@ -230,6 +230,7 @@ test('signal and live configuration expose only relevant fields', () => {
 test('market, chart, and accounts provide a complete mobile path', () => {
   const market = read('src/views/market/index.vue')
   const chart = read('src/views/indicator/Chart.vue')
+  const profile = read('src/views/profile/index.vue')
   const credentials = read('src/views/profile/Credentials.vue')
 
   assert.match(market, /emptyStateTitle/)
@@ -239,6 +240,8 @@ test('market, chart, and accounts provide a complete mobile path', () => {
   assert.match(chart, /timeTicks\(\)/)
   assert.match(chart, /latestSignalLabel/)
   assert.match(chart, /ChartTradePanel/)
+  assert.match(profile, /\$router\.push\('\/profile\/credentials'\)/)
+  assert.match(profile, /profile\.credentials_sub/)
   assert.ok(credentials.indexOf('primary-list') < credentials.indexOf('Egress IP card'))
   assert.match(credentials, /credentialHealthLabel/)
 })
