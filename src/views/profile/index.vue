@@ -81,11 +81,8 @@
       <span class="menu-section-title">{{ $t('profile.section_account') }}</span>
       <div class="menu-group">
         <div class="menu-item" @click="$router.push('/profile/credentials')">
-          <div class="menu-icon c-amber"><van-icon name="exchange" /></div>
-          <div class="menu-copy">
-            <span class="label">{{ $t('profile.credentials') }}</span>
-            <span class="menu-description">{{ $t('profile.credentials_sub') }}</span>
-          </div>
+          <div class="menu-icon c-blue"><van-icon name="certificate" /></div>
+          <span class="label">{{ $t('profile.credentials') }}</span>
           <van-icon name="arrow" class="arrow" />
         </div>
         <div class="menu-item" @click="$router.push('/profile/referral')">
@@ -684,24 +681,6 @@ export default {
 .menu-icon.c-violet { background: var(--c-violet); }
 .menu-icon.c-pink   { background: var(--c-pink); }
 .menu-icon.c-slate  { background: var(--c-slate); }
-
-.menu-copy {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.menu-copy .label {
-  flex: none;
-}
-
-.menu-description {
-  color: var(--text-3);
-  font-size: 11px;
-  line-height: 1.35;
-}
 
 .label {
   flex: 1;

@@ -150,6 +150,20 @@ For static hosting, configure:
 - HTTPS for public deployments
 - OAuth redirect allowlists on the backend when OAuth login is enabled
 
+### Native remote H5 shell
+
+The native Android and iOS shells are configured to load the hosted mobile site directly:
+
+```json
+{
+  "server": {
+    "url": "https://m.quantdinger.com"
+  }
+}
+```
+
+With this mode, most Vue UI, route, copy, theme, and API-call changes go live by deploying `m.quantdinger.com`; users do not need to reinstall the APK. Rebuild the APK/IPA only for native shell changes such as Capacitor plugins, permissions, app icon, splash screen, package metadata, or store-required updates.
+
 ### Android
 
 Before building an APK for your own deployment, set the default backend in `.env.production`:

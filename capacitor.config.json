@@ -3,6 +3,7 @@
   "appName": "QuantDinger",
   "webDir": "dist",
   "server": {
+    "url": "https://m.quantdinger.com",
     "androidScheme": "https",
     "hostname": "localhost",
     "iosScheme": "https"

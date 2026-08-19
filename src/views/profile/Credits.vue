@@ -553,7 +553,7 @@ export default {
 <style scoped>
 .credits-page {
   min-height: 100vh;
-  padding: 0 0 40px;
+  padding: 0 0 calc(40px + var(--safe-area-bottom, 0px));
 }
 
 .balance-card {
@@ -731,9 +731,11 @@ export default {
 .chain-popup {
   background: var(--bg-elevated) !important;
   color: var(--text);
+  bottom: var(--shell-tabbar-height, calc(62px + var(--safe-area-bottom, 0px))) !important;
+  max-height: calc(100vh - var(--shell-tabbar-height, calc(62px + var(--safe-area-bottom, 0px))) - 24px);
 }
 .chain-sheet {
-  padding: 18px 16px 22px;
+  padding: 18px 16px calc(18px + var(--safe-area-bottom, 0px));
   position: relative;
 }
 .chain-head { margin-bottom: 14px; }
@@ -764,8 +766,9 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 50vh;
+  max-height: min(44vh, 360px);
   overflow-y: auto;
+  padding-bottom: 2px;
 }
 .chain-option {
   padding: 12px 14px;
@@ -826,6 +829,11 @@ export default {
   margin-top: 16px;
   display: flex;
   gap: 10px;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding-top: 10px;
+  background: linear-gradient(180deg, transparent 0%, var(--bg-elevated) 28%);
 }
 .chain-actions :deep(.van-button) { border-radius: 12px; }
 
@@ -833,13 +841,14 @@ export default {
 .usdt-popup {
   width: calc(100% - 40px);
   max-width: 420px;
+  max-height: calc(100vh - var(--shell-tabbar-height, calc(62px + var(--safe-area-bottom, 0px))) - 44px);
   background: var(--bg-elevated) !important;
   color: var(--text);
-  overflow: hidden;
+  overflow-y: auto;
   border: 1px solid var(--border);
 }
 .usdt-modal {
-  padding: 20px 18px 18px;
+  padding: 20px 18px calc(18px + var(--safe-area-bottom, 0px));
   color: var(--text);
 }
 .usdt-head {
@@ -977,5 +986,12 @@ export default {
   align-items: flex-start;
 }
 
-.usdt-actions { margin-top: 16px; }
+.usdt-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 16px;
+  padding-top: 10px;
+  background: linear-gradient(180deg, transparent 0%, var(--bg-elevated) 30%);
+}
 </style>

@@ -156,6 +156,20 @@ npm run preview
 - 公网环境启用了 HTTPS
 - 如果启用 OAuth，后端允许当前 H5 域名作为回跳地址
 
+### 原生 App 固定远端 H5
+
+Android 和 iOS 原生壳固定加载线上手机站：
+
+```json
+{
+  "server": {
+    "url": "https://m.quantdinger.com"
+  }
+}
+```
+
+这种模式下，Vue 页面、路由、文案、主题、接口调用等 Web 层改动，只要发布 `m.quantdinger.com` 就能让 App 用户看到更新，不需要重新下载安装 APK。只有涉及 Capacitor 插件、权限、图标、启动图、包名、系统级配置或应用商店要求时，才需要重新打 APK/IPA。
+
 ### Android
 
 如果你要打包给自己的服务器使用，先在 `.env.production` 里写好默认后端地址：
