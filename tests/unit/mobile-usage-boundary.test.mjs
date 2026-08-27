@@ -245,8 +245,8 @@ test('market, chart, and accounts provide a complete mobile path', () => {
   assert.match(chart, /latestSignalLabel/)
   assert.match(chart, /ChartTradePanel/)
   assert.match(profile, /\$router\.push\('\/profile\/credentials'\)/)
-  assert.match(profile, /profile\.credentials_sub/)
-  assert.match(profile, /name="exchange"/)
+  assert.match(profile, /profile\.credentials/)
+  assert.match(profile, /name="certificate"/)
   assert.match(credentials, /credentialHealthLabel/)
 })
 

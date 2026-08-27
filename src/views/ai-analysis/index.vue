@@ -174,7 +174,19 @@
             <span class="value up">{{ formatPrice(tradingPlan.take_profit) }}</span>
             <span class="hint">{{ $t('ai_analysis.atr_based') }}</span>
           </div>
+          <div class="price-card rr-card" :class="{ 'rr-low': hasLowRiskReward }" v-if="tradingPlan.risk_reward_ratio != null">
+            <span class="label">{{ $t('ai_analysis.risk_reward') }}</span>
+            <span class="value">1 : {{ formatNumber(tradingPlan.risk_reward_ratio, 2) }}</span>
+            <span class="hint">{{ $t('ai_analysis.rr_final_hint') }}</span>
+          </div>
         </template>
+      </div>
+      <div v-if="hasLowRiskReward" class="rr-warning">
+        <van-icon name="warning-o" />
+        <div>
+          <strong>{{ $t('ai_analysis.rr_warning_title') }}</strong>
+          <span>{{ $t('ai_analysis.rr_warning_desc') }}</span>
+        </div>
       </div>
 
       <!-- Scores -->
@@ -476,8 +488,14 @@ export default {
       return {
         entry_price: tp.entry_price ?? tp.entryPrice ?? r.entry_price,
         stop_loss: tp.stop_loss ?? tp.stopLoss ?? r.stop_loss,
-        take_profit: tp.take_profit ?? tp.takeProfit ?? r.take_profit
+        take_profit: tp.take_profit ?? tp.takeProfit ?? r.take_profit,
+        risk_reward_ratio: tp.risk_reward_ratio ?? tp.riskRewardRatio,
+        rr_warning: tp.rr_warning ?? tp.rrWarning
       }
+    },
+    hasLowRiskReward() {
+      const rr = Number(this.tradingPlan.risk_reward_ratio)
+      return Boolean(this.tradingPlan.rr_warning) || (Number.isFinite(rr) && rr >= 0 && rr < 1)
     },
     decisionText() {
       const d = String(this.result?.decision || '').toUpperCase()
@@ -1176,6 +1194,26 @@ export default {
 .price-card .delta.up { color: var(--up); }
 .price-card .delta.down { color: var(--down); }
 .price-card .hint { font-size: 10px; color: var(--text-4); }
+.price-card.rr-low {
+  border-color: rgba(245, 158, 11, 0.55);
+  background: rgba(245, 158, 11, 0.08);
+}
+.price-card.rr-low .label,
+.price-card.rr-low .value { color: #d97706; }
+.rr-warning {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid rgba(245, 158, 11, 0.48);
+  border-radius: 12px;
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.1);
+}
+.rr-warning .van-icon { margin-top: 2px; font-size: 18px; }
+.rr-warning div { display: flex; flex-direction: column; gap: 3px; }
+.rr-warning strong { font-size: 13px; }
+.rr-warning span { color: var(--text-2); font-size: 11px; line-height: 1.5; }
 
 /* Section card */
 .section-card {
