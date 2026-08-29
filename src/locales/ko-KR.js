@@ -33,7 +33,7 @@ export default {
     previous_step: '이전',
     press_again_exit: '한 번 더 누르면 앱이 종료됩니다'
   },
-  tabs: { navigation: '주 탐색', ai: 'AI', market: '마켓', chart: '차트', trade: '거래', strategy: '전략', profile: '내 정보' },
+  tabs: { navigation: '주 탐색', ai: 'AI 리서치', market: '마켓', chart: '차트', trade: '거래', strategy: '전략', profile: '내 정보' },
   chart_trade: {
     title: '빠른 거래', account: '거래 계정', select_account: '계정 선택', available: '사용 가능', market_type: '시장', position: '포지션',
     spot: '현물', swap: '무기한', buy: '매수', buy_long: '매수 / 롱', sell_short: '매도 / 숏', manage_positions: '포지션 및 주문',
@@ -788,8 +788,20 @@ export default {
     sync_fail: '동기화 실패',
     published_at: '게시일', views: '조회수', strategy_contract: '전략 실행 사양', source_controlled: '버전 관리됨',
     contract_instruments: '거래 종목', contract_market_type: '시장 유형', contract_frequency: '주기', contract_warmup: '워밍업 봉',
+    execution_mode: '실행 방식', execution_frequency: '실행 주기', confirmation_frequencies: '확인 주기', confirmation_frequency_short: '확인', none: '없음',
+    execution_mode_bar: '봉 기반', execution_mode_scheduled: '예약 실행', execution_mode_hybrid: '봉＋예약 실행',
     contract_signals: '신호 의존성', contract_data: '필수 데이터', contract_parameters: '전략 파라미터',
-    parameter_default: '기본값', parameter_range: '범위', parameter_no_range: '제한 없음', dynamic_universe: '동적 유니버스'
+    parameter_default: '기본값', parameter_range: '범위', parameter_no_range: '제한 없음', dynamic_universe: '동적 유니버스',
+    strategy_filters: '전략 필터', strategy_filters_hint: '시장, 종목 연결 및 전략 유형', reset_filters: '초기화', apply_filters: '필터 적용',
+    filter_market: '시장', filter_market_type: '상품 유형', filter_binding: '종목 연결', filter_timeframe: '주기', filter_strategy_type: '전략 유형', filter_direction: '거래 방향', filter_leverage: '레버리지',
+    filter_market_type_spot: '현물', filter_market_type_swap: '무기한 선물', filter_strategy_type_cta: '단일 종목 CTA',
+    filter_market_usstock: '미국 주식', filter_market_crypto: '암호화폐', filter_market_cnstock: '중국 A주', filter_market_hkstock: '홍콩 주식',
+    filter_binding_parameterized: '종목 변경 가능', filter_binding_fixed: '고정 종목', filter_binding_portfolio: '고정 포트폴리오', filter_binding_universe: '동적 유니버스',
+    filter_timeframe_1m: '1분', filter_timeframe_5m: '5분', filter_timeframe_15m: '15분', filter_timeframe_1h: '1시간', filter_timeframe_4h: '4시간', filter_timeframe_1d: '일봉',
+    filter_strategy_type_trend: '추세', filter_strategy_type_mean_reversion: '평균 회귀', filter_strategy_type_breakout: '돌파', filter_strategy_type_arbitrage: '차익거래', filter_strategy_type_portfolio: '포트폴리오',
+    filter_direction_long_only: '롱 전용', filter_direction_short_only: '숏 전용', filter_direction_both: '양방향', filter_direction_neutral: '중립',
+    filter_leverage_no: '레버리지 없음', filter_leverage_yes: '레버리지 지원',
+    binding_mode: '종목 모드', adaptation_title: '다른 종목용 복사본 만들기', adaptation_target: '대상 종목', adaptation_check: '호환성 확인', adaptation_create: '백테스트용 복사본 만들기', adaptation_compatible: '호환됩니다. 복사본을 만들 수 있습니다.', adaptation_incompatible: '이 종목은 호환되지 않습니다.', adaptation_backtest_required: '복사본 생성 후 라이브 실행 전에 데스크톱에서 백테스트하세요.', adaptation_created: '복사본을 만들었습니다. 먼저 백테스트하세요.'
   },
   script_strategy: {
     title: '전략 설정',

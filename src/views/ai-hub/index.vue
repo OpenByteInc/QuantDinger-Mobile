@@ -86,6 +86,14 @@
                         <span>{{ $t('ai_analysis.take_profit') }}</span>
                         <strong>{{ reportPlanValue(msg.report, 'take') }}</strong>
                       </div>
+                      <div>
+                        <span>{{ text.riskReward }}</span>
+                        <strong>{{ reportRiskReward(msg.report) }}</strong>
+                      </div>
+                    </div>
+                    <div v-if="reportHasRrWarning(msg.report)" class="report-rr-warning">
+                      <van-icon name="warning-o" />
+                      <span>{{ text.riskRewardWarning }}</span>
                     </div>
                     <div class="report-scores">
                       <span>{{ $t('ai_analysis.score_technical') }} {{ reportScore(msg.report, 'technical') }}</span>
@@ -96,6 +104,10 @@
                       <button type="button" @click="openFullReport(msg.report)">
                         <van-icon name="description" />
                         {{ $t('ai_analysis.detailed_title') }}
+                      </button>
+                      <button type="button" :disabled="!reportReferenceId(msg)" @click="askAboutReport(msg)">
+                        <van-icon name="chat-o" />
+                        {{ text.askReport }}
                       </button>
                     </div>
                   </template>
@@ -167,22 +179,6 @@
           </button>
         </div>
 
-        <div v-if="!messages.length || showQuickTools" class="quick-task-grid">
-          <button
-            v-for="task in mobileTasks"
-            :key="task.key"
-            type="button"
-            :class="['task-card', `tone-${task.tone || 'amber'}`]"
-            @click="handleTask(task)"
-          >
-            <span class="task-icon">
-              <van-icon :name="task.icon" />
-            </span>
-            <span class="task-copy">
-              <strong>{{ task.label }}</strong>
-            </span>
-          </button>
-        </div>
       </div>
 
       <div class="ask-card">
@@ -193,9 +189,36 @@
             <span>{{ context.market }}</span>
             <van-icon name="arrow-down" />
           </button>
-          <button v-if="messages.length" type="button" class="tools-inline-btn" @click="showQuickTools = !showQuickTools">
-            <van-icon name="apps-o" />
-            {{ showQuickTools ? text.hideTools : text.quickTools }}
+          <button type="button" class="professional-report-chip" :disabled="sending || !context.symbol" @click="confirmProfessionalAnalysis">
+            <van-icon name="description" />
+            {{ text.professionalReport }}
+          </button>
+          <button type="button" class="memory-status-chip" @click="openMemoryPanel">
+            <van-icon name="bulb-o" />
+            {{ memoryStatusLabel }}
+          </button>
+        </div>
+
+        <div v-if="draftReferencedReportId" class="report-reference-chip">
+          <van-icon name="link-o" />
+          <span>{{ text.reportReferenceReady }}</span>
+          <button type="button" :aria-label="text.cancelReportReference" @click="draftReferencedReportId = null">
+            <van-icon name="cross" />
+          </button>
+        </div>
+
+        <div class="research-preset-row" role="tablist" :aria-label="text.researchPresets">
+          <button
+            v-for="preset in researchPresets"
+            :key="preset.key"
+            type="button"
+            role="tab"
+            :aria-selected="composerTask?.key === preset.key ? 'true' : 'false'"
+            :class="{ active: composerTask?.key === preset.key }"
+            @click="selectResearchPreset(preset)"
+          >
+            <van-icon :name="preset.icon" />
+            {{ preset.label }}
           </button>
         </div>
 
@@ -306,6 +329,71 @@
         </div>
       </div>
     </van-popup>
+
+    <van-popup
+      v-model:show="memoryVisible"
+      position="bottom"
+      class="memory-popup"
+      :style="{ maxHeight: '78vh' }"
+      teleport="body"
+      round
+      safe-area-inset-bottom
+    >
+      <div class="memory-sheet">
+        <div class="drawer-head">
+          <span>{{ text.memoryTitle }}</span>
+          <van-icon name="cross" @click="memoryVisible = false" />
+        </div>
+        <div v-if="loadingMemory" class="drawer-loading">
+          <van-loading vertical>{{ text.loading }}</van-loading>
+        </div>
+        <template v-else>
+          <section class="memory-section">
+            <div class="memory-section-head">
+              <div>
+                <strong>{{ text.sessionMemory }}</strong>
+                <small>{{ text.sessionMemoryHint }}</small>
+              </div>
+              <button v-if="sessionId" type="button" @click="clearCurrentSessionMemory">{{ text.clearMemory }}</button>
+            </div>
+            <div v-if="hasSessionMemory" class="memory-summary-grid">
+              <div><span>{{ text.memoryTarget }}</span><strong>{{ sessionMemoryTarget }}</strong></div>
+              <div><span>{{ text.memoryWorkflow }}</span><strong>{{ sessionMemoryWorkflow }}</strong></div>
+            </div>
+            <div v-if="sessionMemoryConstraints.length" class="memory-constraints">
+              <span v-for="item in sessionMemoryConstraints" :key="item">{{ item }}</span>
+            </div>
+            <div v-if="latestContextUsage" class="context-usage-grid">
+              <div><span>{{ text.inputTokens }}</span><strong>{{ latestContextUsage.estimated_input_tokens || 0 }}</strong></div>
+              <div><span>{{ text.historyCount }}</span><strong>{{ latestContextUsage.history_message_count || 0 }}</strong></div>
+              <div><span>{{ text.memoryCount }}</span><strong>{{ latestContextUsage.memory_count || 0 }}</strong></div>
+              <div><span>{{ text.contextState }}</span><strong>{{ latestContextUsage.context_truncated ? text.contextCompacted : text.contextNormal }}</strong></div>
+            </div>
+            <div v-if="!hasSessionMemory && !latestContextUsage" class="memory-empty">{{ text.sessionMemoryEmpty }}</div>
+          </section>
+
+          <section class="memory-section">
+            <div class="memory-section-head">
+              <div>
+                <strong>{{ text.longTermMemory }}</strong>
+                <small>{{ text.longTermMemoryHint }}</small>
+              </div>
+            </div>
+            <div v-if="!userMemories.length" class="memory-empty">{{ text.longTermMemoryEmpty }}</div>
+            <div v-else class="long-term-memory-list">
+              <div v-for="item in userMemories" :key="item.id" class="long-term-memory-item">
+                <input v-model="item.title" :aria-label="text.memoryTitleField">
+                <textarea v-model="item.content" rows="2" :aria-label="text.memoryContentField"></textarea>
+                <div>
+                  <button type="button" @click="saveMemory(item)">{{ text.saveMemory }}</button>
+                  <button type="button" class="danger" @click="removeMemory(item)">{{ text.deleteMemory }}</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </template>
+      </div>
+    </van-popup>
   </div>
 </template>
 
@@ -327,8 +415,45 @@ const COPY = {
     emptyDesc: '把行情、策略和交易研究交给 AI Copilot。',
     placeholder: '例如：帮我诊断 BTC/USDT 1 小时趋势，或者上传 K 线图问是否适合开仓...',
     uploadImage: '上传图片',
-    quickTools: '快捷工具',
-    hideTools: '收起工具',
+    professionalReport: '专业分析报告',
+    researchPresets: '研究预设',
+    presetMarket: '市场研究',
+    presetDiagnosis: '标的诊断',
+    presetTechnical: '技术分析',
+    presetPlan: '交易计划',
+    presetNews: '新闻事件',
+    presetMacro: '宏观数据',
+    askReport: '追问报告',
+    reportReferenceReady: '下一条问题将引用当前专业报告',
+    cancelReportReference: '取消引用报告',
+    riskReward: '风险收益比',
+    riskRewardWarning: '风险收益比低于 1，请重点检查止盈止损计划。',
+    memoryTitle: '对话记忆',
+    sessionMemory: '本对话记忆',
+    sessionMemoryHint: '自动压缩任务状态，不会重复发送完整聊天记录。',
+    sessionMemoryEmpty: '发送第一条消息后会开始形成本对话记忆。',
+    clearMemory: '清除',
+    memoryTarget: '当前标的',
+    memoryWorkflow: '当前任务',
+    inputTokens: '输入 Token（估算）',
+    historyCount: '带入历史消息',
+    memoryCount: '长期记忆条数',
+    contextState: '上下文状态',
+    contextNormal: '正常',
+    contextCompacted: '已压缩',
+    longTermMemory: '长期偏好',
+    longTermMemoryHint: '只使用你确认保存的偏好和限制。',
+    longTermMemoryEmpty: '尚未保存长期偏好。',
+    memoryTitleField: '记忆标题',
+    memoryContentField: '记忆内容',
+    saveMemory: '保存',
+    deleteMemory: '删除',
+    memorySaved: '记忆已保存',
+    memoryDeleted: '记忆已删除',
+    memoryCleared: '本对话记忆已清除，聊天记录仍保留',
+    reportConfirmTitle: '生成专业分析报告？',
+    reportConfirmAction: '开始生成',
+    reportConfirmDetail: '标的：{target} · 周期：1D · 预计 30–90 秒 · 预计消耗 {cost} 积分',
     copy: '复制',
     copied: '已复制',
     copyFailed: '复制失败',
@@ -375,8 +500,45 @@ const COPY = {
     emptyDesc: '把行情、策略和交易研究交給 AI Copilot。',
     placeholder: '例如：幫我診斷 BTC/USDT 1 小時趨勢，或上傳 K 線圖問是否適合開倉...',
     uploadImage: '上傳圖片',
-    quickTools: '快捷工具',
-    hideTools: '收起工具',
+    professionalReport: '專業分析報告',
+    researchPresets: '研究預設',
+    presetMarket: '市場研究',
+    presetDiagnosis: '標的診斷',
+    presetTechnical: '技術分析',
+    presetPlan: '交易計畫',
+    presetNews: '新聞事件',
+    presetMacro: '宏觀資料',
+    askReport: '追問報告',
+    reportReferenceReady: '下一條問題將引用目前專業報告',
+    cancelReportReference: '取消引用報告',
+    riskReward: '風險報酬比',
+    riskRewardWarning: '風險報酬比低於 1，請重點檢查止盈止損計畫。',
+    memoryTitle: '對話記憶',
+    sessionMemory: '本對話記憶',
+    sessionMemoryHint: '自動壓縮任務狀態，不會重複傳送完整聊天記錄。',
+    sessionMemoryEmpty: '傳送第一條訊息後會開始形成本對話記憶。',
+    clearMemory: '清除',
+    memoryTarget: '目前標的',
+    memoryWorkflow: '目前任務',
+    inputTokens: '輸入 Token（估算）',
+    historyCount: '帶入歷史訊息',
+    memoryCount: '長期記憶數量',
+    contextState: '上下文狀態',
+    contextNormal: '正常',
+    contextCompacted: '已壓縮',
+    longTermMemory: '長期偏好',
+    longTermMemoryHint: '只使用你確認儲存的偏好和限制。',
+    longTermMemoryEmpty: '尚未儲存長期偏好。',
+    memoryTitleField: '記憶標題',
+    memoryContentField: '記憶內容',
+    saveMemory: '儲存',
+    deleteMemory: '刪除',
+    memorySaved: '記憶已儲存',
+    memoryDeleted: '記憶已刪除',
+    memoryCleared: '本對話記憶已清除，聊天記錄仍保留',
+    reportConfirmTitle: '生成專業分析報告？',
+    reportConfirmAction: '開始生成',
+    reportConfirmDetail: '標的：{target} · 週期：1D · 預計 30–90 秒 · 預計消耗 {cost} 積分',
     copy: '複製',
     copied: '已複製',
     copyFailed: '複製失敗',
@@ -423,8 +585,45 @@ const COPY = {
     emptyDesc: 'Let AI Copilot handle market diagnosis, strategy thinking, and trade research.',
     placeholder: 'Example: diagnose BTC/USDT 1H trend, or upload a chart and ask whether entry risk is acceptable...',
     uploadImage: 'Upload image',
-    quickTools: 'Quick tools',
-    hideTools: 'Hide tools',
+    professionalReport: 'Professional report',
+    researchPresets: 'Research presets',
+    presetMarket: 'Market research',
+    presetDiagnosis: 'Symbol diagnosis',
+    presetTechnical: 'Technical analysis',
+    presetPlan: 'Trade plan',
+    presetNews: 'News & events',
+    presetMacro: 'Macro data',
+    askReport: 'Ask about report',
+    reportReferenceReady: 'Your next question will reference this professional report',
+    cancelReportReference: 'Remove report reference',
+    riskReward: 'Risk/reward',
+    riskRewardWarning: 'Risk/reward is below 1. Review the stop and target plan.',
+    memoryTitle: 'Conversation memory',
+    sessionMemory: 'This conversation',
+    sessionMemoryHint: 'Task state is compacted instead of resending the full transcript.',
+    sessionMemoryEmpty: 'Memory will start after the first message.',
+    clearMemory: 'Clear',
+    memoryTarget: 'Current target',
+    memoryWorkflow: 'Current task',
+    inputTokens: 'Input tokens (estimate)',
+    historyCount: 'History messages',
+    memoryCount: 'Long-term memories',
+    contextState: 'Context status',
+    contextNormal: 'Normal',
+    contextCompacted: 'Compacted',
+    longTermMemory: 'Long-term preferences',
+    longTermMemoryHint: 'Only preferences and constraints you confirmed are used.',
+    longTermMemoryEmpty: 'No long-term preferences saved yet.',
+    memoryTitleField: 'Memory title',
+    memoryContentField: 'Memory content',
+    saveMemory: 'Save',
+    deleteMemory: 'Delete',
+    memorySaved: 'Memory saved',
+    memoryDeleted: 'Memory deleted',
+    memoryCleared: 'Conversation memory cleared; transcript kept',
+    reportConfirmTitle: 'Generate professional report?',
+    reportConfirmAction: 'Generate',
+    reportConfirmDetail: 'Target: {target} · Timeframe: 1D · About 30–90 seconds · Estimated cost: {cost} credits',
     copy: 'Copy',
     copied: 'Copied',
     copyFailed: 'Copy failed',
@@ -471,8 +670,6 @@ const COPY = {
     emptyDesc: '相場、戦略、取引リサーチを AI Copilot に任せましょう。',
     placeholder: '例：BTC/USDT の1時間足を診断、またはチャート画像をアップロードしてエントリー可否を確認...',
     uploadImage: '画像',
-    quickTools: 'クイックツール',
-    hideTools: 'ツールを閉じる',
     copy: 'コピー',
     copied: 'コピーしました',
     copyFailed: 'コピーに失敗しました',
@@ -519,8 +716,6 @@ const COPY = {
     emptyDesc: '시장, 전략, 거래 리서치를 AI Copilot에게 맡기세요.',
     placeholder: '예: BTC/USDT 1시간 추세를 진단하거나 차트 이미지를 올려 진입 가능성을 확인...',
     uploadImage: '이미지',
-    quickTools: '빠른 도구',
-    hideTools: '도구 닫기',
     copy: '복사',
     copied: '복사됨',
     copyFailed: '복사 실패',
@@ -576,9 +771,14 @@ export default {
       sessions: [],
       loadingSessions: false,
       deletingSessionId: null,
-      showQuickTools: false,
       showHistoryDrawer: false,
       showSymbolPicker: false,
+      memoryVisible: false,
+      loadingMemory: false,
+      sessionMemory: { summary: {}, recent_requests: [], version: 0 },
+      userMemories: [],
+      contextUsage: null,
+      draftReferencedReportId: null,
       isComposerComposing: false,
       composerTask: null
     }
@@ -586,19 +786,50 @@ export default {
   computed: {
     text() {
       const locale = this.$i18n?.locale || 'zh-CN'
-      return COPY[locale] || COPY[locale.split('-')[0]] || COPY['en-US']
+      return {
+        ...COPY['en-US'],
+        ...(COPY[locale] || COPY[locale.split('-')[0]] || {})
+      }
     },
     canSend() {
       return Boolean((this.composer || '').trim() || this.attachments.length)
     },
-    mobileTasks() {
+    sessionMemorySummary() {
+      return this.sessionMemory?.summary?.summary || this.sessionMemory?.summary || {}
+    },
+    hasSessionMemory() {
+      return Boolean(Object.keys(this.sessionMemorySummary || {}).length)
+    },
+    sessionMemoryTarget() {
+      const target = this.sessionMemorySummary?.selected_target || {}
+      return [target.market, target.symbol].filter(Boolean).join(':') || '--'
+    },
+    sessionMemoryWorkflow() {
+      return this.sessionMemorySummary?.active_workflow || '--'
+    },
+    sessionMemoryConstraints() {
+      return Array.isArray(this.sessionMemorySummary?.stable_constraints)
+        ? this.sessionMemorySummary.stable_constraints.slice(0, 6)
+        : []
+    },
+    latestContextUsage() {
+      return this.contextUsage || this.sessionMemory?.recent_requests?.[0] || null
+    },
+    memoryStatusLabel() {
+      const summary = this.sessionMemorySummary || {}
+      const symbol = summary?.selected_target?.symbol
+      const workflow = summary?.active_workflow
+      if (symbol || workflow) return [symbol, workflow].filter(Boolean).join(' · ')
+      return this.text.memoryTitle
+    },
+    researchPresets() {
       return [
-        { key: 'diagnose', icon: 'chart-trending-o', label: this.text.taskDiagnose, desc: this.text.taskDiagnoseDesc, mode: 'analysis', tone: 'amber' },
-        { key: 'chart', icon: 'photo-o', label: this.text.taskChart, desc: this.text.taskChartDesc, mode: 'image', tone: 'blue' },
-        { key: 'news', icon: 'description', label: this.text.taskNews, desc: this.text.taskNewsDesc, mode: 'chat', tone: 'violet' },
-        { key: 'macro', icon: 'bar-chart-o', label: this.text.taskMacro, desc: this.text.taskMacroDesc, mode: 'chat', tone: 'cyan' },
-        { key: 'radar', icon: 'location-o', label: this.text.taskRadar, desc: this.text.taskRadarDesc, mode: 'chat', tone: 'rose' },
-        { key: 'analysis-history', icon: 'clock-o', label: this.$t('ai_analysis.history_title'), mode: 'route', route: '/ai-analysis/history', tone: 'indigo' }
+        { key: 'research', label: this.text.presetMarket, icon: 'globe-o' },
+        { key: 'diagnose', label: this.text.presetDiagnosis, icon: 'chart-trending-o' },
+        { key: 'technical', label: this.text.presetTechnical, icon: 'bar-chart-o' },
+        { key: 'plan', label: this.text.presetPlan, icon: 'orders-o' },
+        { key: 'news', label: this.text.presetNews, icon: 'newspaper-o' },
+        { key: 'macro', label: this.text.presetMacro, icon: 'balance-list-o' }
       ]
     },
     examples() {
@@ -753,20 +984,31 @@ export default {
       const isZh = locale.startsWith('zh')
       const prompts = isZh
         ? {
-            diagnose: `请诊断 ${label}。从趋势、量能、支撑阻力、资金面、风险回报比和失效条件给出可执行判断。`,
+          diagnose: `请诊断 ${label}。从趋势、量能、支撑阻力、资金面、风险回报比和失效条件给出可执行判断。`,
+            research: `请研究 ${label} 当前市场状态：数据截止时间、趋势、相对强弱、主要驱动、风险和值得继续验证的问题。`,
+            technical: `请对 ${label} 做技术分析：趋势结构、动量、成交量、支撑阻力、多周期确认和失效条件。`,
+            plan: `请为 ${label} 制定一份非强制的交易计划：方向、触发条件、入场、止损、止盈、风险收益比、仓位风险和观望条件。`,
             chart: '我会上传一张 K 线图。请结合图形结构、趋势位置、量能、支撑阻力和风险回报比，判断目前是否适合进场，并给出止损、止盈和失效条件。',
             news: `请检索 ${label} 最近的新闻和事件，优先使用可靠且最新的来源，区分事实、市场解读和不确定性。`,
             macro: `请检查 CPI、FOMC、利率、GDP、PCE、就业、流动性等宏观数据，说明对 ${label} 的潜在影响和关键风险。`,
             radar: `请扫描 ${label} 未来 24 小时可能出现的机会，重点给出触发条件、确认信号、失效位和主要风险。`
           }
         : {
-            diagnose: `Diagnose ${label}: trend, momentum, support/resistance, liquidity, risk/reward, and invalidation.`,
+          diagnose: `Diagnose ${label}: trend, momentum, support/resistance, liquidity, risk/reward, and invalidation.`,
+            research: `Research ${label}: data cutoff, market regime, relative strength, key drivers, risks, and questions that still need verification.`,
+            technical: `Analyze ${label} technically: structure, momentum, volume, support/resistance, multi-timeframe confirmation, and invalidation.`,
+            plan: `Build a non-mandatory trade plan for ${label}: direction, triggers, entry, stop, targets, risk/reward, position risk, and when to wait.`,
             chart: 'I will upload a chart image. Judge structure, trend, volume, support/resistance, risk/reward, entry, stop loss, take profit, and invalidation.',
             news: `Search recent news and events for ${label}. Prioritize reliable recent sources and separate facts, interpretation, and uncertainty.`,
             macro: `Analyze the macro backdrop for ${label}: CPI, FOMC, rates, GDP, PCE, employment, liquidity, and market impact.`,
             radar: `Scan ${label} for likely opportunities in the next 24 hours, with triggers, confirmation, invalidation, and risks.`
           }
       return prompts[task.key] || prompts.diagnose
+    },
+    selectResearchPreset(preset) {
+      if (!preset?.key) return
+      this.composer = this.taskPrompt(preset)
+      this.composerTask = preset
     },
     handleComposerCompositionStart() {
       this.isComposerComposing = true
@@ -787,23 +1029,6 @@ export default {
       event.preventDefault()
       this.sendMessage()
     },
-    handleTask(task) {
-      if (task.mode === 'route' && task.route) {
-        this.$router.push(task.route)
-        return
-      }
-      if (task.mode === 'analysis') {
-        this.runProfessionalAnalysis()
-        return
-      }
-      this.composer = this.taskPrompt(task)
-      this.composerTask = task
-      if (task.mode === 'image') {
-        this.triggerImageUpload()
-        return
-      }
-      if (this.messages.length) this.showQuickTools = false
-    },
     async sendMessage() {
       if (!this.canSend || this.sending) {
         if (!this.canSend) showToast({ message: this.text.promptNeeded, type: 'fail' })
@@ -812,6 +1037,7 @@ export default {
       const content = (this.composer || '').trim()
       const outboundAttachments = this.attachments.slice()
       const task = this.composerTask
+      const referencedReportId = this.draftReferencedReportId
       this.composerTask = null
       const userMsg = {
         localId: `u-${Date.now()}`,
@@ -844,12 +1070,15 @@ export default {
             message: content,
             attachments: outboundAttachments,
             language: this.$i18n?.locale || 'zh-CN',
+            referenced_report_id: referencedReportId || null,
             context: {
               ...this.buildChatContext(),
               selected_task: task?.key || null
             }
           }
           await this.sendMessageReliable(payload, pendingMsg)
+          if (this.draftReferencedReportId === referencedReportId) this.draftReferencedReportId = null
+          await this.loadSessionMemory()
         }
       } catch (err) {
         if (pendingMsg.reportLoading) {
@@ -916,6 +1145,9 @@ export default {
           if (event === 'accepted' || event === 'meta') {
             streamAccepted = true
             this.sessionId = data?.session_id || this.sessionId
+            if (data?.context_usage || data?.contextUsage) {
+              this.contextUsage = data.context_usage || data.contextUsage
+            }
             return
           }
           if (['delta', 'message', 'content'].includes(event)) {
@@ -953,6 +1185,9 @@ export default {
             streamAccepted = true
             this.sessionId = data?.session_id || this.sessionId
             this.updatePendingMessage(pendingMsg, { id: data?.message_id || pendingMsg.id })
+            if (data?.context_usage || data?.contextUsage) {
+              this.contextUsage = data.context_usage || data.contextUsage
+            }
             const finalText = this.extractStreamText(data)
             if (finalText && !hasContent) {
               this.updatePendingMessage(pendingMsg, { content: '', loading: false })
@@ -1019,6 +1254,9 @@ export default {
       if (!reply) throw new Error(this.text.generateFailed)
 
       this.sessionId = data.session_id || this.sessionId
+      if (data.context_usage || data.contextUsage) {
+        this.contextUsage = data.context_usage || data.contextUsage
+      }
       this.updatePendingMessage(pendingMsg, {
         id: data.message_id || pendingMsg.id,
         content: '',
@@ -1172,6 +1410,36 @@ export default {
         return null
       }
     },
+    async confirmProfessionalAnalysis() {
+      if (this.sending) return
+      const target = this.analysisTarget()
+      if (!target.symbol) {
+        showToast({ message: this.$t('ai_analysis.symbol_placeholder'), type: 'fail' })
+        return
+      }
+      let cost = 10
+      try {
+        const res = await aiChatApi.getPreflight()
+        const data = res?.data || {}
+        const costs = data.costs || data.feature_costs || data.billing?.feature_costs || {}
+        cost = Number(costs.analysis || costs.ai_analysis || costs.fast_analysis || cost)
+      } catch (_) {}
+      const detail = this.text.reportConfirmDetail
+        .replace('{target}', `${target.market}:${target.symbol}`)
+        .replace('{cost}', String(cost))
+      try {
+        await showConfirmDialog({
+          title: this.text.reportConfirmTitle,
+          message: detail,
+          confirmButtonText: this.text.reportConfirmAction,
+          cancelButtonText: this.text.cancel,
+          confirmButtonColor: '#52c41a'
+        })
+      } catch (_) {
+        return
+      }
+      await this.runProfessionalAnalysis(target)
+    },
     async runProfessionalAnalysis(targetOverride = null) {
       if (this.sending) return
       const target = { ...this.analysisTarget(), ...(targetOverride || {}) }
@@ -1194,7 +1462,6 @@ export default {
       }
       this.messages.push(userMsg, assistantMsg)
       this.composer = ''
-      this.showQuickTools = false
       this.sending = true
       this.scrollToBottom()
       try {
@@ -1296,6 +1563,36 @@ export default {
       }
       return this.formatReportNumber(map[type])
     },
+    reportRiskReward(report) {
+      const plan = report?.trading_plan || report?.tradingPlan || {}
+      const value = plan.risk_reward_ratio ?? plan.riskRewardRatio
+      if (value === '' || value == null || !Number.isFinite(Number(value))) return '--'
+      return Number(value).toFixed(2)
+    },
+    reportHasRrWarning(report) {
+      const plan = report?.trading_plan || report?.tradingPlan || {}
+      const value = plan.risk_reward_ratio ?? plan.riskRewardRatio
+      const hasRatio = value !== '' && value != null && Number.isFinite(Number(value))
+      return Boolean(plan.rr_warning ?? plan.rrWarning) || (hasRatio && Number(value) < 1)
+    },
+    reportReferenceId(message) {
+      const value = Number(message?.id)
+      return Number.isInteger(value) && value > 0 ? value : null
+    },
+    askAboutReport(message) {
+      const reportId = this.reportReferenceId(message)
+      if (!reportId) return
+      const report = message?.report || {}
+      const target = message?.reportTarget || {}
+      this.context.market = report.market || target.market || this.context.market
+      this.context.symbol = report.symbol || target.symbol || this.context.symbol
+      this.context.timeframe = report.timeframe || target.timeframe || this.context.timeframe
+      this.draftReferencedReportId = reportId
+      const label = [this.context.market, this.context.symbol].filter(Boolean).join(':')
+      this.composer = (this.$i18n?.locale || '').startsWith('zh')
+        ? `基于 ${label} 的专业分析报告，请进一步说明：`
+        : `Based on the professional report for ${label}, explain further: `
+    },
     reportScore(report, key) {
       const scores = report?.scores || {}
       return this.formatReportNumber(scores[key], 0)
@@ -1379,8 +1676,15 @@ export default {
           report: msg.report || null,
           reportTarget: msg.reportTarget || null,
           reportError: msg.reportError || '',
-          reportErrorTone: msg.reportErrorTone || ''
+          reportErrorTone: msg.reportErrorTone || '',
+          referencedReportId: msg.referenced_report_id || msg.referencedReportId || null
         }))
+        this.sessionMemory = res.data?.session?.summary
+          ? { summary: res.data.session.summary, recent_requests: [], version: res.data.session.summary_version || 0 }
+          : { summary: {}, recent_requests: [], version: 0 }
+        this.contextUsage = null
+        this.draftReferencedReportId = null
+        await this.loadSessionMemory()
         this.showHistoryDrawer = false
         this.scrollToBottom()
       } catch (err) {
@@ -1406,6 +1710,9 @@ export default {
         if (Number(this.sessionId) === Number(session.id)) {
           this.sessionId = null
           this.messages = []
+          this.sessionMemory = { summary: {}, recent_requests: [], version: 0 }
+          this.contextUsage = null
+          this.draftReferencedReportId = null
         }
         showToast({ message: this.text.deleteSessionSuccess, type: 'success' })
       } catch (err) {
@@ -1418,6 +1725,81 @@ export default {
       this.context.market = item.market || 'Crypto'
       this.context.symbol = item.symbol || this.context.symbol
       this.showSymbolPicker = false
+    },
+    async loadSessionMemory() {
+      if (!this.sessionId) {
+        this.sessionMemory = { summary: {}, recent_requests: [], version: 0 }
+        return
+      }
+      try {
+        const res = await aiChatApi.getSessionMemory(this.sessionId)
+        this.sessionMemory = res?.data || { summary: {}, recent_requests: [], version: 0 }
+        this.contextUsage = this.sessionMemory?.recent_requests?.[0] || this.contextUsage
+      } catch (_) {
+        this.sessionMemory = { summary: {}, recent_requests: [], version: 0 }
+      }
+    },
+    async loadUserMemory() {
+      try {
+        const res = await aiChatApi.getUserMemory()
+        this.userMemories = (res?.data || []).map((item) => ({ ...item }))
+      } catch (_) {
+        this.userMemories = []
+      }
+    },
+    async openMemoryPanel() {
+      this.memoryVisible = true
+      this.loadingMemory = true
+      try {
+        await Promise.all([this.loadSessionMemory(), this.loadUserMemory()])
+      } finally {
+        this.loadingMemory = false
+      }
+    },
+    async clearCurrentSessionMemory() {
+      if (!this.sessionId) return
+      try {
+        await aiChatApi.clearSessionMemory(this.sessionId)
+        this.sessionMemory = { summary: {}, recent_requests: [], version: Number(this.sessionMemory?.version || 0) + 1 }
+        this.contextUsage = null
+        showToast({ message: this.text.memoryCleared, type: 'success' })
+      } catch (err) {
+        showToast({ message: err?.message || this.text.generateFailed, type: 'fail' })
+      }
+    },
+    async saveMemory(item) {
+      if (!item?.id || !String(item.title || '').trim() || !String(item.content || '').trim()) return
+      try {
+        await aiChatApi.updateUserMemory(item.id, {
+          title: String(item.title).trim(),
+          content: String(item.content).trim(),
+          category: item.category || 'preference'
+        })
+        showToast({ message: this.text.memorySaved, type: 'success' })
+      } catch (err) {
+        showToast({ message: err?.message || this.text.generateFailed, type: 'fail' })
+      }
+    },
+    async removeMemory(item) {
+      if (!item?.id) return
+      try {
+        await showConfirmDialog({
+          title: this.text.deleteMemory,
+          message: item.title || item.content,
+          confirmButtonText: this.text.deleteMemory,
+          cancelButtonText: this.text.cancel,
+          confirmButtonColor: '#ef4444'
+        })
+      } catch (_) {
+        return
+      }
+      try {
+        await aiChatApi.deleteUserMemory(item.id)
+        this.userMemories = this.userMemories.filter((memory) => Number(memory.id) !== Number(item.id))
+        showToast({ message: this.text.memoryDeleted, type: 'success' })
+      } catch (err) {
+        showToast({ message: err?.message || this.text.generateFailed, type: 'fail' })
+      }
     },
     scrollToBottom() {
       this.$nextTick(() => {
@@ -1532,7 +1914,7 @@ export default {
 .context-chip {
   max-width: 100%;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 100%;
   height: 31px;
   box-sizing: border-box;
   display: inline-flex;
@@ -1549,6 +1931,7 @@ export default {
 
 .composer-top-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -1569,24 +1952,103 @@ export default {
   font-size: 11px;
 }
 
-.tools-inline-btn {
+.professional-report-chip,
+.memory-status-chip {
   height: 34px;
   box-sizing: border-box;
-  flex-shrink: 0;
+  min-width: 0;
+  flex: 1 1 calc(50% - 4px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, #a78bfa 34%, var(--border));
-  color: #c4b5fd;
-  background:
-    linear-gradient(135deg, rgba(167, 139, 250, 0.14), rgba(56, 189, 248, 0.06)),
-    var(--surface-raised);
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
   font-size: 11px;
   font-weight: 900;
   line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.professional-report-chip {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-raised));
+}
+
+.memory-status-chip {
+  color: var(--text-2);
+}
+
+.professional-report-chip:disabled {
+  opacity: 0.5;
+}
+
+.report-reference-chip {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 2px 0 6px;
+  padding: 5px 9px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.report-reference-chip span {
+  min-width: 0;
+  flex: 1;
+}
+
+.report-reference-chip button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+}
+
+.research-preset-row {
+  display: flex;
+  gap: 6px;
+  margin: 4px -2px 5px;
+  padding: 1px 2px 3px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.research-preset-row::-webkit-scrollbar {
+  display: none;
+}
+
+.research-preset-row button {
+  min-height: 30px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-2);
+  background: var(--surface-raised);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.research-preset-row button.active {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .ask-card textarea {
@@ -1614,106 +2076,10 @@ export default {
   margin-bottom: 8px;
 }
 
-.task-copy em,
 .session-row em {
   font-style: normal;
   color: var(--text-3);
   font-size: 11px;
-}
-
-.quick-task-grid {
-  display: flex;
-  gap: 7px;
-  overflow-x: auto;
-  padding: 0 0 6px;
-  margin: 4px -2px 6px;
-  scrollbar-width: none;
-}
-
-.quick-task-grid::-webkit-scrollbar {
-  display: none;
-}
-
-.task-card {
-  min-width: 116px;
-  min-height: 44px;
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  padding: 5px 9px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface-raised) 78%, transparent);
-  text-align: left;
-  flex-shrink: 0;
-}
-
-.task-card:active {
-  border-color: var(--tone);
-  background: color-mix(in srgb, var(--tone) 13%, var(--surface-raised));
-}
-
-.task-icon {
-  width: 21px;
-  height: 21px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--tone);
-  background: color-mix(in srgb, var(--tone) 18%, transparent);
-  font-size: 14px;
-}
-
-.task-card.tone-amber {
-  --tone: #f5b51b;
-}
-
-.task-card.tone-blue {
-  --tone: #38bdf8;
-}
-
-.task-card.tone-green {
-  --tone: #34d399;
-}
-
-.task-card.tone-violet {
-  --tone: #a78bfa;
-}
-
-.task-card.tone-indigo {
-  --tone: #818cf8;
-}
-
-.task-card.tone-cyan {
-  --tone: #22d3ee;
-}
-
-.task-card.tone-rose {
-  --tone: #fb7185;
-}
-
-.task-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.task-copy strong {
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 900;
-  white-space: nowrap;
-}
-
-.task-copy em {
-  line-height: 1.35;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .chat-panel {
@@ -1974,21 +2340,16 @@ export default {
 .report-plan {
   margin: 0 0 10px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 14px;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--surface-deep) 78%, transparent);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .report-plan div {
   min-width: 0;
   padding: 9px 8px;
-  border-right: 1px solid var(--border);
-}
-
-.report-plan div:last-child {
-  border-right: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-deep) 78%, transparent);
 }
 
 .report-plan span,
@@ -2010,6 +2371,20 @@ export default {
   white-space: nowrap;
 }
 
+.report-rr-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: -2px 0 10px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.26);
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.09);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .report-scores {
   margin: 0 0 12px;
   display: flex;
@@ -2027,7 +2402,8 @@ export default {
 
 .report-actions {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
   padding: 0;
 }
 
@@ -2050,6 +2426,10 @@ export default {
 .report-actions button:active {
   border-color: color-mix(in srgb, var(--report-tone, #fbbf24) 42%, var(--border));
   color: var(--report-tone, #fbbf24);
+}
+
+.report-actions button:disabled {
+  opacity: 0.46;
 }
 
 .bubble p {
@@ -2371,8 +2751,176 @@ export default {
 }
 
 .history-popup :deep(.van-popup),
+.memory-popup :deep(.van-popup),
 .recommend-popup :deep(.van-popup) {
   background: var(--bg-elevated);
+}
+
+.memory-sheet {
+  max-height: 78vh;
+  overflow-y: auto;
+  border-radius: 20px 20px 0 0;
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+.memory-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.memory-section:last-child {
+  border-bottom: 0;
+}
+
+.memory-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.memory-section-head > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.memory-section-head strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.memory-section-head small {
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.memory-section-head > button,
+.long-term-memory-item button {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-radius: 9px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.memory-summary-grid,
+.context-usage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.memory-summary-grid > div,
+.context-usage-grid > div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+
+.memory-summary-grid span,
+.context-usage-grid span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-3);
+  font-size: 10px;
+}
+
+.memory-summary-grid strong,
+.context-usage-grid strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memory-constraints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.memory-constraints span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: var(--text-2);
+  background: var(--surface-raised);
+  font-size: 10px;
+}
+
+.context-usage-grid {
+  margin-top: 8px;
+}
+
+.memory-empty {
+  padding: 18px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--text-3);
+  background: var(--surface-raised);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.long-term-memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.long-term-memory-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface-raised);
+}
+
+.long-term-memory-item input,
+.long-term-memory-item textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: none;
+  color: var(--text);
+  background: var(--bg-elevated);
+  font: inherit;
+  font-size: 12px;
+}
+
+.long-term-memory-item textarea {
+  min-height: 64px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.long-term-memory-item > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.long-term-memory-item button.danger {
+  border-color: rgba(251, 113, 133, 0.3);
+  color: #fb7185;
+  background: rgba(251, 113, 133, 0.09);
 }
 
 .drawer-page {

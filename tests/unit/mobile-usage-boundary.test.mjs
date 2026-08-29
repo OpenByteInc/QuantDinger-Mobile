@@ -273,6 +273,26 @@ test('AI composer stays at the bottom and uses a text send action', () => {
   assert.match(aiHub, /event === 'warning'[\s\S]*streamWarning/)
 })
 
+test('AI Copilot aligns desktop and mobile research controls without duplicate quick tools', () => {
+  const aiHub = read('src/views/ai-hub/index.vue')
+  const api = read('src/api/index.js')
+
+  assert.doesNotMatch(aiHub, /showQuickTools|quick-task-grid|tools-inline-btn|text\.quickTools/)
+  assert.match(aiHub, /class="research-preset-row"/)
+  assert.match(aiHub, /presetMarket:[\s\S]*presetDiagnosis:[\s\S]*presetTechnical:[\s\S]*presetPlan:[\s\S]*presetNews:[\s\S]*presetMacro:/)
+  assert.match(aiHub, /selectResearchPreset\(preset\)/)
+  assert.match(aiHub, /class="professional-report-chip"[\s\S]*@click="confirmProfessionalAnalysis"/)
+  assert.match(aiHub, /class="memory-status-chip"[\s\S]*@click="openMemoryPanel"/)
+  assert.match(aiHub, /referenced_report_id: referencedReportId \|\| null/)
+  assert.match(aiHub, /context_usage \|\| data\?\.contextUsage/)
+  assert.match(aiHub, /reportRiskReward\(msg\.report\)/)
+  assert.match(aiHub, /reportHasRrWarning\(msg\.report\)/)
+  assert.doesNotMatch(aiHub, /copilot_recent_messages|user_memories/)
+  assert.match(api, /getSessionMemory: \(sessionId\) => http\.get\(`\/api\/ai\/chat\/sessions\/\$\{sessionId\}\/memory`\)/)
+  assert.match(api, /clearSessionMemory: \(sessionId\) => http\.delete\(`\/api\/ai\/chat\/sessions\/\$\{sessionId\}\/memory`\)/)
+  assert.match(api, /getUserMemory:[\s\S]*\/api\/ai\/memory/)
+})
+
 test('signal chart supports mobile history navigation and candle inspection', () => {
   const chart = read('src/views/indicator/Chart.vue')
 

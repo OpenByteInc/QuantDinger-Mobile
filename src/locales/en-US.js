@@ -33,7 +33,7 @@ export default {
     previous_step: 'Previous',
     press_again_exit: 'Press back again to exit'
   },
-  tabs: { navigation: 'Primary navigation', ai: 'AI', market: 'Market', chart: 'Chart', trade: 'Trade', strategy: 'Bots', profile: 'Profile' },
+  tabs: { navigation: 'Primary navigation', ai: 'Research', market: 'Market', chart: 'Chart', trade: 'Trade', strategy: 'Bots', profile: 'Profile' },
   chart_trade: {
     title: 'Quick Trade', account: 'Trading account', select_account: 'Select account', available: 'Available', market_type: 'Market', position: 'Positions',
     spot: 'Spot', swap: 'Perpetual', buy: 'Buy', buy_long: 'Buy / Long', sell_short: 'Sell / Short', manage_positions: 'Positions & orders',
@@ -64,7 +64,7 @@ export default {
     workspace: 'Workspace',
     shortcuts: 'Shortcuts',
     account_security: 'Account Settings',
-    ai_analysis: 'AI Analysis',
+    ai_analysis: 'AI Research',
     market_data: 'Market & Data',
     strategy_lab: 'Strategy Center',
     broker_account: 'Broker Account',
@@ -858,8 +858,20 @@ export default {
     sync_fail: 'Sync failed',
     published_at: 'Published', views: 'Views', strategy_contract: 'Strategy Runtime Specification', source_controlled: 'Version controlled',
     contract_instruments: 'Instruments', contract_market_type: 'Market type', contract_frequency: 'Frequency', contract_warmup: 'Warmup bars',
+    execution_mode: 'Execution method', execution_frequency: 'Execution frequency', confirmation_frequencies: 'Confirmation frequencies', confirmation_frequency_short: 'Confirm', none: 'None',
+    execution_mode_bar: 'Bar-driven', execution_mode_scheduled: 'Scheduled', execution_mode_hybrid: 'Bar + scheduled',
     contract_signals: 'Signal dependencies', contract_data: 'Required data', contract_parameters: 'Configurable parameters',
-    parameter_default: 'Default', parameter_range: 'Range', parameter_no_range: 'Not limited', dynamic_universe: 'Dynamic universe'
+    parameter_default: 'Default', parameter_range: 'Range', parameter_no_range: 'Not limited', dynamic_universe: 'Dynamic universe',
+    strategy_filters: 'Strategy filters', strategy_filters_hint: 'Market, binding, and style', reset_filters: 'Reset', apply_filters: 'Apply filters',
+    filter_market: 'Market', filter_market_type: 'Instrument type', filter_binding: 'Instrument binding', filter_timeframe: 'Timeframe', filter_strategy_type: 'Strategy type', filter_direction: 'Direction', filter_leverage: 'Leverage',
+    filter_market_type_spot: 'Spot', filter_market_type_swap: 'Perpetual', filter_strategy_type_cta: 'Single-instrument CTA',
+    filter_market_usstock: 'US stocks', filter_market_crypto: 'Crypto', filter_market_cnstock: 'China A-shares', filter_market_hkstock: 'Hong Kong',
+    filter_binding_parameterized: 'Replaceable instrument', filter_binding_fixed: 'Fixed instrument', filter_binding_portfolio: 'Fixed portfolio', filter_binding_universe: 'Dynamic universe',
+    filter_timeframe_1m: '1 min', filter_timeframe_5m: '5 min', filter_timeframe_15m: '15 min', filter_timeframe_1h: '1 hour', filter_timeframe_4h: '4 hours', filter_timeframe_1d: 'Daily',
+    filter_strategy_type_trend: 'Trend', filter_strategy_type_mean_reversion: 'Mean reversion', filter_strategy_type_breakout: 'Breakout', filter_strategy_type_arbitrage: 'Arbitrage', filter_strategy_type_portfolio: 'Portfolio',
+    filter_direction_long_only: 'Long only', filter_direction_short_only: 'Short only', filter_direction_both: 'Both', filter_direction_neutral: 'Neutral',
+    filter_leverage_no: 'No leverage', filter_leverage_yes: 'Leverage supported',
+    binding_mode: 'Instrument mode', adaptation_title: 'Create a copy for another instrument', adaptation_target: 'Target instrument', adaptation_check: 'Check compatibility', adaptation_create: 'Create copy for backtest', adaptation_compatible: 'The rules are compatible. You can create a copy.', adaptation_incompatible: 'This instrument is not compatible.', adaptation_backtest_required: 'After creating the copy, run a desktop backtest before live deployment.', adaptation_created: 'Copy created. Backtest it before going live.'
   },
   script_strategy: {
     title: 'Strategy Configuration',

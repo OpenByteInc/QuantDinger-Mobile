@@ -699,6 +699,14 @@ export const marketApi = {
       ...res,
       data: res.data || {}
     }
+  },
+  checkStrategyCompatibility: async (id, params = {}) => {
+    const res = await http.get(`/api/community/indicators/${id}/compatibility`, { params })
+    return { ...res, data: res.data || {} }
+  },
+  adaptStrategy: async (id, payload = {}) => {
+    const res = await http.post(`/api/community/indicators/${id}/adapt`, payload)
+    return { ...res, data: res.data || {} }
   }
 }
 
@@ -777,6 +785,7 @@ export const klineApi = {
 }
 
 export const aiChatApi = {
+  getPreflight: () => http.get('/api/ai/agent/preflight'),
   sendMessage: (payload) => http.post('/api/ai/chat/message', payload, { timeout: 600000 }),
   streamMessage: async (payload, onEvent) => {
     const language = payload?.language || 'zh-CN'
@@ -876,7 +885,15 @@ export const aiChatApi = {
       }
     }
   },
-  deleteSession: (sessionId) => http.delete(`/api/ai/chat/sessions/${sessionId}`)
+  deleteSession: (sessionId) => http.delete(`/api/ai/chat/sessions/${sessionId}`),
+  getSessionMemory: (sessionId) => http.get(`/api/ai/chat/sessions/${sessionId}/memory`),
+  clearSessionMemory: (sessionId) => http.delete(`/api/ai/chat/sessions/${sessionId}/memory`),
+  getUserMemory: async () => {
+    const res = await http.get('/api/ai/memory')
+    return { ...res, data: ensureArray(res.data?.memories || res.data) }
+  },
+  updateUserMemory: (memoryId, payload) => http.patch(`/api/ai/memory/${memoryId}`, payload),
+  deleteUserMemory: (memoryId) => http.delete(`/api/ai/memory/${memoryId}`)
 }
 
 export const indicatorApi = {

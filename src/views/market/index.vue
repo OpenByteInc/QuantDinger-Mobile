@@ -27,7 +27,19 @@
         :placeholder="$t(isStrategyAsset ? 'market.search_script_placeholder' : 'market.search_indicator_placeholder')"
         @search="reload"
       />
-      <div v-if="items.length || keyword || pricing" class="filter-row">
+      <button
+        v-if="isStrategyAsset"
+        type="button"
+        class="strategy-filter-trigger"
+        :class="{ active: activeStrategyFilterCount > 0 }"
+        @click="openStrategyFilters"
+      >
+        <span><van-icon name="filter-o" /> {{ $t('market.strategy_filters') }}</span>
+        <b v-if="activeStrategyFilterCount">{{ activeStrategyFilterCount }}</b>
+        <small v-else>{{ $t('market.strategy_filters_hint') }}</small>
+        <van-icon name="arrow" />
+      </button>
+      <div v-if="items.length || keyword || pricing || activeStrategyFilterCount" class="filter-row">
         <div class="segment">
           <button
             v-for="opt in filterOptions"
@@ -114,7 +126,7 @@
           {{ $t('common.refresh') }}
         </van-button>
         <van-button
-          v-if="keyword || pricing"
+          v-if="keyword || pricing || activeStrategyFilterCount"
           round
           plain
           size="small"
@@ -141,6 +153,30 @@
         @confirm="onSortSelect"
       />
     </van-popup>
+    <van-popup v-model:show="showStrategyFilters" position="bottom" round class="strategy-filter-popup">
+      <div class="filter-sheet">
+        <div class="filter-sheet-head">
+          <strong>{{ $t('market.strategy_filters') }}</strong>
+          <button type="button" @click="resetDraftStrategyFilters">{{ $t('market.reset_filters') }}</button>
+        </div>
+        <div v-for="group in strategyFilterGroups" :key="group.key" class="filter-group">
+          <label>{{ group.label }}</label>
+          <div class="filter-chips">
+            <button
+              v-for="option in group.options"
+              :key="option.value || 'all'"
+              type="button"
+              :class="{ active: draftStrategyFilters[group.key] === option.value }"
+              @click="draftStrategyFilters[group.key] = option.value"
+            >{{ option.label }}</button>
+          </div>
+        </div>
+        <div class="filter-sheet-actions">
+          <van-button block round plain @click="showStrategyFilters = false">{{ $t('common.cancel') }}</van-button>
+          <van-button block round type="primary" @click="applyStrategyFilters">{{ $t('market.apply_filters') }}</van-button>
+        </div>
+      </div>
+    </van-popup>
   </div>
 </template>
 
@@ -163,7 +199,10 @@ export default {
       loading: false,
       finished: false,
       loadFailed: false,
-      showSortPicker: false
+      showSortPicker: false,
+      showStrategyFilters: false,
+      strategyFilters: this.emptyStrategyFilters(),
+      draftStrategyFilters: this.emptyStrategyFilters()
     }
   },
   computed: {
@@ -207,6 +246,19 @@ export default {
     },
     isStrategyAsset() {
       return this.assetType === ASSET_TYPES.SCRIPT_TEMPLATE
+    },
+    activeStrategyFilterCount() {
+      return Object.values(this.strategyFilters).filter(Boolean).length
+    },
+    strategyFilterGroups() {
+      return [
+        { key: 'market', label: this.$t('market.filter_market'), options: this.filterChoices('market', ['usstock', 'crypto', 'cnstock', 'hkstock']) },
+        { key: 'market_type', label: this.$t('market.filter_market_type'), options: this.filterChoices('market_type', ['spot', 'swap']) },
+        { key: 'binding_mode', label: this.$t('market.filter_binding'), options: this.filterChoices('binding', ['parameterized', 'fixed', 'portfolio', 'universe']) },
+        { key: 'strategy_type', label: this.$t('market.filter_strategy_type'), options: this.filterChoices('strategy_type', ['cta', 'portfolio']) },
+        { key: 'direction_mode', label: this.$t('market.filter_direction'), options: this.filterChoices('direction', ['long_only', 'short_only', 'both', 'neutral']) },
+        { key: 'leverage', label: this.$t('market.filter_leverage'), options: this.filterChoices('leverage', ['no', 'yes']) }
+      ]
     }
   },
   mounted() {
@@ -234,7 +286,8 @@ export default {
           pricing_type: this.pricing === 'vip_free' ? undefined : (this.pricing || undefined),
           vip_free: this.pricing === 'vip_free' ? 1 : undefined,
           asset_type: this.assetType,
-          sort_by: this.sort
+          sort_by: this.sort,
+          ...(this.isStrategyAsset ? this.strategyFilters : {})
         })
         const list = res.data?.items || []
         this.items = this.page === 1 ? list : this.items.concat(list)
@@ -259,12 +312,18 @@ export default {
     clearFilters() {
       this.keyword = ''
       this.pricing = ''
+      this.strategyFilters = this.emptyStrategyFilters()
+      this.draftStrategyFilters = this.emptyStrategyFilters()
       this.reload()
     },
     setAssetType(val) {
       const next = normalizeAssetType(val)
       if (this.assetType === next) return
       this.assetType = next
+      if (next !== ASSET_TYPES.SCRIPT_TEMPLATE) {
+        this.strategyFilters = this.emptyStrategyFilters()
+        this.draftStrategyFilters = this.emptyStrategyFilters()
+      }
       this.$router.replace({ path: '/market', query: { ...this.$route.query, asset_type: next } })
       this.reload()
     },
@@ -337,6 +396,19 @@ export default {
       ]
     },
     applicableTags(item) {
+      if (this.isStrategyItem(item)) {
+        const contract = item.marketplace_contract || item.strategy_contract || {}
+        const bound = Array.isArray(contract.bound_instruments) ? contract.bound_instruments : []
+        const tested = Array.isArray(item.tested_instruments) ? item.tested_instruments : []
+        const executionMode = contract.execution_mode
+          ? this.executionModeLabel(contract.execution_mode)
+          : ''
+        const executionFrequency = contract.execution_frequency || contract.primary_frequency || ''
+        const confirmation = Array.isArray(contract.confirmation_frequencies) && contract.confirmation_frequencies.length
+          ? `${this.$t('market.confirmation_frequency_short')} ${contract.confirmation_frequencies.join(' · ')}`
+          : ''
+        return bound.concat(tested, [executionMode, executionFrequency, confirmation]).filter(Boolean).slice(0, 5)
+      }
       const symbols = Array.isArray(item.applicable_symbols) ? item.applicable_symbols : []
       const timeframes = Array.isArray(item.applicable_timeframes) ? item.applicable_timeframes : []
       return symbols.concat(timeframes).filter(Boolean).slice(0, 4)
@@ -378,6 +450,31 @@ export default {
       return {
         background: `linear-gradient(135deg, ${palette[0]}, ${palette[1]})`
       }
+    },
+    emptyStrategyFilters() {
+      return { market: '', market_type: '', binding_mode: '', strategy_type: '', direction_mode: '', leverage: '' }
+    },
+    executionModeLabel(mode) {
+      const key = `market.execution_mode_${String(mode || 'bar').toLowerCase()}`
+      return this.$te(key) ? this.$t(key) : String(mode || '')
+    },
+    filterChoices(group, values) {
+      return [
+        { value: '', label: this.$t('market.filter_all') },
+        ...values.map((value) => ({ value, label: this.$t(`market.filter_${group}_${value}`) }))
+      ]
+    },
+    openStrategyFilters() {
+      this.draftStrategyFilters = { ...this.strategyFilters }
+      this.showStrategyFilters = true
+    },
+    resetDraftStrategyFilters() {
+      this.draftStrategyFilters = this.emptyStrategyFilters()
+    },
+    applyStrategyFilters() {
+      this.strategyFilters = { ...this.draftStrategyFilters }
+      this.showStrategyFilters = false
+      this.reload()
     }
   }
 }
@@ -429,6 +526,23 @@ export default {
 :deep(.van-search) { background: transparent; padding: 8px; }
 :deep(.van-search__content) { background: var(--surface-raised); }
 :deep(.van-field__control) { color: var(--text); }
+.strategy-filter-trigger {
+  width: calc(100% - 16px);
+  min-height: 42px;
+  margin: 0 8px 6px;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 14px;
+  color: var(--text-2);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+}
+.strategy-filter-trigger span { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.strategy-filter-trigger small { margin-left: auto; color: var(--text-3); }
+.strategy-filter-trigger b { min-width: 20px; height: 20px; margin-left: auto; display: grid; place-items: center; border-radius: 999px; color: var(--text-on-accent); background: var(--accent); font-size: 11px; }
+.strategy-filter-trigger.active { color: var(--accent); border-color: var(--accent); }
 .filter-row {
   display: flex;
   align-items: center;
@@ -695,4 +809,15 @@ export default {
   line-height: 1.55;
 }
 .empty-actions { display: flex; gap: 10px; }
+.strategy-filter-popup { max-height: 88vh; background: var(--bg-elevated); }
+.filter-sheet { padding: 20px 18px calc(22px + var(--safe-area-bottom, 0px)); }
+.filter-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; color: var(--text); }
+.filter-sheet-head strong { font-size: 17px; }
+.filter-sheet-head button { border: 0; background: transparent; color: var(--accent); font-size: 13px; }
+.filter-group { margin-top: 17px; }
+.filter-group label { display: block; margin-bottom: 9px; color: var(--text-2); font-size: 12px; font-weight: 700; }
+.filter-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.filter-chips button { min-height: 32px; padding: 0 12px; border-radius: 999px; color: var(--text-2); background: var(--surface-raised); border: 1px solid var(--border); font-size: 12px; }
+.filter-chips button.active { color: var(--text-on-accent); background: var(--accent); border-color: var(--accent); }
+.filter-sheet-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 24px; }
 </style>

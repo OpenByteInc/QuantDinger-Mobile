@@ -52,7 +52,10 @@
       <div v-if="isStrategyAsset && strategyContract" class="card contract-card">
         <div class="contract-title-row">
           <div class="card-title">{{ $t('market.strategy_contract') }}</div>
-          <span class="contract-badge"><van-icon name="shield-o" /> {{ $t('market.source_controlled') }}</span>
+          <div class="contract-badges">
+            <span class="contract-badge"><van-icon name="shield-o" /> {{ $t('market.source_controlled') }}</span>
+            <span class="contract-badge binding">{{ bindingModeLabel }}</span>
+          </div>
         </div>
         <div class="contract-grid">
           <div v-for="item in strategyContractItems" :key="item.key" class="contract-item">
@@ -188,6 +191,31 @@
         >{{ $t('indicator_chart.view_chart') }}</van-button>
       </div>
     </div>
+
+    <van-popup v-model:show="showAdaptation" position="bottom" round class="adaptation-popup">
+      <div class="adaptation-sheet">
+        <div class="adaptation-head">
+          <strong>{{ $t('market.adaptation_title') }}</strong>
+          <van-icon name="cross" @click="showAdaptation = false" />
+        </div>
+        <p>{{ $t('market.adaptation_backtest_required') }}</p>
+        <van-field
+          v-model.trim="adaptationTarget"
+          :label="$t('market.adaptation_target')"
+          placeholder="USStock:MSFT / Crypto:BTC/USDT"
+          clearable
+          @update:model-value="adaptationResult = null"
+        />
+        <div v-if="adaptationResult" :class="['compatibility-result', adaptationResult.compatible ? 'ok' : 'bad']">
+          <van-icon :name="adaptationResult.compatible ? 'passed' : 'warning-o'" />
+          <span>{{ $t(adaptationResult.compatible ? 'market.adaptation_compatible' : 'market.adaptation_incompatible') }}</span>
+        </div>
+        <div class="adaptation-actions">
+          <van-button block round plain :loading="checkingCompatibility" @click="checkCompatibility">{{ $t('market.adaptation_check') }}</van-button>
+          <van-button block round type="primary" :disabled="!adaptationResult?.compatible" :loading="adapting" @click="createAdaptedCopy">{{ $t('market.adaptation_create') }}</van-button>
+        </div>
+      </div>
+    </van-popup>
   </div>
 </template>
 
@@ -211,7 +239,12 @@ export default {
       indicator: null,
       comments: { items: [], total: 0, page: 1, page_size: 10 },
       commentsLoading: false,
-      performance: null
+      performance: null,
+      showAdaptation: false,
+      adaptationTarget: '',
+      adaptationResult: null,
+      checkingCompatibility: false,
+      adapting: false
     }
   },
   computed: {
@@ -244,8 +277,16 @@ export default {
       return author.nickname || author.username || this.indicator?.author_name || '-'
     },
     strategyContract() {
-      const contract = this.performance?.strategy_contract
+      const contract = this.indicator?.marketplace_contract || this.indicator?.strategy_contract ||
+        this.performance?.marketplace_contract || this.performance?.strategy_contract
       return contract && typeof contract === 'object' ? contract : null
+    },
+    bindingMode() {
+      return String(this.strategyContract?.binding_mode || this.indicator?.binding_mode || 'unknown')
+    },
+    bindingModeLabel() {
+      const key = `market.filter_binding_${this.bindingMode}`
+      return this.$te(key) ? this.$t(key) : this.bindingMode
     },
     strategySignals() {
       if (!this.strategyContract) return []
@@ -260,19 +301,22 @@ export default {
     strategyContractItems() {
       const contract = this.strategyContract || {}
       const instruments = Array.isArray(contract.instruments) ? contract.instruments : []
-      const instrumentNames = instruments.map((item) => item.symbol || item.instrument_id).filter(Boolean)
+      const boundInstruments = Array.isArray(contract.bound_instruments) ? contract.bound_instruments : []
+      const instrumentNames = boundInstruments.concat(instruments.map((item) => item.symbol || item.instrument_id)).filter(Boolean)
       const marketTypes = [...new Set([
         contract.market_type,
         ...instruments.map((item) => item.market_type || item.market)
       ].filter(Boolean))]
-      const contractFrequencies = Array.isArray(contract.supported_timeframes) ? contract.supported_timeframes : []
-      const performanceFrequencies = Array.isArray(this.performance?.applicable_timeframes) ? this.performance.applicable_timeframes : []
-      const indicatorFrequencies = Array.isArray(this.indicator?.applicable_timeframes) ? this.indicator.applicable_timeframes : []
-      const frequencies = contract.frequency || contract.timeframe || contractFrequencies.join(' · ') || performanceFrequencies.join(' · ') || indicatorFrequencies.join(' · ')
+      const executionFrequency = contract.execution_frequency || contract.primary_frequency || '-'
+      const confirmationFrequencies = Array.isArray(contract.confirmation_frequencies)
+        ? contract.confirmation_frequencies
+        : []
       return [
         { key: 'instruments', label: this.$t('market.contract_instruments'), value: instrumentNames.join(' · ') || contract.universe_reference || this.$t('market.dynamic_universe') },
         { key: 'market', label: this.$t('market.contract_market_type'), value: marketTypes.map((value) => this.formatMarketType(value)).join(' · ') || '-' },
-        { key: 'frequency', label: this.$t('market.contract_frequency'), value: frequencies || '-' },
+        { key: 'execution_mode', label: this.$t('market.execution_mode'), value: this.executionModeLabel(contract.execution_mode) },
+        { key: 'execution_frequency', label: this.$t('market.execution_frequency'), value: executionFrequency },
+        { key: 'confirmation_frequencies', label: this.$t('market.confirmation_frequencies'), value: confirmationFrequencies.join(' · ') || this.$t('market.none') },
         { key: 'warmup', label: this.$t('market.contract_warmup'), value: String(contract.warmup_bars || 0) }
       ]
     },
@@ -433,6 +477,10 @@ export default {
       if (type === 'swap') return this.$t('trading.market_futures')
       return value || '-'
     },
+    executionModeLabel(mode) {
+      const key = `market.execution_mode_${String(mode || 'bar').toLowerCase()}`
+      return this.$te(key) ? this.$t(key) : String(mode || 'bar')
+    },
     parameterLabel(parameter) {
       if (parameter?.label_key && this.$te(parameter.label_key)) return this.$t(parameter.label_key)
       return parameter?.label || parameter?.name || '-'
@@ -508,8 +556,50 @@ export default {
       return this.$t(map[code] || 'market.sync_success')
     },
     goCreateStrategy() {
+      if (this.bindingMode === 'parameterized') {
+        this.adaptationTarget = ''
+        this.adaptationResult = null
+        this.showAdaptation = true
+        return
+      }
       const route = buildCreateRouteFromMarketAsset(this.indicator)
       if (route) this.$router.push(route)
+    },
+    async checkCompatibility() {
+      if (!this.adaptationTarget) return
+      this.checkingCompatibility = true
+      try {
+        const res = await marketApi.checkStrategyCompatibility(this.indicatorId, {
+          target_instrument: this.adaptationTarget
+        })
+        this.adaptationResult = res?.data || null
+      } catch {
+        this.adaptationResult = { compatible: false }
+      } finally {
+        this.checkingCompatibility = false
+      }
+    },
+    async createAdaptedCopy() {
+      if (!this.adaptationResult?.compatible || !this.adaptationTarget) return
+      this.adapting = true
+      try {
+        const res = await marketApi.adaptStrategy(this.indicatorId, {
+          target_instrument: this.adaptationTarget
+        })
+        const sourceId = Number(res?.data?.script_source_id || 0)
+        showToast({ message: this.$t('market.adaptation_created'), type: 'success' })
+        this.showAdaptation = false
+        if (sourceId) {
+          this.$router.push({
+            path: '/trading/create/configure',
+            query: { source_id: sourceId, name: this.indicator?.name || '', requires_backtest: '1' }
+          })
+        }
+      } catch (err) {
+        showToast({ message: err?.response?.data?.msg || this.$t('market.adaptation_incompatible'), type: 'fail' })
+      } finally {
+        this.adapting = false
+      }
     },
     goIndicatorChart() {
       const localIndicatorId = Number(this.indicator?.local_copy_id || 0)
@@ -661,6 +751,7 @@ export default {
 }
 .contract-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .contract-title-row .card-title { margin-bottom: 0; }
+.contract-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
 .contract-badge {
   display: inline-flex;
   align-items: center;
@@ -672,6 +763,7 @@ export default {
   font-size: 9px;
   font-weight: 700;
 }
+.contract-badge.binding { color: var(--c-amber); background: var(--c-amber-soft); }
 .contract-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 13px; }
 .contract-item { min-width: 0; padding: 10px; border-radius: 12px; background: var(--surface-raised); border: 1px solid var(--hairline); }
 .contract-item span { display: block; color: var(--text-3); font-size: 10px; }
@@ -688,6 +780,16 @@ export default {
 .parameter-row code { margin-top: 2px; color: var(--text-3); font-size: 9px; }
 .parameter-row > span { color: var(--text-3); font-size: 9px; }
 .parameter-row b { display: block; margin-top: 3px; color: var(--text-2); font-size: 10px; }
+.adaptation-popup { background: var(--bg-elevated); }
+.adaptation-sheet { padding: 20px 18px calc(22px + var(--safe-area-bottom, 0px)); }
+.adaptation-head { display: flex; align-items: center; justify-content: space-between; color: var(--text); }
+.adaptation-head strong { font-size: 17px; }
+.adaptation-sheet > p { margin: 10px 0 15px; color: var(--text-2); font-size: 12px; line-height: 1.55; }
+.adaptation-sheet :deep(.van-cell) { border-radius: 12px; color: var(--text); background: var(--surface-raised); }
+.compatibility-result { display: flex; align-items: flex-start; gap: 7px; margin-top: 12px; padding: 11px 12px; border-radius: 12px; font-size: 12px; line-height: 1.45; }
+.compatibility-result.ok { color: var(--up); background: rgba(16, 185, 129, 0.1); }
+.compatibility-result.bad { color: var(--down); background: rgba(244, 63, 94, 0.1); }
+.adaptation-actions { display: grid; grid-template-columns: 1fr 1.35fr; gap: 10px; margin-top: 18px; }
 .card-head {
   display: flex;
   justify-content: space-between;

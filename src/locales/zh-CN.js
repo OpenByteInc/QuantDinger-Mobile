@@ -33,7 +33,7 @@ export default {
     previous_step: '上一步',
     press_again_exit: '再按一次退出应用'
   },
-  tabs: { navigation: '主导航', ai: 'AI', market: '市场', chart: '图表', trade: '交易', strategy: '策略', profile: '我的' },
+  tabs: { navigation: '主导航', ai: 'AI投研', market: '市场', chart: '图表', trade: '交易', strategy: '策略', profile: '我的' },
   chart_trade: {
     title: '闪电交易', account: '交易账户', select_account: '选择账户', available: '可用余额', market_type: '交易类型', position: '持仓',
     spot: '现货', swap: '永续', buy: '买入', buy_long: '买入 / 做多', sell_short: '卖出 / 做空', manage_positions: '持仓与订单',
@@ -63,7 +63,7 @@ export default {
     workspace: '工作台',
     shortcuts: '快捷操作',
     account_security: '账户设置',
-    ai_analysis: 'AI智能分析',
+    ai_analysis: 'AI投研',
     market_data: '市场与数据',
     strategy_lab: '策略中心',
     broker_account: '券商账户',
@@ -856,8 +856,20 @@ export default {
     sync_fail: '同步失败',
     published_at: '发布于', views: '浏览量', strategy_contract: '策略运行规格', source_controlled: '版本受控',
     contract_instruments: '交易标的', contract_market_type: '市场类型', contract_frequency: '运行周期', contract_warmup: '预热 K 线',
+    execution_mode: '执行方式', execution_frequency: '执行周期', confirmation_frequencies: '确认周期', confirmation_frequency_short: '确认', none: '无',
+    execution_mode_bar: 'K 线驱动', execution_mode_scheduled: '定时调度', execution_mode_hybrid: 'K 线＋定时调度',
     contract_signals: '信号依赖', contract_data: '所需数据', contract_parameters: '可配置参数',
-    parameter_default: '默认值', parameter_range: '范围', parameter_no_range: '不限制', dynamic_universe: '动态标的池'
+    parameter_default: '默认值', parameter_range: '范围', parameter_no_range: '不限制', dynamic_universe: '动态标的池',
+    strategy_filters: '策略筛选', strategy_filters_hint: '市场、标的绑定与策略类型', reset_filters: '重置', apply_filters: '应用筛选',
+    filter_market: '交易市场', filter_market_type: '交易品种', filter_binding: '标的绑定', filter_timeframe: '运行周期', filter_strategy_type: '策略类型', filter_direction: '交易方向', filter_leverage: '杠杆能力',
+    filter_market_type_spot: '现货', filter_market_type_swap: '永续合约', filter_strategy_type_cta: '单标的 CTA',
+    filter_market_usstock: '美股', filter_market_crypto: '加密货币', filter_market_cnstock: 'A股', filter_market_hkstock: '港股',
+    filter_binding_parameterized: '可更换标的', filter_binding_fixed: '固定标的', filter_binding_portfolio: '固定组合', filter_binding_universe: '动态标的池',
+    filter_timeframe_1m: '1分钟', filter_timeframe_5m: '5分钟', filter_timeframe_15m: '15分钟', filter_timeframe_1h: '1小时', filter_timeframe_4h: '4小时', filter_timeframe_1d: '日线',
+    filter_strategy_type_trend: '趋势', filter_strategy_type_mean_reversion: '均值回归', filter_strategy_type_breakout: '突破', filter_strategy_type_arbitrage: '套利', filter_strategy_type_portfolio: '组合',
+    filter_direction_long_only: '仅做多', filter_direction_short_only: '仅做空', filter_direction_both: '双向', filter_direction_neutral: '中性',
+    filter_leverage_no: '不使用杠杆', filter_leverage_yes: '支持杠杆',
+    binding_mode: '标的模式', adaptation_title: '为其他标的创建副本', adaptation_target: '目标标的', adaptation_check: '检查兼容性', adaptation_create: '创建待回测副本', adaptation_compatible: '规则兼容，可以创建副本。', adaptation_incompatible: '当前标的不兼容。', adaptation_backtest_required: '副本创建后必须先在电脑端完成回测，验证通过后才能实盘。', adaptation_created: '已创建副本，请先回测。'
   },
   script_strategy: {
     title: '策略配置',

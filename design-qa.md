@@ -53,6 +53,16 @@
 
 No actionable P0/P1/P2 findings remain for the requested density change.
 
+## AI Copilot desktop/mobile alignment pass
+
+- Removed the second quick-tools toggle and duplicate task strip from the mobile conversation surface.
+- Kept exactly one horizontally scrollable research preset row above the composer, aligned with desktop categories: market research, symbol diagnosis, technical analysis, trade plan, news/events, and macro data.
+- Kept professional report and conversation memory as explicit, non-duplicate actions. Professional report confirms target, timeframe, duration, and estimated credits before running.
+- Added report-bound follow-up IDs, R/R display and warning, backend context-usage telemetry, compact session memory, and explicit long-term-memory editing/deletion using the same backend contracts as desktop.
+- Mobile does not send a copied full transcript, client memory, or report payload in request context; the backend remains the context owner.
+- Source-level interaction checks confirmed no `showQuickTools`, `quick-task-grid`, `tools-inline-btn`, or client-side copied history remains.
+- Unit checks: 17/17 passed. Production build: passed. Backend shared context/memory and prompt-library checks: 13/13 passed.
+
 ## Follow-up polish
 
 - P3: verify the 10px gutter on a physical iPhone with a non-zero safe-area inset and on a 320px-wide Android device.

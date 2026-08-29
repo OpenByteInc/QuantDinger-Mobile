@@ -33,7 +33,7 @@ export default {
     previous_step: '前へ',
     press_again_exit: 'もう一度戻るを押すとアプリを終了します'
   },
-  tabs: { navigation: 'メインナビゲーション', ai: 'AI', market: '市場', chart: 'チャート', trade: '取引', strategy: '戦略', profile: 'マイ' },
+  tabs: { navigation: 'メインナビゲーション', ai: 'AIリサーチ', market: '市場', chart: 'チャート', trade: '取引', strategy: '戦略', profile: 'マイ' },
   chart_trade: {
     title: 'クイック取引', account: '取引口座', select_account: '口座を選択', available: '利用可能', market_type: '市場', position: '建玉',
     spot: '現物', swap: '無期限', buy: '買い', buy_long: '買い / ロング', sell_short: '売り / ショート', manage_positions: '建玉と注文',
@@ -788,8 +788,20 @@ export default {
     sync_fail: '同期に失敗しました',
     published_at: '公開日', views: '閲覧数', strategy_contract: '戦略実行仕様', source_controlled: 'バージョン管理済み',
     contract_instruments: '取引対象', contract_market_type: '市場タイプ', contract_frequency: '時間軸', contract_warmup: 'ウォームアップ足',
+    execution_mode: '実行方式', execution_frequency: '実行周期', confirmation_frequencies: '確認周期', confirmation_frequency_short: '確認', none: 'なし',
+    execution_mode_bar: 'バー駆動', execution_mode_scheduled: '定時実行', execution_mode_hybrid: 'バー＋定時実行',
     contract_signals: 'シグナル依存', contract_data: '必要データ', contract_parameters: 'ストラテジーパラメータ',
-    parameter_default: '初期値', parameter_range: '範囲', parameter_no_range: '制限なし', dynamic_universe: '動的ユニバース'
+    parameter_default: '初期値', parameter_range: '範囲', parameter_no_range: '制限なし', dynamic_universe: '動的ユニバース',
+    strategy_filters: '戦略フィルター', strategy_filters_hint: '市場・銘柄設定・戦略タイプ', reset_filters: 'リセット', apply_filters: '適用',
+    filter_market: '市場', filter_market_type: '商品タイプ', filter_binding: '銘柄設定', filter_timeframe: '時間足', filter_strategy_type: '戦略タイプ', filter_direction: '取引方向', filter_leverage: 'レバレッジ',
+    filter_market_type_spot: '現物', filter_market_type_swap: '無期限先物', filter_strategy_type_cta: '単一銘柄 CTA',
+    filter_market_usstock: '米国株', filter_market_crypto: '暗号資産', filter_market_cnstock: '中国A株', filter_market_hkstock: '香港株',
+    filter_binding_parameterized: '銘柄変更可', filter_binding_fixed: '固定銘柄', filter_binding_portfolio: '固定ポートフォリオ', filter_binding_universe: '動的ユニバース',
+    filter_timeframe_1m: '1分', filter_timeframe_5m: '5分', filter_timeframe_15m: '15分', filter_timeframe_1h: '1時間', filter_timeframe_4h: '4時間', filter_timeframe_1d: '日足',
+    filter_strategy_type_trend: 'トレンド', filter_strategy_type_mean_reversion: '平均回帰', filter_strategy_type_breakout: 'ブレイクアウト', filter_strategy_type_arbitrage: '裁定', filter_strategy_type_portfolio: 'ポートフォリオ',
+    filter_direction_long_only: 'ロングのみ', filter_direction_short_only: 'ショートのみ', filter_direction_both: '両方向', filter_direction_neutral: '中立',
+    filter_leverage_no: 'レバレッジなし', filter_leverage_yes: 'レバレッジ対応',
+    binding_mode: '銘柄モード', adaptation_title: '別の銘柄向けコピーを作成', adaptation_target: '対象銘柄', adaptation_check: '互換性を確認', adaptation_create: 'バックテスト用コピーを作成', adaptation_compatible: '互換性があります。コピーを作成できます。', adaptation_incompatible: 'この銘柄には対応していません。', adaptation_backtest_required: 'コピー作成後、ライブ運用前にデスクトップでバックテストしてください。', adaptation_created: 'コピーを作成しました。先にバックテストしてください。'
   },
   script_strategy: {
     title: '戦略設定',

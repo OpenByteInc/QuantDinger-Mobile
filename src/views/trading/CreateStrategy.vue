@@ -14,6 +14,10 @@
     <van-loading v-if="loading" class="loading" vertical>{{ $t('common.loading') }}</van-loading>
 
     <template v-else>
+      <div v-if="requiresBacktest" class="warning-card backtest-required-card">
+        <van-icon name="shield-o" />
+        <span>{{ $t('market.adaptation_backtest_required') }}</span>
+      </div>
       <div v-if="!sourceId" class="warning-card">
         <van-icon name="warning-o" />
         <span>{{ $t('script_strategy.source_missing') }}</span>
@@ -288,6 +292,9 @@ export default {
     }
   },
   computed: {
+    requiresBacktest() {
+      return String(this.$route.query?.requires_backtest || '') === '1'
+    },
     credentialsStore() { return useCredentialsStore() },
     credentials() {
       return this.credentialsStore.items.filter(item => {
@@ -750,6 +757,7 @@ export default {
 .source-title { color: var(--text); font-size: 17px; font-weight: 900; }
 .source-copy p { color: var(--text-2); font-size: 12px; line-height: 1.55; margin: 6px 0 0; }
 .warning-card { padding: 12px 14px; display: flex; align-items: center; gap: 8px; color: var(--down); }
+.backtest-required-card { color: var(--c-amber); border-color: rgba(245, 158, 11, 0.26); background: var(--c-amber-soft); }
 .contract-card {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
