@@ -273,6 +273,17 @@ test('AI composer stays at the bottom and uses a text send action', () => {
   assert.match(aiHub, /event === 'warning'[\s\S]*streamWarning/)
 })
 
+test('mobile overlays and AI message actions stay above the persistent tab bar', () => {
+  const aiHub = read('src/views/ai-hub/index.vue')
+  const market = read('src/views/market/index.vue')
+
+  assert.match(market, /showStrategyFilters[\s\S]*class="strategy-filter-popup"[\s\S]*teleport="body"/)
+  assert.match(market, /\.strategy-filter-popup\s*\{[\s\S]*overflow-y: auto;/)
+  assert.match(aiHub, /\.chat-panel\s*\{\s*flex: 1 1 0;\s*min-height: 0;/)
+  assert.match(aiHub, /\.message-list\s*\{\s*height: 100%;\s*min-height: 0;/)
+  assert.doesNotMatch(aiHub, /height: calc\(100vh - 220px/)
+})
+
 test('AI Copilot aligns desktop and mobile research controls without duplicate quick tools', () => {
   const aiHub = read('src/views/ai-hub/index.vue')
   const api = read('src/api/index.js')

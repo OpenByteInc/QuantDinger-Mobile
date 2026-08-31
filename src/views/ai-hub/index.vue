@@ -1821,6 +1821,7 @@ export default {
 .ai-copilot-page {
   min-height: 100%;
   height: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   padding: calc(12px + var(--safe-area-top, 0px)) var(--page-gutter) calc(10px + var(--safe-area-bottom, 0px));
@@ -1899,8 +1900,8 @@ export default {
 }
 
 .ask-card {
-  position: sticky;
-  bottom: 0;
+  position: relative;
+  flex-shrink: 0;
   z-index: 5;
   padding: 8px 9px 9px;
   border-radius: 16px;
@@ -2083,8 +2084,8 @@ export default {
 }
 
 .chat-panel {
-  flex: 0 1 auto;
-  min-height: auto;
+  flex: 1 1 0;
+  min-height: 0;
   max-height: none;
   overflow: hidden;
   border-radius: 0;
@@ -2159,12 +2160,12 @@ export default {
 }
 
 .message-list {
-  height: calc(100vh - 220px - var(--safe-area-top, 0px) - var(--safe-area-bottom, 0px));
-  min-height: 300px;
+  height: 100%;
+  min-height: 0;
   max-height: none;
   overflow-y: auto;
-  padding: 10px 0 calc(92px + var(--safe-area-bottom, 0px));
-  scroll-padding-bottom: calc(92px + var(--safe-area-bottom, 0px));
+  padding: 10px 0 16px;
+  scroll-padding-bottom: 16px;
 }
 
 .message-row {

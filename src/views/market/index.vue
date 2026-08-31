@@ -146,14 +146,20 @@
       </div>
     </div>
 
-    <van-popup v-model:show="showSortPicker" position="bottom" round>
+    <van-popup v-model:show="showSortPicker" position="bottom" round teleport="body">
       <van-picker
         :columns="sortColumns"
         @cancel="showSortPicker = false"
         @confirm="onSortSelect"
       />
     </van-popup>
-    <van-popup v-model:show="showStrategyFilters" position="bottom" round class="strategy-filter-popup">
+    <van-popup
+      v-model:show="showStrategyFilters"
+      position="bottom"
+      round
+      class="strategy-filter-popup"
+      teleport="body"
+    >
       <div class="filter-sheet">
         <div class="filter-sheet-head">
           <strong>{{ $t('market.strategy_filters') }}</strong>
@@ -809,7 +815,12 @@ export default {
   line-height: 1.55;
 }
 .empty-actions { display: flex; gap: 10px; }
-.strategy-filter-popup { max-height: 88vh; background: var(--bg-elevated); }
+.strategy-filter-popup {
+  max-height: 88vh;
+  max-height: 88dvh;
+  overflow-y: auto;
+  background: var(--bg-elevated);
+}
 .filter-sheet { padding: 20px 18px calc(22px + var(--safe-area-bottom, 0px)); }
 .filter-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; color: var(--text); }
 .filter-sheet-head strong { font-size: 17px; }
