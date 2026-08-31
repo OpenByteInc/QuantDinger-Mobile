@@ -12,11 +12,12 @@ ARG APP_VERSION=""
 ARG GIT_TAG=""
 WORKDIR /app
 
-COPY package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN npm install --global pnpm@11.19.0 --no-audit --no-fund \
+    && pnpm install --frozen-lockfile
 
 COPY . .
-RUN APP_VERSION="$APP_VERSION" GIT_TAG="$GIT_TAG" npm run build
+RUN APP_VERSION="$APP_VERSION" GIT_TAG="$GIT_TAG" pnpm run build
 
 FROM ${NGINX_IMAGE}
 
