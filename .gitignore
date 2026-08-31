@@ -61,3 +61,10 @@ coverage/
 *.tmp
 *.temp
 .cache/
+
+# Local design review and visual QA artifacts
+/audits/
+/design-qa*
+/screenshots/
+/playwright-report/
+/test-results/
