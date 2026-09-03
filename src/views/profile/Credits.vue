@@ -17,14 +17,25 @@
       </div>
     </div>
 
-    <div class="section" v-if="planItems.length">
+    <div class="section plans-section">
       <div class="section-title">{{ $t('profile.credits_recharge') }}</div>
-      <div class="plan-grid">
-        <div
+      <div v-if="loading && !planItems.length" class="plans-loading">
+        <van-loading size="22" />
+        <span>{{ tr('profile.pay_loading_plans', '正在加载套餐…') }}</span>
+      </div>
+      <div v-else-if="plansLoadError" class="plans-error">
+        <van-icon name="warning-o" />
+        <span>{{ tr('profile.pay_load_failed', '套餐加载失败，请检查网络后重试') }}</span>
+        <van-button size="small" plain @click="load">{{ $t('common.retry') }}</van-button>
+      </div>
+      <div v-else-if="planItems.length" class="plan-grid">
+        <button
           v-for="plan in planItems"
           :key="plan.key"
+          type="button"
           class="plan-card"
           :class="{ popular: plan.popular }"
+          :aria-label="`${plan.name}，${tr('profile.pay_choose_plan', '选择此套餐')}`"
           @click="handlePurchase(plan)"
         >
           <div v-if="plan.popular" class="plan-badge">HOT</div>
@@ -38,8 +49,13 @@
           <div v-if="plan.credits" class="plan-credits">+{{ plan.credits }} {{ $t('profile.credits_unit') }}</div>
           <div v-if="plan.vip_days" class="plan-vip">VIP {{ plan.vip_days }} {{ vipDaysUnit }}</div>
           <div v-if="plan.description" class="plan-desc">{{ plan.description }}</div>
-        </div>
+          <span class="plan-action">
+            {{ tr('profile.pay_choose_plan', '选择此套餐') }}
+            <van-icon name="arrow" />
+          </span>
+        </button>
       </div>
+      <van-empty v-else :description="tr('profile.pay_no_plans', '暂无可购买套餐')" />
     </div>
 
     <div class="section">
@@ -67,6 +83,41 @@
       <van-empty v-else :description="$t('profile.credits_log_empty')" />
     </div>
 
+    <van-popup
+      v-model:show="methodPickerVisible"
+      position="bottom"
+      round
+      class="method-popup"
+    >
+      <div class="method-sheet">
+        <div class="chain-head">
+          <div class="chain-title">{{ tr('profile.pay_method_title', '选择支付方式') }}</div>
+          <div class="chain-desc">{{ tr('profile.pay_method_desc', '选择稳定币或银行卡完成支付') }}</div>
+          <button type="button" class="icon-close chain-close" :aria-label="$t('common.close')" @click="closeMethodPicker">
+            <van-icon name="cross" />
+          </button>
+        </div>
+        <div class="method-list">
+          <button v-for="method in availablePaymentMethods" :key="method.code" class="method-option" @click="choosePaymentMethod(method.code)">
+            <span class="method-brand" :class="`brand-${method.code.toLowerCase()}`" aria-hidden="true">
+              <img :src="paymentMethodLogo(method.code)" alt="" />
+            </span>
+            <span class="method-copy">
+              <strong>{{ paymentMethodTitle(method.code) }}</strong>
+              <small>{{ paymentMethodDescription(method.code) }}</small>
+              <span v-if="method.code === 'STRIPE'" class="mobile-card-brands" aria-hidden="true">
+                <span class="card-brand visa"><img :src="visaLogo" alt="" /></span>
+                <span class="card-brand mastercard"><img :src="mastercardLogo" alt="" /></span>
+                <span class="stripe-word">Stripe</span>
+              </span>
+            </span>
+            <van-icon class="method-arrow" name="arrow" />
+          </button>
+          <van-empty v-if="!availablePaymentMethods.length" :description="tr('profile.pay_no_method', '该套餐暂未配置支付方式')" />
+        </div>
+      </div>
+    </van-popup>
+
     <!-- Chain Picker Popup (v3.0.6+ parity with PC) -->
     <van-popup
       v-model:show="chainPickerVisible"
@@ -79,12 +130,13 @@
         <div class="chain-head">
           <div class="chain-title">{{ $t('profile.pay_pick_chain_title') }}</div>
           <div class="chain-desc">{{ $t('profile.pay_pick_chain_desc') }}</div>
-          <van-icon
+          <button
             v-if="!creatingOrder"
+            type="button"
             class="chain-close"
-            name="cross"
+            :aria-label="$t('common.close')"
             @click="closeChainPicker"
-          />
+          ><van-icon name="cross" /></button>
         </div>
 
         <div v-if="chainsLoading" class="chain-loading">
@@ -96,14 +148,16 @@
         </div>
         <div v-else-if="!availableChains.length" class="chain-error">
           <van-icon name="warning-o" />
-          <span>{{ $t('profile.pay_no_chains') }}</span>
+          <span>{{ tr('profile.pay_no_chains_currency', `No ${selectedCurrency} receiving address is configured`, { currency: selectedCurrency }) }}</span>
         </div>
         <div v-else class="chain-list">
-          <div
+          <button
             v-for="c in availableChains"
             :key="c.code"
+            type="button"
             class="chain-option"
             :class="{ selected: selectedChain === c.code }"
+            :aria-pressed="selectedChain === c.code"
             @click="selectedChain = c.code"
           >
             <div class="chain-row">
@@ -120,7 +174,7 @@
               </span>
               <span v-if="c.address_prefix_hint" class="meta-addr">{{ c.address_prefix_hint }}</span>
             </div>
-          </div>
+          </button>
         </div>
 
         <div class="chain-actions">
@@ -138,7 +192,7 @@
       </div>
     </van-popup>
 
-    <!-- USDT Pay Modal -->
+    <!-- Stablecoin Pay Modal -->
     <van-popup
       v-model:show="payVisible"
       position="center"
@@ -147,15 +201,17 @@
       class="usdt-popup"
     >
       <div class="usdt-modal" v-if="order">
-        <div class="usdt-head">
+        <div class="usdt-head" :class="{ 'is-usdc': activeCurrency === 'USDC' }">
           <div class="usdt-logo">
-            <van-icon name="gold-coin-o" />
+            <img :src="paymentMethodLogo(activeCurrency)" alt="" />
           </div>
           <div class="usdt-head-text">
-            <div class="usdt-title">{{ $t('profile.pay_title') }}</div>
-            <div class="usdt-desc">{{ $t('profile.pay_desc', { chain: order.chain || 'TRC20' }) }}</div>
+            <div class="usdt-title">{{ activeCurrency }} {{ tr('profile.pay_crypto_title', '支付') }}</div>
+            <div class="usdt-desc">{{ tr('profile.pay_crypto_desc', `请通过 ${order.chain || 'TRC20'} 支付准确的 ${activeCurrency} 金额`, { chain: order.chain || 'TRC20', currency: activeCurrency }) }}</div>
           </div>
-          <van-icon class="usdt-close" name="cross" @click="closePay" />
+          <button type="button" class="icon-close usdt-close" :aria-label="$t('common.close')" @click="closePay">
+            <van-icon name="cross" />
+          </button>
         </div>
 
         <div :class="['usdt-status', statusClass]">
@@ -165,11 +221,11 @@
 
         <div class="usdt-qr">
           <div class="qr-frame" :class="{ confirmed: order.status === 'confirmed' }">
-            <img v-if="qrDataUrl" :src="qrDataUrl" alt="USDT QR" />
+            <img v-if="qrDataUrl" :src="qrDataUrl" :alt="`${activeCurrency} QR`" />
           </div>
           <div class="qr-amount">
             <span class="num">{{ order.amount_usdt }}</span>
-            <span class="cur">USDT</span>
+            <span class="cur">{{ activeCurrency }}</span>
           </div>
           <div class="qr-chain">{{ order.chain || 'TRC20' }}</div>
         </div>
@@ -185,7 +241,7 @@
           <div class="info-row">
             <div class="info-label">{{ $t('profile.pay_amount') }}</div>
             <div class="info-value">
-              <span>{{ order.amount_usdt }} USDT</span>
+              <span>{{ order.amount_usdt }} {{ activeCurrency }}</span>
               <van-button size="mini" plain @click="copy(order.amount_usdt)">{{ $t('profile.pay_copy_amount') }}</van-button>
             </div>
           </div>
@@ -223,7 +279,15 @@
 <script>
 import { showToast } from 'vant'
 import QRCode from 'qrcode'
+import { App as CapacitorApp } from '@capacitor/app'
+import { Browser } from '@capacitor/browser'
+import { Capacitor } from '@capacitor/core'
 import { billingApi, userApi } from '@/api'
+import tetherLogo from '@/assets/payment/tether.svg'
+import circleLogo from '@/assets/payment/circle.svg'
+import stripeLogo from '@/assets/payment/stripe.svg'
+import visaLogo from '@/assets/payment/visa.svg'
+import mastercardLogo from '@/assets/payment/mastercard.svg'
 
 export default {
   name: 'ProfileCredits',
@@ -235,14 +299,23 @@ export default {
         vip_expires_at: null
       },
       plans: {},
+      paymentMethods: [],
       log: [],
       loading: false,
+      plansLoadError: false,
 
       payVisible: false,
       order: null,
       qrDataUrl: '',
       pollTimer: null,
+      pollGeneration: 0,
+      pollRequestInFlight: false,
       refreshing: false,
+      stripeCreating: false,
+      lastResumeRefreshAt: 0,
+      stripeRefreshTimers: [],
+      appStateListener: null,
+      browserFinishedListener: null,
 
       /* Chain picker state (v3.0.6+ parity with PC billing flow) */
       chainPickerVisible: false,
@@ -251,7 +324,11 @@ export default {
       availableChains: [],
       selectedChain: null,
       pendingPlan: null,
-      creatingOrder: false
+      creatingOrder: false,
+      methodPickerVisible: false,
+      selectedCurrency: 'USDT',
+      visaLogo,
+      mastercardLogo
     }
   },
   computed: {
@@ -271,18 +348,26 @@ export default {
       const map = this.plans || {}
       const entries = Object.entries(map)
       if (!entries.length) return []
-      const hot = 'yearly'
-      return entries.map(([key, value]) => ({
-        key,
-        name: this.planName(key, value),
-        price_usd: value?.price_usd,
-        price_cny: value?.price_cny || value?.price,
-        credits: value?.credits_once || value?.credits,
-        vip_days: value?.vip_days,
-        description: value?.description || value?.subtitle,
-        popular: key === hot || !!value?.popular,
-        raw: value
-      }))
+      return entries
+        .sort(([, a], [, b]) => Number(a?.sort_order || 0) - Number(b?.sort_order || 0))
+        .map(([key, value]) => ({
+          key,
+          name: this.planName(key, value),
+          price_usd: value?.price_usd,
+          price_cny: value?.price_cny || value?.price,
+          credits: value?.credits_once || value?.credits_monthly || value?.credits,
+          vip_days: value?.duration_days || value?.vip_days,
+          description: this.planDescription(key, value),
+          popular: !!(value?.is_popular || value?.popular),
+          raw: value
+        }))
+    },
+    activeCurrency() {
+      return this.order?.currency || this.selectedCurrency || 'USDT'
+    },
+    availablePaymentMethods() {
+      const plan = this.pendingPlan?.raw
+      return (this.paymentMethods || []).filter((method) => method.code !== 'STRIPE' || plan?.stripe_enabled)
     },
     statusLabel() {
       const s = this.order?.status
@@ -312,33 +397,106 @@ export default {
     }
   },
   mounted() {
+    window.addEventListener('focus', this.handlePaymentResume)
+    document.addEventListener('visibilitychange', this.handleVisibilityChange)
     this.load()
+    if (Capacitor.isNativePlatform?.()) this.bindNativePaymentResume()
+    if (this.$route.query.payment === 'stripe_success') {
+      showToast({ message: this.tr('profile.pay_stripe_success', '支付已完成，积分到账后将自动更新'), type: 'success' })
+      this.scheduleStripeRefreshes()
+      this.clearStripeReturnQuery()
+    } else if (this.$route.query.payment === 'stripe_cancelled') {
+      showToast({ message: this.tr('profile.pay_stripe_cancelled', '已取消银行卡支付'), type: 'fail' })
+      this.clearStripeReturnQuery()
+    }
   },
   beforeUnmount() {
     this.stopPolling()
+    this.clearStripeRefreshTimers()
+    window.removeEventListener('focus', this.handlePaymentResume)
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange)
+    this.appStateListener?.remove()
+    this.browserFinishedListener?.remove()
   },
   methods: {
+    tr(key, fallback, params) {
+      const translated = this.$t(key, params)
+      return translated && translated !== key ? translated : fallback
+    },
+    paymentMethodTitle(code) {
+      const titles = {
+        USDT: this.tr('profile.pay_method_usdt_title', 'USDT 稳定币'),
+        USDC: this.tr('profile.pay_method_usdc_title', 'USDC 稳定币'),
+        STRIPE: this.tr('profile.pay_method_card_title', '银行卡支付')
+      }
+      return titles[code] || code
+    },
+    paymentMethodDescription(code) {
+      const descriptions = {
+        USDT: this.tr('profile.pay_method_usdt_desc', '通过链上钱包转账，支持多条网络'),
+        USDC: this.tr('profile.pay_method_usdc_desc', 'Circle 官方稳定币，支持 Ethereum 与 Solana'),
+        STRIPE: this.tr('profile.pay_method_card_desc', '支持 Visa、Mastercard 等银行卡，由 Stripe 安全处理')
+      }
+      return descriptions[code] || ''
+    },
+    paymentMethodLogo(code) {
+      const logos = { USDT: tetherLogo, USDC: circleLogo, STRIPE: stripeLogo }
+      return logos[code] || stripeLogo
+    },
+    async bindNativePaymentResume() {
+      // Older native shells may not expose every listener. Billing data must
+      // still load even when one optional bridge event is unavailable.
+      try {
+        this.appStateListener = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) this.handlePaymentResume()
+        })
+      } catch (err) {
+        console.warn('Native app-state listener is unavailable:', err)
+      }
+      try {
+        this.browserFinishedListener = await Browser.addListener('browserFinished', () => {
+          this.handlePaymentResume()
+        })
+      } catch (err) {
+        console.warn('Native browser-finished listener is unavailable:', err)
+      }
+    },
+    handleVisibilityChange() {
+      if (document.visibilityState === 'visible') this.handlePaymentResume()
+    },
+    handlePaymentResume() {
+      const now = Date.now()
+      if (now - this.lastResumeRefreshAt < 1200) return
+      this.lastResumeRefreshAt = now
+      this.load()
+    },
+    scheduleStripeRefreshes() {
+      this.clearStripeRefreshTimers()
+      this.stripeRefreshTimers = [1500, 5000].map((delay) => window.setTimeout(() => this.load(), delay))
+    },
+    clearStripeRefreshTimers() {
+      this.stripeRefreshTimers.forEach((timer) => window.clearTimeout(timer))
+      this.stripeRefreshTimers = []
+    },
+    clearStripeReturnQuery() {
+      const query = { ...this.$route.query }
+      delete query.payment
+      delete query.session_id
+      this.$router.replace({ path: this.$route.path, query }).catch(() => {})
+    },
     goBack() {
       if (window.history.length > 1) this.$router.back()
       else this.$router.replace('/profile')
     },
     planName(key, value) {
-      if (value?.name || value?.title) return value.name || value.title
-      const loc = this.$i18n?.locale
-      const picks = {
-        monthly: { 'en-US': 'Monthly', 'ja-JP': '月額', 'ko-KR': '월간', default: '包月' },
-        yearly: { 'en-US': 'Yearly', 'ja-JP': '年額', 'ko-KR': '연간', default: '包年' },
-        lifetime: { 'en-US': 'Lifetime', 'ja-JP': '永久', 'ko-KR': '영구', default: '永久' }
-      }
-      const map = {
-        monthly: picks.monthly[loc] || picks.monthly.default,
-        yearly: picks.yearly[loc] || picks.yearly.default,
-        lifetime: picks.lifetime[loc] || picks.lifetime.default
-      }
-      return map[key] || key
+      return this.tr(`profile.plan_${key}_name`, value?.name || value?.title || key)
+    },
+    planDescription(key, value) {
+      return this.tr(`profile.plan_${key}_desc`, value?.description || value?.subtitle || '')
     },
     async load() {
       this.loading = true
+      this.plansLoadError = false
       try {
         const [profileRes, plansRes, logRes] = await Promise.allSettled([
           userApi.getProfile(),
@@ -351,12 +509,16 @@ export default {
         if (plansRes.status === 'fulfilled' && plansRes.value?.data) {
           const d = plansRes.value.data
           this.plans = d.plans || {}
+          this.paymentMethods = d.payment_methods || []
           if (d.billing) this.billing = { ...this.billing, ...d.billing }
+        } else {
+          this.plansLoadError = true
         }
         if (logRes.status === 'fulfilled' && logRes.value?.data) {
           this.log = logRes.value.data.items || logRes.value.data.list || []
         }
       } catch (err) {
+        this.plansLoadError = true
         console.error('Load credits data failed:', err)
       } finally {
         this.loading = false
@@ -369,13 +531,57 @@ export default {
      */
     async handlePurchase(plan) {
       this.pendingPlan = plan
+      this.methodPickerVisible = true
+    },
+    closeMethodPicker() {
+      this.methodPickerVisible = false
+      this.pendingPlan = null
+    },
+    async choosePaymentMethod(method) {
+      if (this.stripeCreating || this.creatingOrder) return
+      this.methodPickerVisible = false
+      if (method === 'STRIPE') {
+        const isNative = Capacitor.isNativePlatform?.()
+        const checkoutWindow = isNative ? null : window.open('about:blank', '_blank')
+        if (!isNative && !checkoutWindow) {
+          this.pendingPlan = null
+          showToast({ message: this.$t('profile.pay_stripe_popup_blocked'), type: 'fail' })
+          return
+        }
+        if (checkoutWindow) checkoutWindow.opener = null
+        const planKey = this.pendingPlan?.key
+        this.pendingPlan = null
+        this.stripeCreating = true
+        try {
+          const res = await billingApi.createStripeCheckout(planKey)
+          if (res?.code === 1 && res?.data?.checkout_url) {
+            if (isNative) {
+              await Browser.open({ url: res.data.checkout_url, presentationStyle: 'fullscreen' })
+            } else if (!checkoutWindow.closed) {
+              checkoutWindow.location.replace(res.data.checkout_url)
+            } else {
+              showToast({ message: this.$t('profile.pay_stripe_popup_blocked'), type: 'fail' })
+            }
+            return
+          }
+          checkoutWindow?.close()
+          showToast({ message: res?.msg || this.$t('profile.pay_create_fail'), type: 'fail' })
+        } catch (err) {
+          checkoutWindow?.close()
+          showToast({ message: err?.response?.data?.msg || this.$t('profile.pay_create_fail'), type: 'fail' })
+        } finally {
+          this.stripeCreating = false
+        }
+        return
+      }
+      this.selectedCurrency = method
       this.selectedChain = null
       this.availableChains = []
       this.chainsLoadError = ''
       this.chainsLoading = true
       this.chainPickerVisible = true
       try {
-        const res = await billingApi.listUsdtChains()
+        const res = await billingApi.listCryptoChains(method)
         if (res?.code === 1 && Array.isArray(res?.data?.chains)) {
           this.availableChains = res.data.chains
           const rec = this.availableChains.find((c) => c.recommended)
@@ -399,7 +605,7 @@ export default {
       if (!this.pendingPlan || !this.selectedChain) return
       this.creatingOrder = true
       try {
-        const res = await billingApi.createUsdtOrder(this.pendingPlan.key, this.selectedChain)
+        const res = await billingApi.createCryptoOrder(this.pendingPlan.key, this.selectedChain, this.selectedCurrency)
         if (res?.code === 1 && res?.data) {
           this.order = res.data
           this.chainPickerVisible = false
@@ -444,17 +650,22 @@ export default {
       }, 5000)
     },
     stopPolling() {
+      this.pollGeneration += 1
       if (this.pollTimer) {
         clearInterval(this.pollTimer)
         this.pollTimer = null
       }
     },
     async refreshOrder(isPolling = false) {
-      if (!this.order?.order_id) return
+      if (!this.order?.order_id || this.pollRequestInFlight) return
+      const generation = this.pollGeneration
+      const orderId = this.order.order_id
+      this.pollRequestInFlight = true
       if (!isPolling) this.refreshing = true
       try {
-        const res = await billingApi.getUsdtOrder(this.order.order_id, true)
+        const res = await billingApi.getCryptoOrder(orderId, true)
         if (res?.code === 1 && res?.data) {
+          if (generation !== this.pollGeneration || this.order?.order_id !== orderId) return
           this.order = res.data
           const status = this.order.status
           if (status === 'confirmed') {
@@ -468,12 +679,15 @@ export default {
       } catch {
         /* ignore */
       } finally {
+        this.pollRequestInFlight = false
         this.refreshing = false
       }
     },
     closePay() {
       this.payVisible = false
       this.stopPolling()
+      this.order = null
+      this.qrDataUrl = ''
     },
     async copy(text) {
       try {
@@ -607,6 +821,23 @@ export default {
   color: var(--text);
   margin-bottom: 10px;
 }
+.plans-loading,
+.plans-error {
+  min-height: 108px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  font-size: 13px;
+}
+.plans-error > i { color: var(--warn); font-size: 22px; }
 
 .plan-grid {
   display: grid;
@@ -614,13 +845,22 @@ export default {
   gap: 10px;
 }
 .plan-card {
+  width: 100%;
+  min-width: 0;
   position: relative;
   padding: 14px;
   border-radius: var(--radius);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  appearance: none;
+  transition: transform .16s ease, border-color .16s ease, background .16s ease;
 }
+.plan-card:active { transform: scale(.985); border-color: var(--accent); }
+.plan-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .plan-card.popular {
   background: var(--c-amber-soft);
   border-color: transparent;
@@ -662,6 +902,19 @@ export default {
   font-size: 11px;
   color: var(--text-3);
   line-height: 1.4;
+}
+.plan-action {
+  min-height: 32px;
+  margin-top: 12px;
+  padding-top: 9px;
+  border-top: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .log-list {
@@ -727,6 +980,66 @@ export default {
   color: var(--text-4);
 }
 
+.method-popup {
+  background: var(--bg-elevated) !important;
+  color: var(--text);
+  bottom: var(--shell-tabbar-height, calc(62px + var(--safe-area-bottom, 0px))) !important;
+}
+.method-sheet { position: relative; padding: 18px 16px calc(18px + var(--safe-area-bottom, 0px)); }
+.method-list { display: grid; gap: 10px; }
+.method-option {
+  width: 100%;
+  min-height: 84px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-raised);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  font: inherit;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .04);
+}
+.method-option:active { border-color: var(--accent); background: var(--accent-soft); }
+.method-option:focus-visible,
+.chain-option:focus-visible,
+.icon-close:focus-visible,
+.chain-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.method-brand {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-soft);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.method-brand img { width: 27px; height: 27px; display: block; }
+.method-brand.brand-usdt { background: #26a17b; box-shadow: none; }
+.method-brand.brand-usdc { background: #2775ca; box-shadow: none; }
+.method-brand.brand-stripe { background: #635bff; box-shadow: none; }
+.method-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.method-copy strong { color: var(--text); font-size: 14px; line-height: 1.35; }
+.method-copy small { color: var(--text-2); font-size: 12px; line-height: 1.4; }
+.method-arrow { color: var(--text-4); }
+.mobile-card-brands { display: flex; align-items: center; gap: 5px; margin-top: 4px; min-height: 18px; }
+.card-brand {
+  width: 30px;
+  height: 18px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.card-brand img { width: 20px; height: 12px; display: block; }
+.card-brand.visa { background: #1434cb; }
+.card-brand.mastercard { background: #eb001b; }
+.stripe-word { margin-left: 2px; color: #7d75ff; font-size: 11px; font-weight: 800; letter-spacing: -.02em; }
+
 /* Chain picker (v3.0.6+) */
 .chain-popup {
   background: var(--bg-elevated) !important;
@@ -743,11 +1056,19 @@ export default {
 .chain-desc { margin-top: 4px; font-size: 12px; color: var(--text-2); }
 .chain-close {
   position: absolute;
-  top: 14px;
-  right: 16px;
+  top: 7px;
+  right: 8px;
+  width: 44px;
+  height: 44px;
   font-size: 20px;
   color: var(--text-2);
-  padding: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .chain-loading,
 .chain-error {
@@ -771,12 +1092,18 @@ export default {
   padding-bottom: 2px;
 }
 .chain-option {
+  width: 100%;
+  min-height: 68px;
   padding: 12px 14px;
   border-radius: var(--radius);
   background: var(--surface-raised);
   border: 1px solid var(--border);
   cursor: pointer;
   transition: all 0.2s;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  appearance: none;
 }
 .chain-option.selected {
   border-color: var(--accent);
@@ -815,8 +1142,8 @@ export default {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  font-size: 11px;
-  color: var(--text-3);
+  font-size: 12px;
+  color: var(--text-2);
 }
 .meta-addr {
   font-family: ui-monospace, Menlo, Consolas, monospace;
@@ -839,9 +1166,9 @@ export default {
 
 /* USDT popup */
 .usdt-popup {
-  width: calc(100% - 40px);
+  width: calc(100% - 24px);
   max-width: 420px;
-  max-height: calc(100vh - var(--shell-tabbar-height, calc(62px + var(--safe-area-bottom, 0px))) - 44px);
+  max-height: calc(100dvh - var(--shell-tabbar-height, calc(62px + var(--safe-area-bottom, 0px))) - 24px);
   background: var(--bg-elevated) !important;
   color: var(--text);
   overflow-y: auto;
@@ -865,10 +1192,11 @@ export default {
   align-items: center;
   justify-content: center;
   background: #26a17b;
-  color: #ffffff;
-  border-radius: 10px;
-  font-size: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
+.usdt-head.is-usdc .usdt-logo { background: #2775ca; }
+.usdt-logo img { width: 23px; height: 23px; display: block; }
 .usdt-head-text { flex: 1; min-width: 0; }
 .usdt-title { font-size: 15px; font-weight: 700; color: var(--text); }
 .usdt-desc {
@@ -878,9 +1206,18 @@ export default {
   line-height: 1.45;
 }
 .usdt-close {
+  width: 44px;
+  height: 44px;
+  margin: -8px -10px 0 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 20px;
   color: var(--text-2);
-  padding: 2px;
+  padding: 0;
 }
 
 .usdt-status {
@@ -924,6 +1261,7 @@ export default {
   margin-top: 10px;
   font-weight: 800;
   color: var(--c-amber);
+  font-variant-numeric: tabular-nums;
 }
 .qr-amount .num { font-size: 22px; }
 .qr-amount .cur { font-size: 11px; margin-left: 4px; color: var(--text-2); letter-spacing: 0.06em; }
@@ -969,6 +1307,10 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 130px;
+}
+.info-value :deep(.van-button) {
+  min-width: 44px;
+  min-height: 36px;
 }
 .info-value.sub { color: var(--text-2); }
 

@@ -1018,6 +1018,13 @@ export const billingApi = {
       data: res.data || { chains: [] }
     }
   },
+  listCryptoChains: async (currency = 'USDT') => {
+    const res = await http.get('/api/billing/crypto/chains', { params: { currency } })
+    return {
+      ...res,
+      data: res.data || { chains: [], currency }
+    }
+  },
   getPlans: async () => {
     const res = await http.get('/api/billing/plans')
     return {
@@ -1031,6 +1038,15 @@ export const billingApi = {
     if (chain) payload.chain = chain
     return http.post('/api/billing/usdt/create', payload)
   },
+  createCryptoOrder: (plan, chain, currency = 'USDT') => http.post('/api/billing/crypto/create', {
+    plan,
+    chain,
+    currency
+  }),
+  getCryptoOrder: (orderId, refresh = true) => http.get(`/api/billing/crypto/order/${orderId}`, {
+    params: { refresh: refresh ? 1 : 0 }
+  }),
+  createStripeCheckout: (plan) => http.post('/api/billing/stripe/create', { plan, client: 'mobile' }),
   getUsdtOrder: (orderId, refresh = true) => http.get(`/api/billing/usdt/order/${orderId}`, {
     params: { refresh: refresh ? 1 : 0 }
   })
