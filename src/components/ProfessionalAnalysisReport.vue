@@ -17,8 +17,10 @@
           <p>{{ instrument.name || instrument.symbol }} · {{ tierLabel }}</p>
         </div>
         <div class="decision-panel">
-          <strong>{{ decisionLabel }}</strong>
-          <span>{{ formatNumber(decision.confidence, 0) }}%</span>
+          <small class="decision-heading">{{ $t('professional_report.market_bias') }}</small>
+          <strong>{{ marketBiasLabel }}</strong>
+          <span class="trade-action">{{ $t('professional_report.trade_action') }} · {{ decisionLabel }}</span>
+          <span class="confidence-value">{{ formatNumber(decision.confidence, 0) }}%</span>
           <small>{{ $t('professional_report.model_strength') }}</small>
         </div>
       </header>
@@ -123,13 +125,17 @@
       </article>
 
       <article v-if="riskPlan" class="report-card">
-        <h3><van-icon name="shield-o" />{{ $t('professional_report.risk_plan') }}</h3>
+        <h3><van-icon name="shield-o" />{{ $t(isCandidateSetup ? 'professional_report.candidate_setup' : 'professional_report.risk_plan') }}</h3>
+        <div v-if="isCandidateSetup" class="candidate-notice">
+          <van-icon name="info-o" />
+          <span>{{ $t('professional_report.candidate_setup_desc') }}</span>
+        </div>
         <div class="risk-grid">
-          <div><span>{{ $t('ai_analysis.entry') }}</span><strong>{{ actionableMoney(riskPlan.entry_price) }}</strong></div>
-          <div><span>{{ $t('ai_analysis.stop_loss') }}</span><strong>{{ actionableMoney(riskPlan.stop_loss) }}</strong></div>
-          <div><span>{{ $t('ai_analysis.take_profit') }}</span><strong>{{ actionableMoney(riskPlan.take_profit) }}</strong></div>
-          <div><span>{{ $t('professional_report.gross_rr') }}</span><strong>{{ riskReward(riskPlan.gross_risk_reward) }}</strong></div>
-          <div :class="{ danger: hasLowRiskReward }"><span>{{ $t('professional_report.net_rr') }}</span><strong>{{ riskReward(riskPlan.net_risk_reward) }}</strong></div>
+          <div><span>{{ $t('ai_analysis.entry') }}</span><strong>{{ money(displayRiskPlan.entry_price) }}</strong></div>
+          <div><span>{{ $t('ai_analysis.stop_loss') }}</span><strong>{{ money(displayRiskPlan.stop_loss) }}</strong></div>
+          <div><span>{{ $t('ai_analysis.take_profit') }}</span><strong>{{ money(displayRiskPlan.take_profit) }}</strong></div>
+          <div><span>{{ $t('professional_report.gross_rr') }}</span><strong>{{ riskReward(displayRiskPlan.gross_risk_reward) }}</strong></div>
+          <div :class="{ danger: hasLowRiskReward }"><span>{{ $t('professional_report.net_rr') }}</span><strong>{{ riskReward(displayRiskPlan.net_risk_reward) }}</strong></div>
           <div><span>{{ $t('professional_report.position_cap') }}</span><strong>{{ percent(riskPlan.recommended_position_pct) }}</strong></div>
           <div><span>{{ $t('professional_report.risk_budget') }}</span><strong>{{ percent(riskPlan.risk_budget_pct) }}</strong></div>
           <div><span>{{ $t('professional_report.cost') }}</span><strong>{{ bps(riskPlan.estimated_roundtrip_cost_bps) }}</strong></div>
@@ -153,9 +159,9 @@
           <section v-for="item in evidence" :key="item.evidence_id" class="evidence-item">
             <div class="item-head">
               <strong>{{ labelFor(item.metric, 'capability') }}</strong>
-              <span>{{ evidenceValue(item) }}</span>
+              <span :title="evidenceExactValue(item)">{{ evidenceValue(item) }}</span>
             </div>
-            <small>{{ item.source }} · {{ formatTime(item.as_of) }}</small>
+            <small>{{ providerLabel(item.source) }} · {{ formatTime(item.as_of) }}</small>
             <a v-if="safeUrl(item.source_url)" :href="safeUrl(item.source_url)" target="_blank" rel="noopener noreferrer">
               {{ $t('professional_report.open_source') }}
             </a>
@@ -174,6 +180,8 @@
 
 <script>
 import {
+  evidenceProviderTokens,
+  formatEvidenceObservation,
   professionalReportArtifact,
   reportChangePercent,
   reportCurrentPrice,
@@ -200,7 +208,14 @@ export default {
     scenarios() { return Array.isArray(this.report?.scenarios) ? this.report.scenarios : [] },
     claims() { return Array.isArray(this.report?.claims) ? this.report.claims : [] },
     riskPlan() { return this.report?.risk_plan || null },
-    riskWarnings() { return Array.isArray(this.riskPlan?.warnings) ? this.riskPlan.warnings : [] },
+    displayRiskPlan() { return this.riskPlan?.candidate_setup || this.riskPlan || {} },
+    isCandidateSetup() { return Boolean(this.riskPlan?.candidate_setup) },
+    riskWarnings() {
+      return [...new Set([
+        ...(Array.isArray(this.riskPlan?.warnings) ? this.riskPlan.warnings : []),
+        ...(Array.isArray(this.riskPlan?.candidate_setup?.warnings) ? this.riskPlan.candidate_setup.warnings : [])
+      ])]
+    },
     auditWarnings() {
       return [...new Set([
         ...(this.quality.warnings || []),
@@ -208,7 +223,12 @@ export default {
         ...(this.report?.warnings || [])
       ])]
     },
-    hasLowRiskReward() { return reportHasRiskRewardWarning(this.report) },
+    hasLowRiskReward() {
+      if (!this.isCandidateSetup) return reportHasRiskRewardWarning(this.report)
+      const ratio = Number(this.displayRiskPlan.net_risk_reward ?? this.displayRiskPlan.gross_risk_reward)
+      const warnings = this.displayRiskPlan.warnings || []
+      return warnings.includes('candidate_net_risk_reward_below_one') || (Number.isFinite(ratio) && ratio < 1)
+    },
     currentPrice() { return reportCurrentPrice(this.report) },
     priceChange() { return reportChangePercent(this.report) },
     changeTone() {
@@ -248,7 +268,18 @@ export default {
         ? this.report.generated_at
         : this.report?.as_of
     },
-    decisionTone() { return `decision-${String(this.decision.decision || 'HOLD').toLowerCase()}` },
+    marketBias() {
+      const explicit = String(this.decision.market_bias || '').toUpperCase()
+      if (['BULLISH', 'BEARISH', 'NEUTRAL'].includes(explicit)) return explicit
+      const raw = Number(this.decision.market_bias_score)
+      const technical = Number(this.dimensions.find((item) => item.key === 'technical')?.score)
+      const score = Number.isFinite(raw) ? raw : Number.isFinite(technical) ? (technical - 50) * 2 : 0
+      if (score >= 5) return 'BULLISH'
+      if (score <= -5) return 'BEARISH'
+      return 'NEUTRAL'
+    },
+    marketBiasLabel() { return this.$t(`professional_report.bias_${this.marketBias.toLowerCase()}`) },
+    decisionTone() { return `bias-${this.marketBias.toLowerCase()}` },
     decisionLabel() {
       const key = `ai_analysis.decision_${String(this.decision.decision || 'HOLD').toLowerCase()}`
       return this.$t(key)
@@ -281,9 +312,6 @@ export default {
     money(value) {
       const formatted = this.formatPrice(value)
       return formatted === '--' ? '--' : `${formatted} ${this.quoteCurrency}`
-    },
-    actionableMoney(value) {
-      return String(this.decision.decision || '').toUpperCase() === 'HOLD' ? '--' : this.money(value)
     },
     percent(value) {
       return value == null || value === '' ? '--' : `${this.formatNumber(value, 2)}%`
@@ -373,12 +401,27 @@ export default {
     },
     evidenceValue(item) {
       const rawValue = item?.value
-      if (rawValue && typeof rawValue === 'object') return this.structuredEvidenceValue(rawValue)
-      const value = this.scalarEvidenceValue(rawValue)
-      const isNumeric = typeof rawValue === 'number' || (typeof rawValue === 'string' && rawValue.trim() !== '' && Number.isFinite(Number(rawValue)))
-      const unit = isNumeric ? this.evidenceUnit(item?.unit, item?.currency, item?.metric) : ''
-      const currency = item?.currency && !unit.includes(item.currency) ? ` ${item.currency}` : ''
-      return `${value}${unit}${currency}`
+      if (rawValue && typeof rawValue === 'object') return this.structuredEvidenceValue(rawValue, item)
+      const formatted = formatEvidenceObservation(item, this.evidenceFormatOptions())
+      return formatted?.display || this.scalarEvidenceValue(rawValue)
+    },
+    evidenceExactValue(item) {
+      const formatted = formatEvidenceObservation(item, this.evidenceFormatOptions())
+      return formatted?.compacted ? formatted.exact : ''
+    },
+    evidenceFormatOptions() {
+      return {
+        locale: this.$i18n?.locale,
+        shareLabel: this.$t('professional_report.unit.share'),
+        countLabel: this.$t('professional_report.unit.count'),
+        bpsLabel: this.$t('professional_report.unit.bps')
+      }
+    },
+    providerLabel(value) {
+      const tokens = evidenceProviderTokens(value)
+      if (!tokens.length) return '--'
+      const aliases = { yfinance_statements: 'Yahoo Finance statements', yfinance: 'Yahoo Finance', finnhub: 'Finnhub' }
+      return tokens.map(token => aliases[token] || token.replace(/_/g, ' ')).join(' + ')
     },
     enumLabel(value) {
       const key = `professional_report.evidence_value.${this.normalizeToken(value)}`
@@ -391,23 +434,15 @@ export default {
       if (typeof value !== 'string') return String(value)
       return this.enumLabel(value)
     },
-    structuredEvidenceValue(value) {
+    structuredEvidenceValue(value, parentItem = {}) {
       return Object.entries(value || {})
         .filter(([, fieldValue]) => fieldValue !== null && fieldValue !== undefined && fieldValue !== '')
-        .map(([field, fieldValue]) => `${this.metricPartLabel(field)} ${this.scalarEvidenceValue(fieldValue)}`)
+        .map(([field, fieldValue]) => `${this.metricPartLabel(field)} ${this.evidenceValue({
+          ...parentItem,
+          metric: `${parentItem.metric || ''}.${field}`,
+          value: fieldValue
+        })}`)
         .join(' · ') || '--'
-    },
-    evidenceUnit(value, currency, metric) {
-      const normalized = this.normalizeToken(value)
-      if (/(^|\.)rsi(\.|$)/i.test(String(metric || ''))) return ''
-      if (!normalized || ['price', 'currency', 'ohlcv', 'mixed_earnings'].includes(normalized)) return ''
-      if (normalized === 'percent') return '%'
-      if (normalized === 'multiple') return '×'
-      if (normalized === 'usd') return currency === 'USD' ? '' : ' USD'
-      if (normalized === 'currency_per_share') return currency ? ` ${currency}/${this.$t('professional_report.unit.share')}` : `/${this.$t('professional_report.unit.share')}`
-      const key = `professional_report.unit.${normalized}`
-      const translated = this.$t(key)
-      return translated === key ? ` ${value}` : ` ${translated}`
     },
     safeUrl(value) {
       try {
@@ -428,13 +463,15 @@ export default {
 .report-header h2 { margin: 4px 0; color: #fff; font-size: 20px; overflow-wrap: anywhere; }
 .report-header p { margin: 0; color: rgb(255 255 255 / 68%); font-size: 12px; }
 .kicker { color: #8cc8ff; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.decision-panel { display: grid; align-content: center; min-width: 92px; text-align: right; }
+.decision-panel { display: grid; align-content: center; min-width: 118px; text-align: right; }
 .decision-panel strong { font-size: 18px; }
-.decision-panel span { font-size: 22px; font-weight: 800; }
 .decision-panel small { color: rgb(255 255 255 / 60%); font-size: 9px; }
-.decision-buy .decision-panel strong { color: #6ee7b7; }
-.decision-sell .decision-panel strong { color: #fca5a5; }
-.decision-hold .decision-panel strong { color: #fcd34d; }
+.decision-panel .decision-heading { letter-spacing: .06em; text-transform: uppercase; }
+.decision-panel .trade-action { margin-top: 2px; color: rgb(255 255 255 / 82%); font-size: 11px; font-weight: 600; }
+.decision-panel .confidence-value { margin-top: 3px; color: #fff; font-size: 22px; font-weight: 800; }
+.bias-bullish .decision-panel strong { color: #6ee7b7; }
+.bias-bearish .decision-panel strong { color: #fca5a5; }
+.bias-neutral .decision-panel strong { color: #fcd34d; }
 .market-snapshot { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--border); border-radius: 13px; background: var(--border); }
 .market-snapshot div { display: grid; gap: 4px; min-width: 0; padding: 12px; background: var(--bg-elevated); }
 .market-snapshot span { color: var(--text-3); font-size: 9px; }
@@ -450,6 +487,7 @@ export default {
 .quality-grid strong, .risk-grid strong { color: var(--text); font-size: 12px; overflow-wrap: anywhere; }
 .quality-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; color: var(--text-3); font-size: 10px; }
 .quality-gate { display: flex; gap: 10px; padding: 13px; border: 1px solid rgb(245 158 11 / 35%); border-radius: 12px; color: #f59e0b; background: rgb(245 158 11 / 9%); }
+.candidate-notice { display: flex; gap: 7px; margin-bottom: 10px; padding: 9px; border-radius: 10px; color: #60a5fa; background: rgb(96 165 250 / 10%); font-size: 11px; line-height: 1.5; }
 .quality-gate p { margin: 4px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.5; }
 .dimension-list, .scenario-list { display: grid; gap: 9px; }
 .dimension-item, .scenario-item, .claim-item, .evidence-item { padding: 11px; border: 1px solid var(--border); border-radius: 11px; background: var(--bg); }
@@ -486,6 +524,7 @@ export default {
 }
 .evidence-item { margin-bottom: 8px; }
 .evidence-item a { display: inline-block; margin-top: 5px; color: var(--accent); font-size: 11px; }
+.evidence-item .evidence-observed, .evidence-item .item-head > span { font-variant-numeric: tabular-nums; }
 .report-footer { display: flex; flex-wrap: wrap; gap: 5px 12px; padding: 0 5px 14px; color: var(--text-3); font-size: 9px; overflow-wrap: anywhere; }
 .contract-warning { display: grid; justify-items: start; gap: 8px; color: #f59e0b; }
 .contract-warning .van-icon { font-size: 26px; }
