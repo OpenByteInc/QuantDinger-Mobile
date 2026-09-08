@@ -134,12 +134,7 @@ export default {
         // cancelled
       }
     },
-    /**
-     * Reconstruct a payload the AI analysis page can render, mirroring
-     * the PC `viewHistoryResult` logic so the user gets the same
-     * "open from history" experience on mobile (entry / SL / TP
-     * derived from price and decision when full_result is missing).
-     */
+    /** Open only persisted professional_report_v1 artifacts. */
     openItem(item) {
       if ((item.status || '').toLowerCase() === 'processing') {
         showToast({ message: this.$t('ai_analysis.history_processing'), type: 'fail' })
@@ -148,7 +143,7 @@ export default {
 
       const payload = buildHistoryResultPayload(item)
       if (!payload) {
-        showToast({ message: this.$t('ai_analysis.error_tip'), type: 'fail' })
+        showToast({ message: this.$t('professional_report.contract_required_desc'), type: 'fail' })
         return
       }
       this.aiStore.setLastResult(payload)

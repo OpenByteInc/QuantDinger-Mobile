@@ -4,6 +4,7 @@ import zhTW from './zh-TW'
 import enUS from './en-US'
 import jaJP from './ja-JP'
 import koKR from './ko-KR'
+import professionalReport from './professional-report'
 import {
   Locale as VantLocale
 } from 'vant'
@@ -39,11 +40,11 @@ const i18n = createI18n({
   locale: initialLocale,
   fallbackLocale: 'en-US',
   messages: {
-    'zh-CN': zhCN,
-    'zh-TW': zhTW,
-    'en-US': enUS,
-    'ja-JP': jaJP,
-    'ko-KR': koKR
+    'zh-CN': { ...zhCN, professional_report: professionalReport['zh-CN'] },
+    'zh-TW': { ...zhTW, professional_report: professionalReport['zh-TW'] },
+    'en-US': { ...enUS, professional_report: professionalReport['en-US'] },
+    'ja-JP': { ...jaJP, professional_report: professionalReport['ja-JP'] },
+    'ko-KR': { ...koKR, professional_report: professionalReport['ko-KR'] }
   }
 })
 

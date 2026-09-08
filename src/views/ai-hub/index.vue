@@ -64,6 +64,14 @@
                       {{ $t('ai_analysis.retry') }}
                     </button>
                   </div>
+                  <div v-else-if="!reportArtifact(msg.report)" class="report-error">
+                    <van-icon name="warning-o" />
+                    <strong>{{ $t('professional_report.contract_required') }}</strong>
+                    <p>{{ $t('professional_report.contract_required_desc') }}</p>
+                    <button type="button" @click="retryProfessionalAnalysis(msg)">
+                      {{ $t('professional_report.regenerate') }}
+                    </button>
+                  </div>
                   <template v-else>
                     <div class="report-head">
                       <div>
@@ -72,7 +80,7 @@
                       </div>
                       <em>{{ reportConfidence(msg.report) }}</em>
                     </div>
-                    <p v-if="msg.report.summary" class="report-summary">{{ msg.report.summary }}</p>
+                    <p class="report-summary">{{ reportSummary(msg.report) }}</p>
                     <div class="report-plan">
                       <div>
                         <span>{{ $t('ai_analysis.entry') }}</span>
@@ -97,8 +105,8 @@
                     </div>
                     <div class="report-scores">
                       <span>{{ $t('ai_analysis.score_technical') }} {{ reportScore(msg.report, 'technical') }}</span>
-                      <span>{{ $t('ai_analysis.score_sentiment') }} {{ reportScore(msg.report, 'sentiment') }}</span>
-                      <span>{{ $t('ai_analysis.score_overall') }} {{ reportScore(msg.report, 'overall') }}</span>
+                      <span>{{ $t('professional_report.coverage') }} {{ reportQualityRatio(msg.report, 'coverage_ratio') }}</span>
+                      <span>{{ $t('professional_report.freshness') }} {{ reportQualityRatio(msg.report, 'freshness_ratio') }}</span>
                     </div>
                     <div class="report-actions">
                       <button type="button" @click="openFullReport(msg.report)">
@@ -402,6 +410,13 @@ import { showConfirmDialog, showImagePreview, showToast } from 'vant'
 import { aiAnalysisApi, aiChatApi } from '@/api'
 import { useAiAnalysisStore } from '@/stores'
 import SymbolPicker from '@/components/SymbolPicker.vue'
+import {
+  professionalReportArtifact,
+  professionalReportEnvelope,
+  reportHasRiskRewardWarning,
+  reportInstrument,
+  reportRiskReward as professionalRiskReward
+} from '@/utils/professionalReport'
 
 const COPY = {
   'zh-CN': {
@@ -1364,10 +1379,11 @@ export default {
       const content = String(message.content || '').trim()
       if (content) return content
       if (message.report) {
-        const report = message.report || {}
+        const report = professionalReportArtifact(message.report) || {}
+        const instrument = report.instrument || {}
         const target = message.reportTarget || {}
-        const market = report.market || target.market || ''
-        const symbol = report.symbol || target.symbol || ''
+        const market = instrument.market || target.market || ''
+        const symbol = instrument.canonical_symbol || instrument.symbol || target.symbol || ''
         return `Analysis report: ${[market, symbol].filter(Boolean).join(':') || 'market'}`
       }
       if (message.reportError) return `Analysis failed: ${message.reportError}`
@@ -1484,22 +1500,13 @@ export default {
       const res = await aiAnalysisApi.analyze({
         market: target.market,
         symbol: target.symbol,
-        timeframe: target.timeframe || '4h',
-        language: this.$i18n?.locale || 'zh-CN'
+        timeframe: target.timeframe || '1D',
+        language: this.$i18n?.locale || 'zh-CN',
+        response_contract: 'professional_report_v1'
       })
-      const payload = res?.data || res || {}
-      if (payload.code === 0) {
-        const err = new Error(payload.msg || this.$t('ai_analysis.error_tip'))
-        err.response = { data: payload }
-        throw err
-      }
-      const data = payload.data && typeof payload.data === 'object' ? payload.data : payload
-      return {
-        ...data,
-        market: data.market || target.market,
-        symbol: data.symbol || target.symbol,
-        timeframe: data.timeframe || target.timeframe || '4h'
-      }
+      const envelope = professionalReportEnvelope(res)
+      if (!envelope) throw new Error(this.$t('professional_report.contract_required_desc'))
+      return envelope
     },
     async retryProfessionalAnalysis(msg) {
       if (!msg?.reportTarget || this.sending) return
@@ -1524,56 +1531,69 @@ export default {
       }
     },
     openFullReport(report) {
-      if (!report) return
-      useAiAnalysisStore().setLastResult(report)
+      const envelope = professionalReportEnvelope(report)
+      if (!envelope) {
+        showToast({ message: this.$t('professional_report.contract_required_desc'), type: 'fail' })
+        return
+      }
+      const instrument = reportInstrument(envelope)
+      useAiAnalysisStore().setLastResult(envelope)
       this.$router.push({
         path: '/ai-analysis',
         query: {
-          market: report.market || this.context.market,
-          symbol: report.symbol || this.context.symbol,
-          timeframe: report.timeframe || this.context.timeframe
+          market: instrument.market || this.context.market,
+          symbol: instrument.canonical_symbol || instrument.symbol || this.context.symbol,
+          timeframe: envelope.report?.evidence_snapshot?.timeframe || this.context.timeframe
         }
       })
     },
+    reportArtifact(report) {
+      return professionalReportArtifact(report)
+    },
     reportMarketLabel(report) {
-      return [report?.market, report?.symbol].filter(Boolean).join(':') || this.$t('ai_analysis.title')
+      const instrument = reportInstrument(report)
+      return [instrument.market, instrument.canonical_symbol || instrument.symbol].filter(Boolean).join(':') || this.$t('ai_analysis.title')
     },
     reportDecisionLabel(report) {
-      const d = String(report?.decision || '').toUpperCase()
+      const d = String(professionalReportArtifact(report)?.decision_profile?.decision || '').toUpperCase()
       if (d.includes('BUY')) return this.$t('ai_analysis.decision_buy')
       if (d.includes('SELL')) return this.$t('ai_analysis.decision_sell')
       return this.$t('ai_analysis.decision_hold')
     },
     reportTone(report) {
-      const d = String(report?.decision || '').toUpperCase()
+      const d = String(professionalReportArtifact(report)?.decision_profile?.decision || '').toUpperCase()
       if (d.includes('BUY')) return 'buy'
       if (d.includes('SELL')) return 'sell'
       return 'hold'
     },
     reportConfidence(report) {
-      const value = Number(report?.confidence)
+      const value = Number(professionalReportArtifact(report)?.decision_profile?.confidence)
       return Number.isFinite(value) ? `${Math.round(value)}%` : '--'
     },
+    reportSummary(report) {
+      const artifact = professionalReportArtifact(report)
+      return String(artifact?.executive_summary || artifact?.decision_profile?.rationale || '--')
+        .replace(/\s*\[(?:ev_[a-f0-9]+(?:\s*,\s*)?)+\]/gi, '')
+        .trim()
+    },
     reportPlanValue(report, type) {
-      const plan = report?.trading_plan || report?.tradingPlan || {}
+      const artifact = professionalReportArtifact(report) || {}
+      if (String(artifact.decision_profile?.decision || '').toUpperCase() === 'HOLD') return '--'
+      const plan = artifact.risk_plan || {}
       const map = {
-        entry: plan.entry_price ?? plan.entryPrice ?? report?.entry_price ?? report?.entryPrice,
-        stop: plan.stop_loss ?? plan.stopLoss ?? report?.stop_loss ?? report?.stopLoss,
-        take: plan.take_profit ?? plan.takeProfit ?? report?.take_profit ?? report?.takeProfit
+        entry: plan.entry_price,
+        stop: plan.stop_loss,
+        take: plan.take_profit
       }
       return this.formatReportNumber(map[type])
     },
     reportRiskReward(report) {
-      const plan = report?.trading_plan || report?.tradingPlan || {}
-      const value = plan.risk_reward_ratio ?? plan.riskRewardRatio
+      const value = professionalRiskReward(report)
       if (value === '' || value == null || !Number.isFinite(Number(value))) return '--'
       return Number(value).toFixed(2)
     },
     reportHasRrWarning(report) {
-      const plan = report?.trading_plan || report?.tradingPlan || {}
-      const value = plan.risk_reward_ratio ?? plan.riskRewardRatio
-      const hasRatio = value !== '' && value != null && Number.isFinite(Number(value))
-      return Boolean(plan.rr_warning ?? plan.rrWarning) || (hasRatio && Number(value) < 1)
+      return reportHasRiskRewardWarning(report)
     },
     reportReferenceId(message) {
       const value = Number(message?.id)
@@ -1582,11 +1602,12 @@ export default {
     askAboutReport(message) {
       const reportId = this.reportReferenceId(message)
       if (!reportId) return
-      const report = message?.report || {}
+      const report = professionalReportArtifact(message?.report) || {}
+      const instrument = report.instrument || {}
       const target = message?.reportTarget || {}
-      this.context.market = report.market || target.market || this.context.market
-      this.context.symbol = report.symbol || target.symbol || this.context.symbol
-      this.context.timeframe = report.timeframe || target.timeframe || this.context.timeframe
+      this.context.market = instrument.market || target.market || this.context.market
+      this.context.symbol = instrument.canonical_symbol || instrument.symbol || target.symbol || this.context.symbol
+      this.context.timeframe = report.evidence_snapshot?.timeframe || target.timeframe || this.context.timeframe
       this.draftReferencedReportId = reportId
       const label = [this.context.market, this.context.symbol].filter(Boolean).join(':')
       this.composer = (this.$i18n?.locale || '').startsWith('zh')
@@ -1594,8 +1615,13 @@ export default {
         : `Based on the professional report for ${label}, explain further: `
     },
     reportScore(report, key) {
-      const scores = report?.scores || {}
-      return this.formatReportNumber(scores[key], 0)
+      const dimensions = professionalReportArtifact(report)?.dimensions || []
+      const row = dimensions.find((item) => item?.key === key)
+      return row?.status === 'available' ? this.formatReportNumber(row.score, 0) : '--'
+    },
+    reportQualityRatio(report, key) {
+      const value = Number(professionalReportArtifact(report)?.data_quality?.[key])
+      return Number.isFinite(value) ? `${Math.round(value * 100)}%` : '--'
     },
     formatReportNumber(value, digits = 2) {
       if (value === '' || value == null) return '--'
