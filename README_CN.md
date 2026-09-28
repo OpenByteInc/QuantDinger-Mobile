@@ -6,7 +6,7 @@
   <a href="banner.png" title="查看完整海报"><img src="banner.png" alt="QuantDinger 手机端预览" width="720" /></a>
 </p>
 
-**QuantDinger Mobile** 是 [QuantDinger](https://github.com/OpenByteInc/QuantDinger) 的手机端和 H5 客户端。QuantDinger 是 **Open Byte Inc** 推出的开源 **AI Trading OS**，面向自动化交易、AI 分析、策略工作流和账户运营。
+**QuantDinger Mobile** 是 **Open Byte Inc** 推出的 [QuantDinger](https://github.com/OpenByteInc/QuantDinger) **AI Trading OS** 的源码可见手机端与 H5 客户端。它把桌面平台最常用的工作流整理成适合手机操作的体验，包括策略发现、运行管理、AI 投研、行情与交易、市场购买和账户管理。
 
 线上手机站：[m.quantdinger.com](https://m.quantdinger.com)
 
@@ -27,10 +27,21 @@
 | 首页 | 按偏好发现经过数据验证的策略，对比收益、回撤、夏普率和盈亏比，并查看个人自选行情。 |
 | 运行 | 启动和管理实盘或仅信号策略，检查持仓、订单、成交、盈亏和运行健康。 |
 | AI 投研 | 选择标的后生成带证据的专业报告，或执行趋势诊断、新闻影响、机会与风险分析。 |
-| 指标 | 通过搜索、筛选、源码可见性、价格和分页浏览指标与策略市场。 |
-| 我的 | 管理交易所 API、通知、账单、多语言、明暗模式和主题色。 |
+| 指标 | 查看多市场行情、K 线和信号，切换标的与交易场所，并通过已连接账户确认后下单。 |
+| 我的 | 管理交易所和券商凭证、已购内容、积分与会员、通知、账户安全、多语言、明暗模式和主题色。 |
 
 界面完整支持简体中文、繁体中文、英文、日文和韩文，并针对真机窄屏、安全区域和桌面浏览器预览做了响应式适配。
+
+五个主入口还连接以下完整流程：
+
+- **策略与指标市场：**支持搜索、筛选、排序和分页；展示业绩与价格；区分源码可见和源码保护；支持积分购买、查看已购内容和兼容性检查。
+- **运行策略：**从已保存或已购买的策略开始，选择兼容账户，切换实盘或仅信号模式，配置参数与通知渠道，并在提交前确认实盘风险。
+- **运行管理：**查看健康状态、延迟、待处理订单、净值、盈亏、持仓、交易所挂单、成交、AI 复盘和策略日志，并按当前状态启动、停止、编辑或删除。
+- **图表交易：**支持加密货币现货与永续的市价/限价单、按币种数量卖出现货、永续杠杆与保证金模式、可选止盈止损、持仓和订单记录；所有实盘订单提交前都要求确认。受支持的美股账户使用独立的股数下单流程。
+- **AI 投研：**支持带标的上下文的对话、专业报告、趋势诊断、新闻影响、机会与风险、图表附件、对话历史和记忆。
+- **账户与安全：**支持邮箱密码和已启用的第三方登录、MFA、登录记录、资料编辑、邀请、交易账户、通知渠道、积分、会员及后端已配置的支付方式。
+
+部分能力只有在后端启用对应登录服务、交易场所、支付方式或通知渠道后才会显示。
 
 ## 推荐部署方式
 
@@ -90,7 +101,7 @@ docker run -d --name quantdinger-mobile \
 | 工具 | 版本 |
 |------|------|
 | Node.js | Node 20.19+ 或 22.12+。推荐直接使用 Node 22 LTS。 |
-| npm | 随 Node 安装即可。 |
+| pnpm | pnpm 11，与 `packageManager` 声明一致；推荐通过 Corepack 使用。 |
 | 后端 | 默认要求 QuantDinger API 可通过 `http://localhost:5000` 访问。 |
 | 原生构建 | Android 需要 Android Studio；iOS 需要 macOS 和 Xcode。 |
 
@@ -99,8 +110,9 @@ docker run -d --name quantdinger-mobile \
 ```bash
 git clone https://github.com/OpenByteInc/QuantDinger-Mobile.git
 cd QuantDinger-Mobile
-npm install
-npm run dev
+corepack enable
+pnpm install
+pnpm dev
 ```
 
 浏览器打开：
@@ -118,7 +130,7 @@ http://localhost:5000
 如果后端不在这个地址，启动前设置：
 
 ```bash
-VITE_DEV_API_TARGET=http://127.0.0.1:5000 npm run dev
+VITE_DEV_API_TARGET=http://127.0.0.1:5000 pnpm dev
 ```
 
 开发者工具里看到 `http://localhost:5173/api/...` 是正常现象：浏览器先请求 Vite，Vite 再把请求转发到真正的后端。
@@ -131,12 +143,13 @@ VITE_DEV_API_TARGET=http://127.0.0.1:5000 npm run dev
 |----------|----------|
 | 主仓库 Docker 部署 | 通常不用改。手机端在 `MOBILE_PORT` 提供 H5，`/api/` 自动转发到后端。 |
 | 单独运行手机端 Docker 镜像 | 如果后端不是同网络里的 `http://backend:5000`，启动容器时传入 `BACKEND_URL`。 |
-| `npm run dev` 本地开发 | 如果后端不在 `http://localhost:5000`，设置 `VITE_DEV_API_TARGET`。 |
+| `pnpm dev` 本地开发 | 如果后端不在 `http://localhost:5000`，设置 `VITE_DEV_API_TARGET`。 |
 | 自己部署静态 H5 | 发布 `dist/`，并在 Web 服务器上把 `/api/` 反代到 QuantDinger 后端。 |
-| Android / iOS 原生壳 | 填手机能访问到的后端地址，例如公网 `https://api.example.com`，或测试时的局域网 IP。 |
-| 想给原生安装包预设默认地址 | 构建时设置 `VITE_DEFAULT_SERVER_URL=https://api.example.com`；未设置时接口请求保持同源。 |
+| 仓库内的 Android 远端 H5 壳 | 加载 `https://m.quantdinger.com`，通常通过该站点的同源 `/api/` 反向代理访问后端。 |
+| 自建远端 H5 壳 | 把 Capacitor `server.url` 指向自己的 HTTPS 手机站，并在该站点反代 `/api/`。 |
+| 内置 Web 资源的原生包 | 构建时设置 `VITE_DEFAULT_SERVER_URL=https://api.example.com`，并保证手机可以访问。 |
 
-APK / IPA 里的默认后端地址是在打包时写进去的。如果你要分发自己的安装包，请在构建命令或自己的 `.env.local` 中配置服务器地址；不要把私有地址提交到仓库的生产环境文件。
+`VITE_DEFAULT_SERVER_URL` 属于 Vite 构建产物。仓库内的 Android 工程加载 `capacitor.config.json` 指定的远端手机站，因此普通 Vue 页面和 API 行为可通过部署手机站更新，无需重打 APK。如果你要分发内置 Web 资源的安装包，或把壳指向自己的站点，请在构建环境或本机 `.env.local` 中设置地址，不要把私有地址提交到仓库。
 
 例如在本机创建或修改 `.env.local`：
 
@@ -176,8 +189,8 @@ GITHUB_REDIRECT_URI=https://api.example.com/api/auth/oauth/github/callback
 ### H5 构建
 
 ```bash
-npm run build
-npm run preview
+pnpm build
+pnpm preview
 ```
 
 生产产物会输出到 `dist/`。
@@ -191,7 +204,7 @@ npm run preview
 
 ### 原生 App 固定远端 H5
 
-Android 和 iOS 原生壳固定加载线上手机站：
+仓库中已提交的 Android 壳，以及使用同一份 Capacitor 配置生成的 iOS 壳，会加载线上手机站：
 
 ```json
 {
@@ -215,9 +228,10 @@ VITE_PUBLIC_WEB_BASE_URL=https://m.example.com
 然后再打包：
 
 ```bash
-npm install
-npm run cap:assets
-npm run build:android
+corepack enable
+pnpm install
+pnpm cap:assets
+pnpm build:android
 cd android
 ./gradlew assembleDebug
 ```
@@ -227,8 +241,8 @@ Windows PowerShell 示例：
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 $env:Path = "$env:JAVA_HOME\bin;$env:Path"
-npm.cmd run cap:assets
-npm.cmd run build:android
+pnpm.cmd cap:assets
+pnpm.cmd build:android
 cd android
 .\gradlew.bat assembleDebug
 ```
@@ -238,8 +252,8 @@ cd android
 ```powershell
 $env:VITE_DEFAULT_SERVER_URL = "https://api.example.com"
 $env:VITE_PUBLIC_WEB_BASE_URL = "https://m.example.com"
-npm.cmd run build
-npx.cmd cap sync android
+pnpm.cmd build
+pnpm.cmd exec cap sync android
 cd android
 .\gradlew.bat assembleDebug
 ```
@@ -254,13 +268,26 @@ android/app/build/outputs/apk/debug/app-debug.apk
 
 ### iOS
 
-iOS 构建需要 macOS 和 Xcode：
+iOS 构建需要 macOS 和 Xcode。生成的 `ios/` 工程不会提交到仓库，首次构建前需要创建一次：
 
 ```bash
-npm run cap:assets
-npm run build:ios
-npm run cap:ios
+pnpm install
+pnpm exec cap add ios
+pnpm cap:assets
+pnpm build:ios
+pnpm cap:ios
 ```
+
+在 iOS 真机测试第三方登录前，还要在生成的 Xcode 工程 `CFBundleURLTypes` 中注册 `com.quantdinger.mobile://login`。
+
+## 验证
+
+```bash
+pnpm test:unit
+pnpm build
+```
+
+单元测试覆盖多语言完整性、交易请求与安全校验、策略排序、市场功能边界、主题配置、AI 报告处理和原生 OAuth 地址生成。
 
 ## 目录结构
 
@@ -277,8 +304,11 @@ QuantDinger-Mobile/
 │   ├── utils/              # 工具函数
 │   └── views/              # 页面模块
 ├── android/                # Capacitor Android 工程
-├── ios/                    # Capacitor iOS 工程
+├── public/                 # Web Manifest 和公开静态资源
+├── resources/              # 原生图标与启动图源文件
+├── tests/                  # 单元与浏览器回归检查
 ├── deploy/                 # Docker 镜像使用的 Nginx 模板
+├── .github/workflows/      # 版本化 GHCR 镜像与静态包发布流程
 ├── capacitor.config.json
 ├── vite.config.js
 ├── package.json
@@ -307,7 +337,8 @@ QuantDinger-Mobile/
 | H5 接口跨域或请求失败 | 优先使用同源 `/api/` 反向代理；或者在后端显式放行当前 H5 域名。 |
 | 手机访问不到本地后端 | 用电脑的局域网 IP，不要用 `localhost`。手机上的 `localhost` 指手机自己。 |
 | Docker 容器启动了但接口不通 | 检查 `BACKEND_URL`，以及容器内部是否能访问这个地址。 |
-| OAuth 回跳地址不对 | 更新后端 `FRONTEND_URL` 和 `OAUTH_ALLOWED_REDIRECTS`，然后重启或重新部署后端。 |
+| 只有已安装的 App 点击第三方登录后立即失败 | 确认部署的前端已经包含原生 OAuth 完整地址修复，并检查手机站同源 `/api/` 反向代理是否可访问。Capacitor Browser 不能打开相对路径 `/api/...`。 |
+| OAuth 能打开服务商，但完成后回错页面 | 更新后端 `FRONTEND_URL` 和 `OAUTH_ALLOWED_REDIRECTS`，然后重启或重新部署后端。 |
 
 ## 相关仓库
 

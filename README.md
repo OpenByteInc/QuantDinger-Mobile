@@ -6,7 +6,7 @@
   <a href="banner.png" title="Open full banner"><img src="banner.png" alt="QuantDinger Mobile app preview" width="720" /></a>
 </p>
 
-**QuantDinger Mobile** is the mobile and H5 client for [QuantDinger](https://github.com/OpenByteInc/QuantDinger), an open-source **AI Trading OS** by **Open Byte Inc**. It gives users a touch-friendly way to check markets, AI analysis, strategies, bots, quick trading, account settings, and exchange API workflows from a phone.
+**QuantDinger Mobile** is the source-available mobile and H5 client for the [QuantDinger](https://github.com/OpenByteInc/QuantDinger) **AI Trading OS** by **Open Byte Inc**. It turns the desktop platform's most useful daily workflows into a focused phone experience: strategy discovery, live operations, AI research, charts and trading, marketplace purchases, and account management.
 
 Live mobile site: [m.quantdinger.com](https://m.quantdinger.com)
 
@@ -25,10 +25,21 @@ The current navigation is organized around five daily workflows:
 | Home | Discover data-backed strategies by preference, compare return, drawdown, Sharpe and payoff metrics, and follow a personal market watchlist. |
 | Run | Start and monitor live or signal-only strategy instances, inspect positions, orders, trades, P&L and strategy health. |
 | AI Research | Select a symbol and ask for an evidence-linked professional report, trend check, news impact, or opportunity and risk review. |
-| Indicators | Browse the indicator and strategy marketplace with search, filters, source visibility, pricing and pagination. |
-| Me | Manage exchange API credentials, notifications, billing, language, light/dark mode and selectable accent themes. |
+| Indicators | View multi-market charts and signals, switch symbols and venues, and place reviewed orders through supported connected accounts. |
+| Me | Manage exchange and broker credentials, purchases, credits and membership, notifications, account security, language, display mode and accent themes. |
 
 The interface ships in Simplified Chinese, Traditional Chinese, English, Japanese and Korean. Its layouts are tuned for narrow phone screens and safe areas as well as desktop browser previews.
+
+Additional flows are reached from those five entry points:
+
+- **Strategy and indicator marketplace:** search, filter, sort and paginate catalog items; compare performance and pricing; distinguish source-visible and source-protected assets; purchase with credits; review owned items and compatibility.
+- **Strategy launch:** select a saved or purchased strategy, choose a compatible account, run live or signal-only, configure parameters and notifications, and acknowledge live-trading risk before submission.
+- **Strategy operations:** inspect health, delay, pending orders, equity, P&L, positions, exchange orders, fills, AI review and strategy logs; start, stop, edit or delete when the current state permits it.
+- **Chart trading:** crypto spot and perpetual market/limit orders, spot sells by base-asset quantity, leverage and margin mode for perpetuals, optional take-profit/stop-loss, positions, order history and explicit confirmation before live submission. Supported US stock accounts use a dedicated share-order flow.
+- **AI research:** symbol-aware conversations, professional reports, trend checks, news impact, opportunity and risk analysis, chart attachments, conversation history and memory.
+- **Account and security:** email/password and enabled OAuth login, MFA, login history, profile editing, referrals, exchange/broker credentials, notification channels, credits, membership and configured payment methods.
+
+Some capabilities appear only when the backend enables the related provider, exchange, payment method or notification channel.
 
 ## Recommended deployment
 
@@ -84,7 +95,7 @@ docker run -d --name quantdinger-mobile \
 | Tool | Version |
 |------|---------|
 | Node.js | Node 20.19+ or 22.12+. Node 22 LTS is recommended. |
-| npm | Comes with Node. |
+| pnpm | pnpm 11, matching the `packageManager` field. Corepack is recommended. |
 | Backend | QuantDinger API reachable at `http://localhost:5000`, unless you override the dev proxy. |
 | Native builds | Android Studio for Android; macOS and Xcode for iOS. |
 
@@ -93,8 +104,9 @@ docker run -d --name quantdinger-mobile \
 ```bash
 git clone https://github.com/OpenByteInc/QuantDinger-Mobile.git
 cd QuantDinger-Mobile
-npm install
-npm run dev
+corepack enable
+pnpm install
+pnpm dev
 ```
 
 Open:
@@ -112,7 +124,7 @@ http://localhost:5000
 Override the backend target when needed:
 
 ```bash
-VITE_DEV_API_TARGET=http://127.0.0.1:5000 npm run dev
+VITE_DEV_API_TARGET=http://127.0.0.1:5000 pnpm dev
 ```
 
 If DevTools shows `http://localhost:5173/api/...`, that is expected. The browser calls Vite first, then Vite forwards the request to the backend.
@@ -125,12 +137,13 @@ Mobile and H5 deployments should usually call the backend through a same-origin 
 |---------|-------------------|
 | Main Docker stack | Change nothing. Mobile is served on `MOBILE_PORT` and `/api/` is proxied to the backend service. |
 | Standalone mobile Docker image | Pass `BACKEND_URL` if the backend is not reachable as `http://backend:5000`. |
-| `npm run dev` | Set `VITE_DEV_API_TARGET` if the backend is not on `http://localhost:5000`. |
+| `pnpm dev` | Set `VITE_DEV_API_TARGET` if the backend is not on `http://localhost:5000`. |
 | Static H5 hosting | Serve `dist/` and configure your web server to proxy `/api/` to the backend. |
-| Android / iOS shell | Use a backend URL that the phone can actually reach, such as `https://api.example.com` or a LAN IP during testing. |
-| Preselect a native-app server URL | Build with `VITE_DEFAULT_SERVER_URL=https://api.example.com`; when unset, requests remain same-origin. |
+| Included Android remote-H5 shell | Loads `https://m.quantdinger.com` and normally uses that site's same-origin `/api/` proxy. |
+| Self-hosted remote-H5 shell | Point Capacitor `server.url` to your own HTTPS mobile site and proxy `/api/` there. |
+| Bundled native web assets | Build with `VITE_DEFAULT_SERVER_URL=https://api.example.com`; the URL must be reachable from the phone. |
 
-For a packaged APK/IPA, the default backend URL is baked in at build time. If you distribute your own app, set the URL through the build command or your local `.env.local`; do not commit a private endpoint in a production env file.
+`VITE_DEFAULT_SERVER_URL` belongs to the Vite bundle. The included Android project instead uses the remote site from `capacitor.config.json`, so deploying that site updates normal Vue UI and API behavior without rebuilding the APK. If you distribute a bundled-assets app or a shell for another site, set the values through the build environment or your local `.env.local`; do not commit a private endpoint.
 
 For example, create or edit `.env.local` on the build machine:
 
@@ -170,8 +183,8 @@ GITHUB_REDIRECT_URI=https://api.example.com/api/auth/oauth/github/callback
 ### H5 build
 
 ```bash
-npm run build
-npm run preview
+pnpm build
+pnpm preview
 ```
 
 Production assets are written to `dist/`.
@@ -185,7 +198,7 @@ For static hosting, configure:
 
 ### Native remote H5 shell
 
-The native Android and iOS shells are configured to load the hosted mobile site directly:
+The committed Android shell, and an iOS shell generated from the same Capacitor configuration, load the hosted mobile site directly:
 
 ```json
 {
@@ -209,9 +222,10 @@ VITE_PUBLIC_WEB_BASE_URL=https://m.example.com
 Then build:
 
 ```bash
-npm install
-npm run cap:assets
-npm run build:android
+corepack enable
+pnpm install
+pnpm cap:assets
+pnpm build:android
 cd android
 ./gradlew assembleDebug
 ```
@@ -221,8 +235,8 @@ On Windows PowerShell:
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 $env:Path = "$env:JAVA_HOME\bin;$env:Path"
-npm.cmd run cap:assets
-npm.cmd run build:android
+pnpm.cmd cap:assets
+pnpm.cmd build:android
 cd android
 .\gradlew.bat assembleDebug
 ```
@@ -232,8 +246,8 @@ PowerShell one-off example without editing `.env.production`:
 ```powershell
 $env:VITE_DEFAULT_SERVER_URL = "https://api.example.com"
 $env:VITE_PUBLIC_WEB_BASE_URL = "https://m.example.com"
-npm.cmd run build
-npx.cmd cap sync android
+pnpm.cmd build
+pnpm.cmd exec cap sync android
 cd android
 .\gradlew.bat assembleDebug
 ```
@@ -248,13 +262,26 @@ Release signing files are not committed. Keep keystores and signing properties i
 
 ### iOS
 
-iOS builds require macOS and Xcode:
+iOS builds require macOS and Xcode. The generated `ios/` project is intentionally not committed, so create it once before the first build:
 
 ```bash
-npm run cap:assets
-npm run build:ios
-npm run cap:ios
+pnpm install
+pnpm exec cap add ios
+pnpm cap:assets
+pnpm build:ios
+pnpm cap:ios
 ```
+
+Before testing native OAuth on iOS, register `com.quantdinger.mobile://login` under `CFBundleURLTypes` in the generated Xcode project.
+
+## Validation
+
+```bash
+pnpm test:unit
+pnpm build
+```
+
+The unit suite covers locale completeness, trading payloads and guards, strategy ranking, marketplace boundaries, theme configuration, AI report handling and native OAuth URL construction.
 
 ## Project structure
 
@@ -271,8 +298,11 @@ QuantDinger-Mobile/
 │   ├── utils/              # Utility helpers
 │   └── views/              # Page-level modules
 ├── android/                # Capacitor Android project
-├── ios/                    # Capacitor iOS project
+├── public/                 # Web manifest and public assets
+├── resources/              # Native icon and splash sources
+├── tests/                  # Unit and browser regression checks
 ├── deploy/                 # Nginx template for Docker image
+├── .github/workflows/      # Versioned GHCR and static-bundle release
 ├── capacitor.config.json
 ├── vite.config.js
 ├── package.json
@@ -301,7 +331,8 @@ QuantDinger-Mobile/
 | API calls fail in H5 | Prefer a same-origin `/api/` proxy, or explicitly allow the H5 origin in backend CORS settings. |
 | Phone cannot reach local backend | Use the computer's LAN IP, not `localhost`, because `localhost` on the phone means the phone itself. |
 | Docker image starts but API fails | Check `BACKEND_URL` from inside the container network. |
-| OAuth redirects to the wrong place | Update backend `FRONTEND_URL` and `OAUTH_ALLOWED_REDIRECTS`, then restart or redeploy the backend. |
+| OAuth fails immediately only in the installed app | Confirm the deployed bundle contains the absolute native OAuth URL fix and that the mobile site's same-origin `/api/` proxy is reachable. Capacitor Browser cannot open a relative `/api/...` URL. |
+| OAuth opens the provider but returns to the wrong place | Update backend `FRONTEND_URL` and `OAUTH_ALLOWED_REDIRECTS`, then restart or redeploy the backend. |
 
 ## Related repositories
 
