@@ -35,6 +35,20 @@ defineOptions({name:'AiResearchV2'})
 .research-shell :deep(.starter-grid button){box-shadow:none;background:var(--v2-surface-2);border-radius:10px}.research-shell :deep(.starter-icon){color:var(--v2-brand-strong);background:color-mix(in srgb,var(--v2-brand) 11%,var(--v2-surface))}
 .research-shell :deep(.memory-action){background:var(--v2-surface-2);color:var(--v2-text);border:0;box-shadow:none}
 .research-shell :deep(.icon-action){background:none;box-shadow:none;border:0;color:var(--v2-muted)}
+
+@media(max-width:430px){
+  .research-shell :deep(.welcome-card){padding:14px 2px}
+  .research-shell :deep(.welcome-title-row span){font-size:19px;line-height:1.25}
+  .research-shell :deep(.welcome-title-row em){max-width:100%;font-size:11px;line-height:1.5}
+  .research-shell :deep(.starter-grid){grid-template-columns:1fr;gap:6px;margin-top:7px}
+  .research-shell :deep(.starter-grid button){min-height:58px;padding:8px 10px}
+  .research-shell :deep(.starter-grid strong){font-size:12px;line-height:1.25}
+  .research-shell :deep(.starter-grid em){display:-webkit-box;overflow:hidden;white-space:normal;text-overflow:clip;line-height:1.35;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+  .research-shell :deep(.report-feature-card){padding:10px}
+  .research-shell :deep(.ask-card textarea){font-size:13px}
+  .research-shell :deep(.memory-action){max-width:170px}
+  .research-shell :deep(.memory-action span){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
 </style>
 
 <style scoped>.research-shell :deep(.message-row.user .bubble){color:var(--v2-text)}.research-shell :deep(.message-row.user .markdown-body){color:inherit}</style>

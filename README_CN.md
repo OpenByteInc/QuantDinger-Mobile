@@ -8,6 +8,8 @@
 
 **QuantDinger Mobile** 是 [QuantDinger](https://github.com/OpenByteInc/QuantDinger) 的手机端和 H5 客户端。QuantDinger 是 **Open Byte Inc** 推出的开源 **AI Trading OS**，面向自动化交易、AI 分析、策略工作流和账户运营。
 
+线上手机站：[m.quantdinger.com](https://m.quantdinger.com)
+
 手机端主要服务于随身查看和轻量操作：查看行情与 AI 分析、管理策略和交易机器人、进行闪电交易、调整账户设置、维护交易所 API 等。它不是另一套独立系统，而是同一套后端之上的移动界面。
 
 同一套 Vue 3 代码可以发布为：
@@ -15,6 +17,20 @@
 - Docker 或静态站点托管的 H5 应用
 - 通过 Capacitor 打包的 Android 应用
 - 在 macOS + Xcode 环境下打包的 iOS 应用
+
+## 当前产品功能
+
+目前底部导航围绕五个日常工作流组织：
+
+| 页面 | 主要用途 |
+|------|----------|
+| 首页 | 按偏好发现经过数据验证的策略，对比收益、回撤、夏普率和盈亏比，并查看个人自选行情。 |
+| 运行 | 启动和管理实盘或仅信号策略，检查持仓、订单、成交、盈亏和运行健康。 |
+| AI 投研 | 选择标的后生成带证据的专业报告，或执行趋势诊断、新闻影响、机会与风险分析。 |
+| 指标 | 通过搜索、筛选、源码可见性、价格和分页浏览指标与策略市场。 |
+| 我的 | 管理交易所 API、通知、账单、多语言、明暗模式和主题色。 |
+
+界面完整支持简体中文、繁体中文、英文、日文和韩文，并针对真机窄屏、安全区域和桌面浏览器预览做了响应式适配。
 
 ## 推荐部署方式
 
@@ -137,6 +153,23 @@ VITE_PUBLIC_WEB_BASE_URL=https://m.example.com
 - APK 里不要填 `localhost` 或 `127.0.0.1`，手机上的 `localhost` 指的是手机自己，不是你的电脑或服务器。
 - 局域网测试可以填电脑的局域网 IP，例如 `http://192.168.1.10:5000`。
 - 地址末尾有没有 `/` 都可以，应用会自动去掉末尾斜杠。
+
+## Google 与 GitHub 第三方登录
+
+H5 与原生壳共用后端 OAuth 接口，但原生壳会在系统浏览器中打开登录服务。部署时要同时配置完整链路：
+
+```env
+FRONTEND_URL=https://app.example.com,https://m.example.com
+OAUTH_ALLOWED_REDIRECTS=com.quantdinger.mobile://login
+GOOGLE_REDIRECT_URI=https://api.example.com/api/auth/oauth/google/callback
+GITHUB_REDIRECT_URI=https://api.example.com/api/auth/oauth/github/callback
+```
+
+- 在 Google Cloud Console 中逐字注册 `GOOGLE_REDIRECT_URI`。Google 的回调地址属于后端 API，不是手机端首页。
+- 把手机站 HTTPS 域名加入 `FRONTEND_URL`，这样 `/api/auth/oauth/google` 才能保留正确的前端目标。
+- 把 `com.quantdinger.mobile://login` 加入 `OAUTH_ALLOWED_REDIRECTS`，完成登录后才能回到已安装的 App。
+- 未设置 `VITE_DEFAULT_SERVER_URL` 时，原生远端 H5 壳现在会先把当前 `https://m.example.com` 补成完整 OAuth 地址，再调用 Capacitor Browser。原生浏览器插件不能直接打开相对路径 `/api/...`。
+- Android 已声明对应的 `com.quantdinger.mobile://login` intent filter。修改原生清单或插件后仍需重新打包。
 
 ## 构建
 

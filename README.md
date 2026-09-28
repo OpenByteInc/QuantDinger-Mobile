@@ -8,11 +8,27 @@
 
 **QuantDinger Mobile** is the mobile and H5 client for [QuantDinger](https://github.com/OpenByteInc/QuantDinger), an open-source **AI Trading OS** by **Open Byte Inc**. It gives users a touch-friendly way to check markets, AI analysis, strategies, bots, quick trading, account settings, and exchange API workflows from a phone.
 
+Live mobile site: [m.quantdinger.com](https://m.quantdinger.com)
+
 The same Vue 3 app can be deployed as:
 
 - a web-based H5 app served by Docker or any static host
 - an Android app through Capacitor
 - an iOS app through Capacitor on macOS
+
+## Product experience
+
+The current navigation is organized around five daily workflows:
+
+| Area | What it is for |
+|------|----------------|
+| Home | Discover data-backed strategies by preference, compare return, drawdown, Sharpe and payoff metrics, and follow a personal market watchlist. |
+| Run | Start and monitor live or signal-only strategy instances, inspect positions, orders, trades, P&L and strategy health. |
+| AI Research | Select a symbol and ask for an evidence-linked professional report, trend check, news impact, or opportunity and risk review. |
+| Indicators | Browse the indicator and strategy marketplace with search, filters, source visibility, pricing and pagination. |
+| Me | Manage exchange API credentials, notifications, billing, language, light/dark mode and selectable accent themes. |
+
+The interface ships in Simplified Chinese, Traditional Chinese, English, Japanese and Korean. Its layouts are tuned for narrow phone screens and safe areas as well as desktop browser previews.
 
 ## Recommended deployment
 
@@ -131,6 +147,23 @@ Notes:
 - Do not use `localhost` or `127.0.0.1` in an APK unless the backend is running on the phone itself.
 - If you test on a LAN, use your computer's LAN IP, for example `http://192.168.1.10:5000`.
 - The app removes the trailing slash automatically, so both `https://api.example.com` and `https://api.example.com/` are acceptable.
+
+## Google and GitHub OAuth
+
+H5 and the native shell use the same backend OAuth endpoints, but the native shell opens the provider in the system browser. Configure all three parts of the route:
+
+```env
+FRONTEND_URL=https://app.example.com,https://m.example.com
+OAUTH_ALLOWED_REDIRECTS=com.quantdinger.mobile://login
+GOOGLE_REDIRECT_URI=https://api.example.com/api/auth/oauth/google/callback
+GITHUB_REDIRECT_URI=https://api.example.com/api/auth/oauth/github/callback
+```
+
+- Register `GOOGLE_REDIRECT_URI` exactly in Google Cloud Console. The provider callback belongs to the backend API; it is not the mobile homepage.
+- Keep the mobile HTTPS origin in `FRONTEND_URL` so `/api/auth/oauth/google` may retain the correct frontend target.
+- Keep `com.quantdinger.mobile://login` in `OAUTH_ALLOWED_REDIRECTS` so the completed native login can return to the installed app.
+- When `VITE_DEFAULT_SERVER_URL` is unset, the native remote-H5 shell now turns the current `https://m.example.com` origin into an absolute OAuth start URL before calling Capacitor Browser. This is required because the native browser plugin cannot open a relative `/api/...` URL.
+- Android already declares the matching `com.quantdinger.mobile://login` intent filter. Native manifest or plugin changes still require rebuilding the app package.
 
 ## Build
 

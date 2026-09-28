@@ -470,6 +470,7 @@ import { Browser } from '@capacitor/browser'
 import { authApi, getBaseUrl } from '@/api'
 import { useUserStore, useSettingsStore } from '@/stores'
 import { getOAuthRedirectUri } from '@/utils/oauthRedirect'
+import { buildOAuthStartUrl } from '@/utils/oauthUrl'
 import { getLegal } from '@/constants/legal'
 import logoUrl from '@/assets/slogo.png'
 
@@ -776,10 +777,14 @@ export default {
         return
       }
       this.oauthLoading = true
-      const base = getBaseUrl().replace(/\/$/, '')
       const redirectBack = getOAuthRedirectUri()
-      const url = `${base}/api/auth/oauth/${provider}?redirect=${encodeURIComponent(redirectBack)}`
       try {
+        const url = buildOAuthStartUrl({
+          baseUrl: getBaseUrl(),
+          webOrigin: window.location.origin,
+          provider,
+          redirectUri: redirectBack
+        })
         if (Capacitor.isNativePlatform()) {
           await Browser.open({ url, presentationStyle: 'fullscreen' })
         } else {

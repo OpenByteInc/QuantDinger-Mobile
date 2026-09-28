@@ -5,10 +5,16 @@ import {buildOrder,validateOrder,tradeProductFields,isCryptoProduct,OPEN_ORDER_S
 import {toCandles,signalPoints,toTimestamp} from '../../src/utils/chartData.js'
 import {createPlotRenderer} from '../../src/utils/pcPlotRenderer.js'
 import audit from '../../src/locales/audit.js'
+import {buildOAuthStartUrl} from '../../src/utils/oauthUrl.js'
 
 const form={amount:'100',sell_quantity:'',price:'65000',leverage:'5',order_type:'market',margin_mode:'cross',tp_price:'70000',sl_price:'60000'}
 const order=overrides=>buildOrder({credentialId:7,symbol:'BTC/USDT',marketType:'swap',form,side:'buy',aiDecisionFilter:true,...overrides})
 const context={available:482.71,price:65000,balanceReady:true}
+test('native OAuth always opens an absolute URL after the fixed API host was removed',()=>{
+ assert.equal(buildOAuthStartUrl({baseUrl:'',webOrigin:'https://m.quantdinger.com',provider:'google',redirectUri:'com.quantdinger.mobile://login'}),'https://m.quantdinger.com/api/auth/oauth/google?redirect=com.quantdinger.mobile%3A%2F%2Flogin')
+ assert.equal(buildOAuthStartUrl({baseUrl:'https://api.example.com/',webOrigin:'https://m.example.com',provider:'google',redirectUri:'com.quantdinger.mobile://login'}),'https://api.example.com/api/auth/oauth/google?redirect=com.quantdinger.mobile%3A%2F%2Flogin')
+ assert.throws(()=>buildOAuthStartUrl({provider:'google',redirectUri:'x'}),/absolute HTTP\(S\) origin/)
+})
 test('quick trade payload matches the PC contract including AI filter and margin',()=>{
  assert.deepEqual(order(),{credential_id:7,symbol:'BTC/USDT',market_type:'swap',side:'buy',order_type:'market',amount:100,price:0,leverage:5,margin_mode:'cross',tp_price:70000,sl_price:60000,source:'indicator',ai_decision_filter:true})
  assert.equal(validateOrder(order(),context),'')
