@@ -3,7 +3,7 @@
 <p align="right"><a href="README.md">English</a></p>
 
 <p align="center">
-  <a href="banner.png" title="查看完整海报"><img src="banner.png" alt="QuantDinger 手机端预览" width="720" /></a>
+  <a href="banner-v2.png" title="查看完整海报"><img src="banner-v2.png" alt="QuantDinger 手机端预览" width="720" /></a>
 </p>
 
 **QuantDinger Mobile** 是 **Open Byte Inc** 推出的 [QuantDinger](https://github.com/OpenByteInc/QuantDinger) **AI Trading OS** 的源码可见手机端与 H5 客户端。它把桌面平台最常用的工作流整理成适合手机操作的体验，包括策略发现、运行管理、AI 投研、行情与交易、市场购买和账户管理。

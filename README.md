@@ -3,7 +3,7 @@
 <p align="right"><a href="README_CN.md">简体中文</a></p>
 
 <p align="center">
-  <a href="banner.png" title="Open full banner"><img src="banner.png" alt="QuantDinger Mobile app preview" width="720" /></a>
+  <a href="banner-v2.png" title="Open full banner"><img src="banner-v2.png" alt="QuantDinger Mobile app preview" width="720" /></a>
 </p>
 
 **QuantDinger Mobile** is the source-available mobile and H5 client for the [QuantDinger](https://github.com/OpenByteInc/QuantDinger) **AI Trading OS** by **Open Byte Inc**. It turns the desktop platform's most useful daily workflows into a focused phone experience: strategy discovery, live operations, AI research, charts and trading, marketplace purchases, and account management.
