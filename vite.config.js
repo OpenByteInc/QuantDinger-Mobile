@@ -4,6 +4,7 @@ import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { VantResolver } from '@vant/auto-import-resolver'
 import { readFileSync } from 'node:fs'
+import { globalAgent as httpsAgent } from 'node:https'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -47,6 +48,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': {
           target: apiTarget,
+          agent: apiTarget.startsWith('https:') ? httpsAgent : undefined,
           changeOrigin: true
         }
       }

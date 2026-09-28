@@ -1,6 +1,7 @@
 // Exchange brand metadata (aligned with PC side)
 
 export const EXCHANGE_BRANDS = {
+  alpaca: { name: 'Alpaca', docsUrl: 'https://app.alpaca.markets/' },
   binance: {
     name: 'Binance',
     short: 'BN',
@@ -75,7 +76,7 @@ export const EXCHANGE_BRANDS = {
 
 export const SUPPORTED_TRADING_EXCHANGE_IDS = ['binance', 'okx', 'bitget', 'bybit', 'gate', 'htx']
 
-export const EXCHANGE_OPTIONS = SUPPORTED_TRADING_EXCHANGE_IDS.map((id) => ({
+export const EXCHANGE_OPTIONS = [...SUPPORTED_TRADING_EXCHANGE_IDS, 'alpaca'].map((id) => ({
   value: id,
   label: EXCHANGE_BRANDS[id].name
 }))

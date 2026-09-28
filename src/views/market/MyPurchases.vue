@@ -1,7 +1,9 @@
 <template>
-  <div class="page">
-    <van-nav-bar :title="$t('market.my_purchases')" left-arrow @click-left="$router.back()" />
+  <div class="page account-page">
+    <van-nav-bar fixed placeholder safe-area-inset-top :title="$t('market.my_purchases')" left-arrow @click-left="$router.back()" />
 
+    <van-loading v-if="loading" vertical>{{ $t('common.loading') }}</van-loading>
+    <van-button v-else-if="loadFailed" block @click="load">{{ $t('audit.loadFailed') }}</van-button>
     <div class="library-tabs">
       <button
         v-for="tab in typeTabs"
@@ -28,7 +30,7 @@
         <p class="desc">{{ item.indicator?.description || '-' }}</p>
         <div class="meta">
           <span>{{ formatTime(item.purchase_time) }}</span>
-          <span class="price">{{ Number(item.purchase_price || 0) > 0 ? `${item.purchase_price}` : $t('market.price_free') }}</span>
+          <span :class="['price', Number(item.purchase_price || 0) > 0 ? 'is-paid' : 'is-free']">{{ Number(item.purchase_price || 0) > 0 ? $t('profile_detail.paid', {count:item.purchase_price}) : $t('market.price_free') }}</span>
         </div>
         <div class="actions">
           <van-button size="small" plain @click="goDetail(item)">{{ $t('common.view_detail') }}</van-button>
@@ -53,8 +55,8 @@
         </div>
       </div>
     </div>
-    <van-empty v-else :description="emptyText">
-      <van-button round type="primary" @click="goMarket">{{ $t('trading.create_market_cta') }}</van-button>
+    <van-empty v-else-if="!loading && !loadFailed" image-size="56" :description="emptyText">
+      <van-button type="primary" @click="goMarket">{{ $t('trading.create_market_cta') }}</van-button>
     </van-empty>
   </div>
 </template>
@@ -75,6 +77,7 @@ export default {
   data() {
     return {
       items: [],
+      loading:false,loadFailed:false,
       syncingIds: {}
     }
   },
@@ -119,12 +122,10 @@ export default {
   },
   methods: {
     async load() {
-      try {
-        const res = await marketApi.getMyPurchases({ page: 1, page_size: 50 })
-        this.items = res.data?.items || []
-      } catch {
-        this.items = []
-      }
+      this.loading=true;this.loadFailed=false
+      try {let page=1,items=[],total=0;do{const data=(await marketApi.getMyPurchases({page,page_size:50})).data;const batch=data?.items||[];items.push(...batch);total=Number(data?.total||0);if(!batch.length)break;page++}while(items.length<total);this.items=items}
+      catch {this.loadFailed=true}
+      finally{this.loading=false}
     },
     setTypeFilter(type) {
       if (this.typeFilter === type) return
@@ -294,7 +295,7 @@ export default {
   padding: 3px 8px;
   border-radius: 999px;
   color: #1f1300;
-  background: linear-gradient(135deg, #fde68a, #f59e0b);
+  background: var(--bg-elevated);
   border: 1px solid rgba(245, 158, 11, 0.36);
   font-size: 10px;
   font-weight: 900;

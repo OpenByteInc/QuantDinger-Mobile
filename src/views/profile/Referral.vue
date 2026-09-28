@@ -1,16 +1,12 @@
 <template>
-  <div class="referral-page">
-    <van-nav-bar :title="$t('profile.referral')" left-arrow @click-left="$router.back()" />
+  <div class="referral-page account-page">
+    <van-nav-bar fixed placeholder safe-area-inset-top :title="$t('profile.referral')" left-arrow @click-left="$router.back()" />
 
-    <div class="hero">
-      <div class="hero-icon">
-        <van-icon name="friends-o" />
-      </div>
-      <div class="hero-title">{{ $t('profile.referral') }}</div>
-      <p class="hero-desc">{{ $t('profile.referral_desc') }}</p>
-    </div>
+    <p class="page-intro">{{ $t('profile.referral_desc') }}</p>
 
-    <div class="stats-row">
+    <van-button v-if="loadFailed" block @click="load()">{{ $t('audit.loadFailed') }}</van-button>
+    <van-loading v-if="loading" class="referral-loading"/>
+    <div v-if="!loadFailed" class="stats-row">
       <div class="stat-card">
         <span class="label">{{ $t('profile.referral_total') }}</span>
         <span class="value">{{ data.total || 0 }}</span>
@@ -20,7 +16,7 @@
         <span class="value">+{{ data.referral_bonus }}</span>
       </div>
       <div class="stat-card" v-if="data.register_bonus > 0">
-        <span class="label">{{ $t('profile.credits_unit') }}</span>
+        <span class="label">{{ $t('profile_detail.newUserReward') }}</span>
         <span class="value">+{{ data.register_bonus }}</span>
       </div>
     </div>
@@ -29,7 +25,7 @@
       <div class="card-title">{{ $t('profile.referral_link') }}</div>
       <div class="link-box">
         <span class="link">{{ referralLink || '-' }}</span>
-        <van-button size="small" type="primary" @click="copyLink">
+        <van-button size="small" type="primary" :disabled="!referralLink || loading" @click="copyLink">
           <van-icon name="description" />
           <span style="margin-left: 4px">{{ $t('profile.referral_copy') }}</span>
         </van-button>
@@ -44,7 +40,7 @@
       <div class="card-title">{{ $t('profile.referral_total') }} · {{ total }}</div>
       <div v-for="item in list" :key="item.id" class="invite-row">
         <div class="avatar">
-          <img v-if="item.avatar" :src="item.avatar" alt="avatar" />
+          <img v-if="item.avatar && !failedAvatars.includes(item.id)" :src="item.avatar" @error="failedAvatars.push(item.id)" :alt="item.nickname || item.username" />
           <span v-else>{{ (item.nickname || item.username || '?').slice(0, 1).toUpperCase() }}</span>
         </div>
         <div class="col">
@@ -53,6 +49,8 @@
         </div>
       </div>
     </div>
+    <van-button v-if="list.length < total" class="referral-more" block plain :loading="loading" @click="load(true)">{{ $t('profile_detail.moreReferrals') }}</van-button>
+    <p v-if="!loading && !loadFailed && !list.length" class="plain-empty">{{ $t('profile_detail.empty') }}</p>
   </div>
 </template>
 
@@ -65,7 +63,7 @@ export default {
   name: 'ProfileReferral',
   data() {
     return {
-      loading: false,
+      loading: false, loadFailed: false, page: 0, failedAvatars: [],
       data: {
         total: 0,
         referral_code: '',
@@ -88,10 +86,13 @@ export default {
     this.load()
   },
   methods: {
-    async load() {
+    async load(append = false) {
+      if(this.loading) return
       this.loading = true
+      this.loadFailed = false
       try {
-        const res = await userApi.getMyReferrals({ page: 1, page_size: 20 })
+        const nextPage=append?this.page+1:1
+        const res = await userApi.getMyReferrals({ page: nextPage, page_size: 20 })
         const d = res.data || {}
         this.data = {
           total: d.total || 0,
@@ -99,9 +100,11 @@ export default {
           referral_bonus: d.referral_bonus || 0,
           register_bonus: d.register_bonus || 0
         }
-        this.list = d.list || []
+        this.list = append ? [...this.list,...(d.list||[])] : (d.list||[])
+        this.page=nextPage
         this.total = d.total || 0
       } catch (err) {
+        this.loadFailed = true
         console.error('Load referrals failed:', err)
       } finally {
         this.loading = false

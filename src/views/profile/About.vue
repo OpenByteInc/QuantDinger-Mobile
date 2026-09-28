@@ -1,6 +1,6 @@
 <template>
-  <div class="page">
-    <van-nav-bar :title="$t('about.title')" left-arrow @click-left="$router.back()" />
+  <div class="about-page account-page">
+    <van-nav-bar fixed placeholder safe-area-inset-top :title="$t('about.title')" left-arrow @click-left="$router.back()" />
 
     <div class="card intro">
       <h2 class="h">{{ $t('about.title') }}</h2>
@@ -29,8 +29,15 @@
       />
     </van-cell-group>
 
+    <h2 class="section-title">{{ $t('profile_detail.communityLinks') }}</h2>
+    <van-cell-group inset class="group social-group">
+      <van-cell v-for="link in socialLinks" :key="link.key" :title="$t(`profile_detail.${link.key}`)" is-link @click="openLink(link.url)">
+        <template #label><span class="muted">{{ link.display }}</span></template>
+      </van-cell>
+    </van-cell-group>
+
     <div class="actions">
-      <van-button type="primary" block round :loading="checking" @click="checkUpdate">
+      <van-button type="primary" block :loading="checking" @click="checkUpdate">
         {{ checking ? $t('about.checking') : $t('about.check_update') }}
       </van-button>
     </div>
@@ -68,7 +75,14 @@ export default {
       serverLatestVersion: '',
       downloadUrl: DEFAULT_DOWNLOAD,
       checking: false,
-      updateDialog: false
+      updateDialog: false,
+      socialLinks: [
+        { key: 'youtube', url: 'https://youtube.com/@quantdinger', display: 'youtube.com/@quantdinger' },
+        { key: 'twitter', url: 'https://x.com/quantdinger_en', display: 'x.com/quantdinger_en' },
+        { key: 'telegram', url: 'https://t.me/quantdinger', display: 't.me/quantdinger' },
+        { key: 'discord', url: 'https://discord.com/invite/tyx5B6TChr', display: 'discord.com/invite/tyx5B6TChr' },
+        { key: 'github', url: 'https://github.com/OpenByteInc/QuantDinger', display: 'github.com/OpenByteInc/QuantDinger' }
+      ]
     }
   },
 
@@ -112,15 +126,19 @@ export default {
     },
 
     async openWebsite() {
+      return this.openLink(WEBSITE)
+    },
+
+    async openLink(url) {
       try {
         if (Capacitor.isNativePlatform()) {
-          await Browser.open({ url: WEBSITE, presentationStyle: 'fullscreen' })
+          await Browser.open({ url, presentationStyle: 'fullscreen' })
         } else {
-          window.open(WEBSITE, '_blank', 'noopener,noreferrer')
+          window.open(url, '_blank', 'noopener,noreferrer')
         }
       } catch (e) {
         console.error(e)
-        window.open(WEBSITE, '_blank', 'noopener,noreferrer')
+        window.open(url, '_blank', 'noopener,noreferrer')
       }
     },
 
@@ -173,7 +191,7 @@ export default {
 </script>
 
 <style scoped>
-.page {
+.about-page {
   min-height: 100vh;
   padding-bottom: 32px;
 }
@@ -201,8 +219,11 @@ export default {
 }
 
 .group {
-  margin-top: 8px;
+  margin: 16px;
 }
+
+.section-title { margin: 24px 16px 10px; font-size: 13px; font-weight: 500; color: var(--v2-muted); }
+.social-group { margin-top: 0; }
 
 .muted {
   color: var(--text-3);
@@ -235,10 +256,14 @@ export default {
 :deep(.van-cell-group--inset) {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-left: 16px;
+  margin-right: 16px;
 }
 :deep(.van-cell) {
   background: transparent;
   color: var(--text);
+  padding: 14px 16px;
 }
 :deep(.van-cell__title) {
   color: var(--text);
@@ -246,4 +271,7 @@ export default {
 :deep(.van-cell__value) {
   color: var(--text-2);
 }
+:deep(.van-cell__title) { min-width: 0; }
+:deep(.van-cell__label) { overflow-wrap: anywhere; }
+.card.intro { padding: 16px; border-radius: 12px; }
 </style>

@@ -1,6 +1,6 @@
 const en = {
   title: 'Evidence & data-quality audit', professional_tier: 'Professional data', community_tier: 'Community data',
-  contract_required: 'This is an obsolete report', contract_required_desc: 'This saved result does not contain professional_report_v1. Regenerate it to view the evidence-backed format.', regenerate: 'Regenerate',
+  contract_required: 'This report needs updating', contract_required_desc: 'Run a new analysis to view the full evidence and an updated report.', regenerate: 'Regenerate',
   model_strength: 'Model strength, not win rate', market_bias: 'Market bias', bias_bullish: 'Bullish', bias_bearish: 'Bearish', bias_neutral: 'Neutral', trade_action: 'Trade action', executive_summary: 'Executive summary', current_price: 'Snapshot price', price_change: 'Price change', timeframe: 'Timeframe', data_quality: 'Data quality', coverage: 'Coverage', freshness: 'Freshness', conflict: 'Conflict', conclusion_strength: 'Conclusion strength', data_as_of: 'Data as of', audit_warnings: 'Audit findings',
   direction_blocked: 'Directional conclusion blocked', direction_blocked_desc: 'Required evidence is missing, stale or conflicting, so this report has been downgraded to HOLD.', missing_data: 'Data and capability gaps', dimensions: 'Analysis dimensions', insufficient: 'Insufficient data', no_narrative: 'No evidence-backed narrative is available.',
   scenarios: 'Scenario analysis', target: 'Target', invalidation: 'Invalidation', risk_plan: 'Risk and execution plan', candidate_setup: 'Watch-only candidate setup', candidate_setup_desc: 'These reference levels explain the current decision. They are not an active entry recommendation and the recommended position remains zero.', gross_rr: 'Gross R/R', net_rr: 'Net R/R', position_cap: 'Position cap', risk_budget: 'Risk budget', cost: 'Round-trip cost', claims: 'Evidence-linked claims', evidence: 'Evidence snapshot and provenance', evidence_references: 'Evidence references', open_source: 'Open source',
@@ -34,7 +34,7 @@ const en = {
 
 const zhCN = {
   title: '证据与数据质量审计', professional_tier: '专业数据', community_tier: '社区数据',
-  contract_required: '这是一份旧契约报告', contract_required_desc: '历史结果中没有 professional_report_v1，请重新生成后查看新版证据化报告。', regenerate: '重新生成',
+  contract_required: '这份报告需要更新', contract_required_desc: '重新分析后，可查看完整证据和更新后的报告。', regenerate: '重新生成',
   model_strength: '模型判断强度，不是胜率', market_bias: '市场方向', bias_bullish: '偏多', bias_bearish: '偏空', bias_neutral: '中性', trade_action: '交易动作', executive_summary: '执行摘要', current_price: '快照价格', price_change: '价格涨跌', timeframe: '分析周期', data_quality: '数据质量', coverage: '核心指标覆盖率', freshness: '数据新鲜度', conflict: '证据冲突率', conclusion_strength: '结论强度', data_as_of: '数据截止时间', audit_warnings: '审计发现',
   direction_blocked: '数据质量不足，已禁止方向性结论', direction_blocked_desc: '必要证据存在缺失、过期或冲突，本次报告已自动降级为观望。', missing_data: '数据与能力缺口', dimensions: '多维分析', insufficient: '数据不足', no_narrative: '暂无可由证据支持的分析文字。',
   scenarios: '情景分析', target: '目标价', invalidation: '失效条件', risk_plan: '风险与执行计划', candidate_setup: '候选观察方案', candidate_setup_desc: '这些参考价位用于解释当前判断，并非正在生效的入场建议；建议仓位仍为 0。', gross_rr: '毛风险回报比', net_rr: '扣成本风险回报比', position_cap: '建议仓位上限', risk_budget: '账户风险预算', cost: '预估往返成本', claims: '可追溯结论', evidence: '证据快照与数据来源', evidence_references: '证据引用', open_source: '打开来源',

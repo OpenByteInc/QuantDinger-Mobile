@@ -112,7 +112,7 @@ Mobile and H5 deployments should usually call the backend through a same-origin 
 | `npm run dev` | Set `VITE_DEV_API_TARGET` if the backend is not on `http://localhost:5000`. |
 | Static H5 hosting | Serve `dist/` and configure your web server to proxy `/api/` to the backend. |
 | Android / iOS shell | Use a backend URL that the phone can actually reach, such as `https://api.example.com` or a LAN IP during testing. |
-| Preselect a native-app server URL | Build with `VITE_DEFAULT_SERVER_URL=https://api.example.com`; official native builds fall back to `https://api.quantdinger.com`. |
+| Preselect a native-app server URL | Build with `VITE_DEFAULT_SERVER_URL=https://api.example.com`; when unset, requests remain same-origin. |
 
 For a packaged APK/IPA, the default backend URL is baked in at build time. If you distribute your own app, set the URL through the build command or your local `.env.local`; do not commit a private endpoint in a production env file.
 

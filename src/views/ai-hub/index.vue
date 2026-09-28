@@ -1,14 +1,22 @@
 <template>
   <div class="ai-copilot-page">
     <div class="top-bar">
-      <div class="top-copy">
-        <span class="eyebrow">
-          {{ text.title }}
+      <button type="button" class="new-chat" :disabled="sending" :aria-label="text.newChat" @click="newChat"><van-icon name="plus" /></button>
+      <button type="button" class="context-chip" :aria-label="text.selectSymbol" @click="showSymbolPicker = true">
+        <span class="context-identity">
+          <strong>{{ context.symbol }}</strong>
+          <em>{{ context.market }} · {{ context.timeframe }}</em>
         </span>
-      </div>
+        <span class="context-quote">
+          <strong v-if="contextQuote.price != null">{{ formatMarketPrice(contextQuote.price) }}</strong>
+          <em v-if="contextQuote.changePercent != null" :class="Number(contextQuote.changePercent) >= 0 ? 'up' : 'down'">
+            {{ Number(contextQuote.changePercent) >= 0 ? '+' : '' }}{{ Number(contextQuote.changePercent).toFixed(2) }}%
+          </em>
+        </span>
+        <span class="context-switch"><van-icon name="arrow-down" /></span>
+      </button>
       <button type="button" class="history-btn" :aria-label="text.sessions" @click="openHistoryDrawer">
         <van-icon name="clock-o" />
-        <span>{{ text.sessions }}</span>
       </button>
     </div>
 
@@ -16,8 +24,31 @@
       <div class="chat-panel">
         <div v-if="!messages.length" class="welcome-card">
           <div class="welcome-title-row">
+            <small>{{ text.workspaceEyebrow }}</small>
             <span>{{ text.emptyTitle }}</span>
             <em>{{ text.emptyDesc }}</em>
+          </div>
+          <button type="button" class="report-feature-card" :disabled="sending || !context.symbol" @click="confirmProfessionalAnalysis">
+            <span class="report-feature-icon"><van-icon name="description" /></span>
+            <span>
+              <strong>{{ text.professionalReport }}</strong>
+              <em>{{ text.professionalReportDesc }}</em>
+            </span>
+            <van-icon name="arrow" />
+          </button>
+          <div class="starter-grid">
+            <button
+              v-for="example in examples"
+              :key="example.key"
+              type="button"
+              @click="composer = example.prompt"
+            >
+              <span class="starter-icon"><van-icon :name="example.icon" /></span>
+              <span>
+                <strong>{{ example.title }}</strong>
+                <em>{{ example.description }}</em>
+              </span>
+            </button>
           </div>
         </div>
 
@@ -76,11 +107,18 @@
                     <div class="report-head">
                       <div>
                         <span>{{ reportMarketLabel(msg.report) }}</span>
-                        <strong>{{ reportDecisionLabel(msg.report) }}</strong>
+                        <strong>
+                          {{ reportDecisionLabel(msg.report) }}
+                          <small :class="['report-bias', reportBiasTone(msg.report)]">{{ reportBiasLabel(msg.report) }}</small>
+                        </strong>
                       </div>
                       <em>{{ reportConfidence(msg.report) }}</em>
                     </div>
                     <p class="report-summary">{{ reportSummary(msg.report) }}</p>
+                    <div v-if="reportPlanIsCandidate(msg.report)" class="report-candidate-label">
+                      <van-icon name="eye-o" />
+                      {{ $t('professional_report.candidate_setup') }}
+                    </div>
                     <div class="report-plan">
                       <div>
                         <span>{{ $t('ai_analysis.entry') }}</span>
@@ -175,58 +213,12 @@
         </div>
       </div>
 
-      <div class="bottom-suggestions">
-        <div v-if="!messages.length" class="example-list">
-          <button
-            v-for="example in examples"
-            :key="example"
-            type="button"
-            @click="composer = example"
-          >
-            {{ example }}
-          </button>
-        </div>
-
-      </div>
-
       <div class="ask-card">
-        <div class="composer-top-row">
-          <button type="button" class="context-chip" @click="showSymbolPicker = true">
-            <van-icon name="exchange" />
-            <strong>{{ context.symbol }}</strong>
-            <span>{{ context.market }}</span>
-            <van-icon name="arrow-down" />
-          </button>
-          <button type="button" class="professional-report-chip" :disabled="sending || !context.symbol" @click="confirmProfessionalAnalysis">
-            <van-icon name="description" />
-            {{ text.professionalReport }}
-          </button>
-          <button type="button" class="memory-status-chip" @click="openMemoryPanel">
-            <van-icon name="bulb-o" />
-            {{ memoryStatusLabel }}
-          </button>
-        </div>
-
         <div v-if="draftReferencedReportId" class="report-reference-chip">
           <van-icon name="link-o" />
           <span>{{ text.reportReferenceReady }}</span>
           <button type="button" :aria-label="text.cancelReportReference" @click="draftReferencedReportId = null">
             <van-icon name="cross" />
-          </button>
-        </div>
-
-        <div class="research-preset-row" role="tablist" :aria-label="text.researchPresets">
-          <button
-            v-for="preset in researchPresets"
-            :key="preset.key"
-            type="button"
-            role="tab"
-            :aria-selected="composerTask?.key === preset.key ? 'true' : 'false'"
-            :class="{ active: composerTask?.key === preset.key }"
-            @click="selectResearchPreset(preset)"
-          >
-            <van-icon :name="preset.icon" />
-            {{ preset.label }}
           </button>
         </div>
 
@@ -257,6 +249,11 @@
           <div class="left-actions">
             <button type="button" class="icon-action image" @click="triggerImageUpload" :aria-label="text.uploadImage">
               <van-icon name="photo-o" />
+            </button>
+            <button type="button" class="memory-action" @click="openMemoryPanel">
+              <van-icon name="bulb-o" />
+              <span>{{ text.memoryTitle }}</span>
+              <em v-if="hasSessionMemory" aria-hidden="true"></em>
             </button>
           </div>
           <button
@@ -407,7 +404,11 @@
 
 <script>
 import { showConfirmDialog, showImagePreview, showToast } from 'vant'
-import { aiAnalysisApi, aiChatApi } from '@/api'
+import {
+  aiAnalysisApi,
+  aiChatApi,
+  klineApi
+} from '@/api'
 import { useAiAnalysisStore } from '@/stores'
 import SymbolPicker from '@/components/SymbolPicker.vue'
 import {
@@ -418,355 +419,6 @@ import {
   reportRiskReward as professionalRiskReward
 } from '@/utils/professionalReport'
 
-const COPY = {
-  'zh-CN': {
-    title: 'AI Copilot',
-    welcomeTitle: '你的专属 AI 自动化交易系统',
-    welcomeDesc: '用一句话完成行情诊断、策略参数和交易研究。',
-    sessions: '历史',
-    currentSymbol: '当前标的',
-    selectSymbol: '选择标的',
-    emptyTitle: '你的专属 AI 自动化交易系统',
-    emptyDesc: '把行情、策略和交易研究交给 AI Copilot。',
-    placeholder: '例如：帮我诊断 BTC/USDT 1 小时趋势，或者上传 K 线图问是否适合开仓...',
-    uploadImage: '上传图片',
-    professionalReport: '专业分析报告',
-    researchPresets: '研究预设',
-    presetMarket: '市场研究',
-    presetDiagnosis: '标的诊断',
-    presetTechnical: '技术分析',
-    presetPlan: '交易计划',
-    presetNews: '新闻事件',
-    presetMacro: '宏观数据',
-    askReport: '追问报告',
-    reportReferenceReady: '下一条问题将引用当前专业报告',
-    cancelReportReference: '取消引用报告',
-    riskReward: '风险收益比',
-    riskRewardWarning: '风险收益比低于 1，请重点检查止盈止损计划。',
-    memoryTitle: '对话记忆',
-    sessionMemory: '本对话记忆',
-    sessionMemoryHint: '自动压缩任务状态，不会重复发送完整聊天记录。',
-    sessionMemoryEmpty: '发送第一条消息后会开始形成本对话记忆。',
-    clearMemory: '清除',
-    memoryTarget: '当前标的',
-    memoryWorkflow: '当前任务',
-    inputTokens: '输入 Token（估算）',
-    historyCount: '带入历史消息',
-    memoryCount: '长期记忆条数',
-    contextState: '上下文状态',
-    contextNormal: '正常',
-    contextCompacted: '已压缩',
-    longTermMemory: '长期偏好',
-    longTermMemoryHint: '只使用你确认保存的偏好和限制。',
-    longTermMemoryEmpty: '尚未保存长期偏好。',
-    memoryTitleField: '记忆标题',
-    memoryContentField: '记忆内容',
-    saveMemory: '保存',
-    deleteMemory: '删除',
-    memorySaved: '记忆已保存',
-    memoryDeleted: '记忆已删除',
-    memoryCleared: '本对话记忆已清除，聊天记录仍保留',
-    reportConfirmTitle: '生成专业分析报告？',
-    reportConfirmAction: '开始生成',
-    reportConfirmDetail: '标的：{target} · 周期：1D · 预计 30–90 秒 · 预计消耗 {cost} 积分',
-    copy: '复制',
-    copied: '已复制',
-    copyFailed: '复制失败',
-    deleteSession: '删除记录',
-    deleteSessionConfirm: '确定删除这条聊天记录吗？相关图片也会一起删除。',
-    deleteSessionSuccess: '已删除',
-    send: '发送',
-    loading: '加载中',
-    noSessions: '暂无会话历史',
-    newChat: '新会话',
-    imageAttached: '图片已添加',
-    cancel: '取消',
-    applyAndEdit: '应用并编辑',
-    sending: 'AI 正在思考...',
-    imageTooLarge: '图片过大，请选择 3MB 以内图片',
-    imageAdded: '图片已添加',
-    promptNeeded: '请输入问题或上传图片',
-    strategyPromptNeeded: '请先写一点策略想法',
-    generateFailed: '生成失败',
-    streamInterrupted: '连接中断，已保留当前内容，请重试。',
-    streamIncomplete: '响应未正常结束，请重试。',
-    outputLimit: '回答已达到输出上限，当前内容可能不完整。',
-    desktopOnly: '手机端仅支持使用与监控，请在电脑端完成代码编辑或回测。',
-    usedThisTurn: '本次使用',
-    taskDiagnose: '诊断标的',
-    taskDiagnoseDesc: '趋势、量能、支撑阻力和风险',
-    taskChart: '看图诊断',
-    taskChartDesc: '上传 K 线图判断入场和失效位',
-    taskNews: '新闻事件',
-    taskNewsDesc: '检索资产和宏观事件影响',
-    taskMacro: '宏观数据',
-    taskMacroDesc: 'CPI、FOMC、利率和流动性',
-    taskRadar: '机会雷达',
-    taskRadarDesc: '扫描未来 24 小时触发条件'
-  },
-  'zh-TW': {
-    title: 'AI Copilot',
-    welcomeTitle: '你的專屬 AI 自動化交易系統',
-    welcomeDesc: '用一句話完成行情診斷、策略參數和交易研究。',
-    sessions: '歷史',
-    currentSymbol: '目前標的',
-    selectSymbol: '選擇標的',
-    emptyTitle: '你的專屬 AI 自動化交易系統',
-    emptyDesc: '把行情、策略和交易研究交給 AI Copilot。',
-    placeholder: '例如：幫我診斷 BTC/USDT 1 小時趨勢，或上傳 K 線圖問是否適合開倉...',
-    uploadImage: '上傳圖片',
-    professionalReport: '專業分析報告',
-    researchPresets: '研究預設',
-    presetMarket: '市場研究',
-    presetDiagnosis: '標的診斷',
-    presetTechnical: '技術分析',
-    presetPlan: '交易計畫',
-    presetNews: '新聞事件',
-    presetMacro: '宏觀資料',
-    askReport: '追問報告',
-    reportReferenceReady: '下一條問題將引用目前專業報告',
-    cancelReportReference: '取消引用報告',
-    riskReward: '風險報酬比',
-    riskRewardWarning: '風險報酬比低於 1，請重點檢查止盈止損計畫。',
-    memoryTitle: '對話記憶',
-    sessionMemory: '本對話記憶',
-    sessionMemoryHint: '自動壓縮任務狀態，不會重複傳送完整聊天記錄。',
-    sessionMemoryEmpty: '傳送第一條訊息後會開始形成本對話記憶。',
-    clearMemory: '清除',
-    memoryTarget: '目前標的',
-    memoryWorkflow: '目前任務',
-    inputTokens: '輸入 Token（估算）',
-    historyCount: '帶入歷史訊息',
-    memoryCount: '長期記憶數量',
-    contextState: '上下文狀態',
-    contextNormal: '正常',
-    contextCompacted: '已壓縮',
-    longTermMemory: '長期偏好',
-    longTermMemoryHint: '只使用你確認儲存的偏好和限制。',
-    longTermMemoryEmpty: '尚未儲存長期偏好。',
-    memoryTitleField: '記憶標題',
-    memoryContentField: '記憶內容',
-    saveMemory: '儲存',
-    deleteMemory: '刪除',
-    memorySaved: '記憶已儲存',
-    memoryDeleted: '記憶已刪除',
-    memoryCleared: '本對話記憶已清除，聊天記錄仍保留',
-    reportConfirmTitle: '生成專業分析報告？',
-    reportConfirmAction: '開始生成',
-    reportConfirmDetail: '標的：{target} · 週期：1D · 預計 30–90 秒 · 預計消耗 {cost} 積分',
-    copy: '複製',
-    copied: '已複製',
-    copyFailed: '複製失敗',
-    deleteSession: '刪除記錄',
-    deleteSessionConfirm: '確定刪除這條聊天記錄嗎？相關圖片也會一起刪除。',
-    deleteSessionSuccess: '已刪除',
-    send: '發送',
-    loading: '載入中',
-    noSessions: '暫無會話歷史',
-    newChat: '新會話',
-    imageAttached: '圖片已加入',
-    cancel: '取消',
-    applyAndEdit: '套用並編輯',
-    sending: 'AI 正在思考...',
-    imageTooLarge: '圖片過大，請選擇 3MB 以內圖片',
-    imageAdded: '圖片已加入',
-    promptNeeded: '請輸入問題或上傳圖片',
-    strategyPromptNeeded: '請先寫一點策略想法',
-    generateFailed: '生成失敗',
-    streamInterrupted: '連線中斷，已保留目前內容，請重試。',
-    streamIncomplete: '回應未正常結束，請重試。',
-    outputLimit: '回答已達到輸出上限，目前內容可能不完整。',
-    desktopOnly: '手機端僅支援使用與監控，請在電腦端完成程式碼編輯或回測。',
-    usedThisTurn: '本次使用',
-    taskDiagnose: '診斷標的',
-    taskDiagnoseDesc: '趨勢、量能、支撐阻力和風險',
-    taskChart: '看圖診斷',
-    taskChartDesc: '上傳 K 線圖判斷入場和失效位',
-    taskNews: '新聞事件',
-    taskNewsDesc: '檢索資產和宏觀事件影響',
-    taskMacro: '宏觀資料',
-    taskMacroDesc: 'CPI、FOMC、利率和流動性',
-    taskRadar: '機會雷達',
-    taskRadarDesc: '掃描未來 24 小時觸發條件'
-  },
-  'en-US': {
-    title: 'AI Copilot',
-    welcomeTitle: 'Your personal AI automated trading system',
-    welcomeDesc: 'Diagnose markets, shape strategy parameters, and research trades in one sentence.',
-    sessions: 'History',
-    currentSymbol: 'Current symbol',
-    selectSymbol: 'Select symbol',
-    emptyTitle: 'Your personal AI automated trading system',
-    emptyDesc: 'Let AI Copilot handle market diagnosis, strategy thinking, and trade research.',
-    placeholder: 'Example: diagnose BTC/USDT 1H trend, or upload a chart and ask whether entry risk is acceptable...',
-    uploadImage: 'Upload image',
-    professionalReport: 'Professional report',
-    researchPresets: 'Research presets',
-    presetMarket: 'Market research',
-    presetDiagnosis: 'Symbol diagnosis',
-    presetTechnical: 'Technical analysis',
-    presetPlan: 'Trade plan',
-    presetNews: 'News & events',
-    presetMacro: 'Macro data',
-    askReport: 'Ask about report',
-    reportReferenceReady: 'Your next question will reference this professional report',
-    cancelReportReference: 'Remove report reference',
-    riskReward: 'Risk/reward',
-    riskRewardWarning: 'Risk/reward is below 1. Review the stop and target plan.',
-    memoryTitle: 'Conversation memory',
-    sessionMemory: 'This conversation',
-    sessionMemoryHint: 'Task state is compacted instead of resending the full transcript.',
-    sessionMemoryEmpty: 'Memory will start after the first message.',
-    clearMemory: 'Clear',
-    memoryTarget: 'Current target',
-    memoryWorkflow: 'Current task',
-    inputTokens: 'Input tokens (estimate)',
-    historyCount: 'History messages',
-    memoryCount: 'Long-term memories',
-    contextState: 'Context status',
-    contextNormal: 'Normal',
-    contextCompacted: 'Compacted',
-    longTermMemory: 'Long-term preferences',
-    longTermMemoryHint: 'Only preferences and constraints you confirmed are used.',
-    longTermMemoryEmpty: 'No long-term preferences saved yet.',
-    memoryTitleField: 'Memory title',
-    memoryContentField: 'Memory content',
-    saveMemory: 'Save',
-    deleteMemory: 'Delete',
-    memorySaved: 'Memory saved',
-    memoryDeleted: 'Memory deleted',
-    memoryCleared: 'Conversation memory cleared; transcript kept',
-    reportConfirmTitle: 'Generate professional report?',
-    reportConfirmAction: 'Generate',
-    reportConfirmDetail: 'Target: {target} · Timeframe: 1D · About 30–90 seconds · Estimated cost: {cost} credits',
-    copy: 'Copy',
-    copied: 'Copied',
-    copyFailed: 'Copy failed',
-    deleteSession: 'Delete',
-    deleteSessionConfirm: 'Delete this chat history? Related images will be removed too.',
-    deleteSessionSuccess: 'Deleted',
-    send: 'Send',
-    loading: 'Loading',
-    noSessions: 'No chat history',
-    newChat: 'New chat',
-    imageAttached: 'Image attached',
-    cancel: 'Cancel',
-    applyAndEdit: 'Apply & edit',
-    sending: 'AI is thinking...',
-    imageTooLarge: 'Image is too large. Choose one under 3MB.',
-    imageAdded: 'Image added',
-    promptNeeded: 'Enter a question or upload an image',
-    strategyPromptNeeded: 'Write a short strategy idea first',
-    generateFailed: 'Generation failed',
-    streamInterrupted: 'The connection was interrupted. The current response was kept; please retry.',
-    streamIncomplete: 'The response did not finish correctly. Please retry.',
-    outputLimit: 'The response reached the output limit and may be incomplete.',
-    desktopOnly: 'Mobile supports usage and monitoring only. Use desktop for code editing or backtesting.',
-    usedThisTurn: 'Used this turn',
-    taskDiagnose: 'Diagnose',
-    taskDiagnoseDesc: 'Trend, volume, levels, and risk',
-    taskChart: 'Chart review',
-    taskChartDesc: 'Upload a chart for entry and invalidation',
-    taskNews: 'News/events',
-    taskNewsDesc: 'Research asset and macro drivers',
-    taskMacro: 'Macro data',
-    taskMacroDesc: 'CPI, FOMC, rates, and liquidity',
-    taskRadar: 'Opportunity radar',
-    taskRadarDesc: 'Scan triggers for the next 24 hours'
-  },
-  'ja-JP': {
-    title: 'AI Copilot',
-    welcomeTitle: 'あなただけの AI クオンツ OS',
-    welcomeDesc: '一文で相場診断、戦略パラメータ、取引リサーチを進められます。',
-    sessions: '履歴',
-    currentSymbol: '現在の銘柄',
-    selectSymbol: '銘柄を選択',
-    emptyTitle: 'あなただけの AI クオンツ OS',
-    emptyDesc: '相場、戦略、取引リサーチを AI Copilot に任せましょう。',
-    placeholder: '例：BTC/USDT の1時間足を診断、またはチャート画像をアップロードしてエントリー可否を確認...',
-    uploadImage: '画像',
-    copy: 'コピー',
-    copied: 'コピーしました',
-    copyFailed: 'コピーに失敗しました',
-    deleteSession: '削除',
-    deleteSessionConfirm: 'このチャット履歴を削除しますか？関連画像も削除されます。',
-    deleteSessionSuccess: '削除しました',
-    send: '送信',
-    loading: '読み込み中',
-    noSessions: 'チャット履歴なし',
-    newChat: '新規チャット',
-    imageAttached: '画像を追加しました',
-    cancel: 'キャンセル',
-    applyAndEdit: '適用して編集',
-    sending: 'AI が考えています...',
-    imageTooLarge: '画像が大きすぎます。3MB 未満を選択してください。',
-    imageAdded: '画像を追加しました',
-    promptNeeded: '質問を入力するか画像をアップロードしてください',
-    strategyPromptNeeded: 'まず戦略アイデアを入力してください',
-    generateFailed: '生成に失敗しました',
-    streamInterrupted: '接続が中断されました。現在の内容を保持しました。再試行してください。',
-    streamIncomplete: '応答が正常に完了しませんでした。もう一度お試しください。',
-    outputLimit: '出力上限に達したため、回答が不完全な可能性があります。',
-    desktopOnly: 'モバイルは利用と監視専用です。コード編集やバックテストはデスクトップで行ってください。',
-    usedThisTurn: '今回使用',
-    taskDiagnose: '銘柄診断',
-    taskDiagnoseDesc: 'トレンド、出来高、重要水準、リスク',
-    taskChart: 'チャート診断',
-    taskChartDesc: '画像からエントリーと無効条件を確認',
-    taskNews: 'ニュース',
-    taskNewsDesc: '資産とマクロ材料を調査',
-    taskMacro: 'マクロデータ',
-    taskMacroDesc: 'CPI、FOMC、金利、流動性',
-    taskRadar: '機会レーダー',
-    taskRadarDesc: '24時間の発火条件を確認'
-  },
-  'ko-KR': {
-    title: 'AI Copilot',
-    welcomeTitle: '나만의 AI 퀀트 운영체제',
-    welcomeDesc: '한 문장으로 시장 진단, 전략 파라미터, 거래 리서치를 진행하세요.',
-    sessions: '기록',
-    currentSymbol: '현재 종목',
-    selectSymbol: '종목 선택',
-    emptyTitle: '나만의 AI 퀀트 운영체제',
-    emptyDesc: '시장, 전략, 거래 리서치를 AI Copilot에게 맡기세요.',
-    placeholder: '예: BTC/USDT 1시간 추세를 진단하거나 차트 이미지를 올려 진입 가능성을 확인...',
-    uploadImage: '이미지',
-    copy: '복사',
-    copied: '복사됨',
-    copyFailed: '복사 실패',
-    deleteSession: '삭제',
-    deleteSessionConfirm: '이 채팅 기록을 삭제할까요? 관련 이미지도 함께 삭제됩니다.',
-    deleteSessionSuccess: '삭제됨',
-    send: '전송',
-    loading: '로딩 중',
-    noSessions: '채팅 기록 없음',
-    newChat: '새 채팅',
-    imageAttached: '이미지 추가됨',
-    cancel: '취소',
-    applyAndEdit: '적용 후 편집',
-    sending: 'AI가 생각 중...',
-    imageTooLarge: '이미지가 너무 큽니다. 3MB 이하를 선택하세요.',
-    imageAdded: '이미지가 추가되었습니다',
-    promptNeeded: '질문을 입력하거나 이미지를 업로드하세요',
-    strategyPromptNeeded: '먼저 전략 아이디어를 입력하세요',
-    generateFailed: '생성 실패',
-    streamInterrupted: '연결이 중단되었습니다. 현재 내용을 유지했으니 다시 시도해 주세요.',
-    streamIncomplete: '응답이 정상적으로 완료되지 않았습니다. 다시 시도해 주세요.',
-    outputLimit: '출력 한도에 도달하여 답변이 불완전할 수 있습니다.',
-    desktopOnly: '모바일은 사용 및 모니터링 전용입니다. 코드 편집과 백테스트는 데스크톱에서 진행하세요.',
-    usedThisTurn: '이번에 사용',
-    taskDiagnose: '종목 진단',
-    taskDiagnoseDesc: '추세, 거래량, 레벨, 리스크',
-    taskChart: '차트 진단',
-    taskChartDesc: '이미지로 진입과 무효 조건 판단',
-    taskNews: '뉴스/이벤트',
-    taskNewsDesc: '자산과 매크로 이슈 조사',
-    taskMacro: '매크로 데이터',
-    taskMacroDesc: 'CPI, FOMC, 금리, 유동성',
-    taskRadar: '기회 레이더',
-    taskRadarDesc: '24시간 트리거 조건 스캔'
-  }
-}
 
 export default {
   name: 'AiHub',
@@ -783,6 +435,7 @@ export default {
       attachments: [],
       sending: false,
       sessionId: null,
+      sessionLoadToken: 0,
       sessions: [],
       loadingSessions: false,
       deletingSessionId: null,
@@ -795,17 +448,13 @@ export default {
       contextUsage: null,
       draftReferencedReportId: null,
       isComposerComposing: false,
-      composerTask: null
+      composerTask: null,
+      contextQuote: { price: null, changePercent: null },
+      quoteTimer: null
     }
   },
   computed: {
-    text() {
-      const locale = this.$i18n?.locale || 'zh-CN'
-      return {
-        ...COPY['en-US'],
-        ...(COPY[locale] || COPY[locale.split('-')[0]] || {})
-      }
-    },
+    text() { return this.$tm('ai_chat') },
     canSend() {
       return Boolean((this.composer || '').trim() || this.attachments.length)
     },
@@ -830,42 +479,76 @@ export default {
     latestContextUsage() {
       return this.contextUsage || this.sessionMemory?.recent_requests?.[0] || null
     },
-    memoryStatusLabel() {
-      const summary = this.sessionMemorySummary || {}
-      const symbol = summary?.selected_target?.symbol
-      const workflow = summary?.active_workflow
-      if (symbol || workflow) return [symbol, workflow].filter(Boolean).join(' · ')
-      return this.text.memoryTitle
-    },
-    researchPresets() {
-      return [
-        { key: 'research', label: this.text.presetMarket, icon: 'globe-o' },
-        { key: 'diagnose', label: this.text.presetDiagnosis, icon: 'chart-trending-o' },
-        { key: 'technical', label: this.text.presetTechnical, icon: 'bar-chart-o' },
-        { key: 'plan', label: this.text.presetPlan, icon: 'orders-o' },
-        { key: 'news', label: this.text.presetNews, icon: 'newspaper-o' },
-        { key: 'macro', label: this.text.presetMacro, icon: 'balance-list-o' }
-      ]
-    },
     examples() {
       const label = `${this.context.market}:${this.context.symbol}`
       const locale = this.$i18n?.locale || 'zh-CN'
       const isZh = locale.startsWith('zh')
       if (isZh) {
         return [
-          `请诊断 ${label} 趋势，给出关键支撑阻力和失效条件。`,
-          `请检索 ${label} 最近新闻和事件，区分事实、解读和不确定性。`,
-          `帮我扫描 ${label} 未来 24 小时机会和风险，给出触发条件。`
+          { key: 'diagnose', icon: 'chart-trending-o', title: this.text.quickDiagnose, description: this.text.quickDiagnoseDesc, prompt: `请诊断 ${label} 趋势，给出关键支撑阻力和失效条件。` },
+          { key: 'news', icon: 'newspaper-o', title: this.text.quickNews, description: this.text.quickNewsDesc, prompt: `请检索 ${label} 最近新闻和事件，区分事实、解读和不确定性。` },
+          { key: 'risk', icon: 'warning-o', title: this.text.quickRisk, description: this.text.quickRiskDesc, prompt: `帮我扫描 ${label} 未来 24 小时机会和风险，给出触发条件。` }
         ]
       }
       return [
-        `Diagnose ${label}: trend, levels, and invalidation.`,
-        `Research recent news and events for ${label}, separating facts from interpretation.`,
-        `Scan ${label} for opportunities and risks in the next 24 hours, with triggers.`
+        { key: 'diagnose', icon: 'chart-trending-o', title: this.text.quickDiagnose, description: this.text.quickDiagnoseDesc, prompt: `Diagnose ${label}: trend, levels, and invalidation.` },
+        { key: 'news', icon: 'newspaper-o', title: this.text.quickNews, description: this.text.quickNewsDesc, prompt: `Research recent news and events for ${label}, separating facts from interpretation.` },
+        { key: 'risk', icon: 'warning-o', title: this.text.quickRisk, description: this.text.quickRiskDesc, prompt: `Scan ${label} for opportunities and risks in the next 24 hours, with triggers.` }
       ]
     }
   },
+  mounted() {
+    this.applyRouteContext()
+    this.refreshContextQuote()
+    this.startQuoteRefresh()
+  },
+  activated() {
+    this.applyRouteContext()
+    this.refreshContextQuote()
+    this.startQuoteRefresh()
+  },
+  deactivated() {
+    this.stopQuoteRefresh()
+  },
+  beforeUnmount() {
+    this.stopQuoteRefresh()
+  },
   methods: {
+    applyRouteContext() {
+      const query = this.$route?.query || {}
+      if (query.market) this.context.market = String(query.market)
+      if (query.symbol) this.context.symbol = String(query.symbol)
+      if (query.timeframe) this.context.timeframe = String(query.timeframe)
+    },
+    async refreshContextQuote() {
+      if (!this.context.market || !this.context.symbol) return
+      try {
+        const response = await klineApi.getPrice({ market: this.context.market, symbol: this.context.symbol })
+        const row = response?.data || {}
+        const change = row.changePercent ?? row.change_percent ?? row.change_rate
+        this.contextQuote = {
+          price: Number.isFinite(Number(row.price)) ? Number(row.price) : null,
+          changePercent: Number.isFinite(Number(change)) ? Number(change) : null
+        }
+      } catch {
+        this.contextQuote = { price: null, changePercent: null }
+      }
+    },
+    startQuoteRefresh() {
+      this.stopQuoteRefresh()
+      this.quoteTimer = window.setInterval(() => this.refreshContextQuote(), 20000)
+    },
+    stopQuoteRefresh() {
+      if (this.quoteTimer) window.clearInterval(this.quoteTimer)
+      this.quoteTimer = null
+    },
+    formatMarketPrice(value) {
+      const number = Number(value)
+      if (!Number.isFinite(number)) return '--'
+      const digits = Math.abs(number) < 1 ? 6 : 2
+      return number.toLocaleString(undefined, { maximumFractionDigits: digits })
+    },
+    newChat() { if (this.sending) return; this.sessionId = null; this.messages = []; this.composer = ''; this.attachments = []; this.composerTask = null; this.draftReferencedReportId = null; this.sessionMemory = null; this.contextUsage = null; this.sessionLoadToken++ },
     escapeHtml(value) {
       return String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -1019,11 +702,6 @@ export default {
             radar: `Scan ${label} for likely opportunities in the next 24 hours, with triggers, confirmation, invalidation, and risks.`
           }
       return prompts[task.key] || prompts.diagnose
-    },
-    selectResearchPreset(preset) {
-      if (!preset?.key) return
-      this.composer = this.taskPrompt(preset)
-      this.composerTask = preset
     },
     handleComposerCompositionStart() {
       this.isComposerComposing = true
@@ -1560,6 +1238,24 @@ export default {
       if (d.includes('SELL')) return this.$t('ai_analysis.decision_sell')
       return this.$t('ai_analysis.decision_hold')
     },
+    reportBias(report) {
+      const artifact = professionalReportArtifact(report) || {}
+      const profile = artifact.decision_profile || {}
+      const explicit = String(profile.market_bias || '').toUpperCase()
+      if (['BULLISH', 'BEARISH', 'NEUTRAL'].includes(explicit)) return explicit
+      const raw = Number(profile.market_bias_score)
+      const technical = Number((artifact.dimensions || []).find((item) => item?.key === 'technical')?.score)
+      const score = Number.isFinite(raw) ? raw : Number.isFinite(technical) ? (technical - 50) * 2 : 0
+      if (score >= 5) return 'BULLISH'
+      if (score <= -5) return 'BEARISH'
+      return 'NEUTRAL'
+    },
+    reportBiasLabel(report) {
+      return this.$t(`professional_report.bias_${this.reportBias(report).toLowerCase()}`)
+    },
+    reportBiasTone(report) {
+      return `bias-${this.reportBias(report).toLowerCase()}`
+    },
     reportTone(report) {
       const d = String(professionalReportArtifact(report)?.decision_profile?.decision || '').toUpperCase()
       if (d.includes('BUY')) return 'buy'
@@ -1578,17 +1274,22 @@ export default {
     },
     reportPlanValue(report, type) {
       const artifact = professionalReportArtifact(report) || {}
-      if (String(artifact.decision_profile?.decision || '').toUpperCase() === 'HOLD') return '--'
       const plan = artifact.risk_plan || {}
+      const displayPlan = plan.candidate_setup || plan
       const map = {
-        entry: plan.entry_price,
-        stop: plan.stop_loss,
-        take: plan.take_profit
+        entry: displayPlan.entry_price,
+        stop: displayPlan.stop_loss,
+        take: displayPlan.take_profit
       }
       return this.formatReportNumber(map[type])
     },
+    reportPlanIsCandidate(report) {
+      return Boolean(professionalReportArtifact(report)?.risk_plan?.candidate_setup)
+    },
     reportRiskReward(report) {
-      const value = professionalRiskReward(report)
+      const artifact = professionalReportArtifact(report) || {}
+      const plan = artifact.risk_plan?.candidate_setup || artifact.risk_plan || {}
+      const value = plan.net_risk_reward ?? plan.gross_risk_reward ?? professionalRiskReward(report)
       if (value === '' || value == null || !Number.isFinite(Number(value))) return '--'
       return Number(value).toFixed(2)
     },
@@ -1689,8 +1390,16 @@ export default {
       }
     },
     async loadSession(session) {
+      if (this.sending) return
+      const token = ++this.sessionLoadToken
       try {
         const res = await aiChatApi.getHistory({ session_id: session.id })
+        if (token !== this.sessionLoadToken) return
+        const context = res.data?.session || session
+        const market = String(context.context_market || session.context_market || this.context.market)
+        this.context.market = ({CRYPTO:'Crypto',USSTOCK:'USStock',ASTOCK:'AStock',HKSTOCK:'HKStock',FOREX:'Forex',FUTURES:'Futures'})[market.toUpperCase()] || market
+        this.context.symbol = context.context_symbol || session.context_symbol || this.context.symbol
+        this.context.timeframe = context.context_timeframe || session.context_timeframe || this.context.timeframe
         this.sessionId = session.id
         this.messages = (res.data?.messages || []).map((msg) => ({
           id: msg.id,
@@ -1751,6 +1460,7 @@ export default {
       this.context.market = item.market || 'Crypto'
       this.context.symbol = item.symbol || this.context.symbol
       this.showSymbolPicker = false
+      this.refreshContextQuote()
     },
     async loadSessionMemory() {
       if (!this.sessionId) {
@@ -1903,20 +1613,23 @@ export default {
   text-overflow: ellipsis;
 }
 
+.new-chat,
 .history-btn {
   flex-shrink: 0;
+  width: 38px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 0 11px;
-  border-radius: 999px;
+  justify-content: center;
+  padding: 0;
+  border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface-raised);
   color: var(--text-2);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 18px;
 }
+
+.new-chat:disabled { opacity: .45; }
 
 .ask-card,
 .recommend-sheet {
@@ -1979,40 +1692,29 @@ export default {
   font-size: 11px;
 }
 
-.professional-report-chip,
-.memory-status-chip {
-  height: 34px;
-  box-sizing: border-box;
-  min-width: 0;
-  flex: 1 1 calc(50% - 4px);
+.memory-action {
+  position: relative;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 0 10px;
-  border-radius: 999px;
+  gap: 6px;
+  padding: 0 11px;
+  border-radius: 9px;
   border: 1px solid var(--border);
   background: var(--surface-raised);
+  color: var(--text-2);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.professional-report-chip {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface-raised));
-}
-
-.memory-status-chip {
-  color: var(--text-2);
-}
-
-.professional-report-chip:disabled {
-  opacity: 0.5;
+.memory-action em {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 .report-reference-chip {
@@ -2043,41 +1745,6 @@ export default {
   background: transparent;
 }
 
-.research-preset-row {
-  display: flex;
-  gap: 6px;
-  margin: 4px -2px 5px;
-  padding: 1px 2px 3px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.research-preset-row::-webkit-scrollbar {
-  display: none;
-}
-
-.research-preset-row button {
-  min-height: 30px;
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--text-2);
-  background: var(--surface-raised);
-  font-size: 11px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.research-preset-row button.active {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
 .ask-card textarea {
   width: 100%;
   min-height: 42px;
@@ -2093,14 +1760,6 @@ export default {
 
 .ask-card textarea::placeholder {
   color: var(--text-3);
-}
-
-.bottom-suggestions {
-  margin-top: auto;
-}
-
-.bottom-suggestions .example-list {
-  margin-bottom: 8px;
 }
 
 .session-row em {
@@ -2161,28 +1820,62 @@ export default {
   line-height: 1.55;
 }
 
-.example-list {
+.starter-grid {
   width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.starter-grid button {
+  min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.example-list button {
-  padding: 8px 11px;
-  border-radius: 13px;
-  border: 1px solid transparent;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border-radius: 11px;
+  border: 1px solid var(--border);
   color: var(--text-2);
-  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+  background: var(--surface-raised);
   text-align: left;
-  font-size: 11px;
-  line-height: 1.4;
 }
 
-.example-list button:active {
+.starter-grid button:active {
   border-color: var(--accent);
-  color: var(--text);
   background: var(--accent-soft);
+}
+
+.starter-icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: 17px;
+}
+
+.starter-grid button > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.starter-grid strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.starter-grid em {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 10px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message-list {
@@ -2333,6 +2026,10 @@ export default {
 }
 
 .report-head strong {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
   color: var(--text);
   font-size: 22px;
   font-weight: 950;
@@ -3177,5 +2874,149 @@ export default {
   gap: 10px;
   padding: 12px 16px calc(12px + var(--safe-area-bottom, 0px));
   border-top: 1px solid var(--hairline);
+}
+</style>
+
+<style scoped>
+.context-chip {
+  width: 100%;
+  min-height: 62px;
+  height: auto;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--v2-surface, var(--bg-elevated));
+  box-shadow: none;
+  text-align: left;
+}
+
+.report-head .report-bias {
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.report-bias.bias-bullish { color: var(--v2-green, #11a77b); background: color-mix(in srgb, var(--v2-green, #11a77b) 12%, transparent); }
+.report-bias.bias-bearish { color: var(--v2-red, #f04449); background: color-mix(in srgb, var(--v2-red, #f04449) 12%, transparent); }
+.report-bias.bias-neutral { color: var(--text-2); background: var(--surface-raised); }
+
+.report-candidate-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 8px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.context-identity,
+.context-quote {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.context-identity {
+  flex: 1;
+}
+
+.context-identity small {
+  color: var(--text-3);
+  font-size: 10px;
+}
+
+.context-chip .context-identity strong {
+  font-size: 18px;
+}
+
+.context-identity em,
+.context-quote em {
+  color: var(--text-3);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.context-quote {
+  flex: 0 0 auto;
+  justify-items: end;
+}
+
+.context-quote strong {
+  font-size: 16px;
+}
+
+.context-quote .up {
+  color: var(--v2-green, #11a77b);
+}
+
+.context-quote .down {
+  color: var(--v2-red, #f04449);
+}
+
+.welcome-title-row small {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.report-feature-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 12px;
+  color: var(--text);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 15%, var(--bg-elevated)), var(--bg-elevated));
+  text-align: left;
+}
+
+.report-feature-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--text-on-accent, #111);
+  background: var(--accent);
+  font-size: 21px;
+}
+
+.report-feature-card > span:nth-child(2) {
+  display: grid;
+  gap: 3px;
+}
+
+.report-feature-card strong {
+  font-size: 14px;
+}
+
+.report-feature-card em {
+  color: var(--text-2);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.report-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+
+@media (max-width: 340px) {
+  .report-feature-card { grid-template-columns: 36px minmax(0, 1fr) 16px; padding: 10px; }
+  .report-feature-icon { width: 36px; height: 36px; }
 }
 </style>

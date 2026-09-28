@@ -1,6 +1,6 @@
 <template>
   <div class="credits-page">
-    <van-nav-bar
+    <van-nav-bar fixed placeholder safe-area-inset-top
       :title="$t('profile.credits_recharge')"
       :border="false"
       left-arrow
@@ -730,9 +730,8 @@ export default {
     featureLabel(feature, action) {
       const value = String(feature || '').trim()
       if (!value || value.toLowerCase() === String(action || '').trim().toLowerCase()) return ''
-      const key = `profile.feature_${value.toLowerCase()}`
-      const text = this.$t(key)
-      return text === key ? value : text
+      const key = `audit.features.${value.toLowerCase()}`
+      return this.$te(key) ? this.$t(key) : value
     },
     formatCredits(value) {
       return new Intl.NumberFormat('en-US').format(Number(value || 0))
@@ -785,7 +784,7 @@ export default {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(320px 220px at 100% 0%, var(--c-amber-soft), transparent 62%);
+  background: var(--bg-elevated);
 }
 .balance-card > * { position: relative; }
 
@@ -841,7 +840,7 @@ export default {
 
 .plan-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 .plan-card {
@@ -1160,7 +1159,7 @@ export default {
   bottom: 0;
   z-index: 2;
   padding-top: 10px;
-  background: linear-gradient(180deg, transparent 0%, var(--bg-elevated) 28%);
+  background: var(--bg-elevated);
 }
 .chain-actions :deep(.van-button) { border-radius: 12px; }
 
@@ -1334,6 +1333,10 @@ export default {
   z-index: 2;
   margin-top: 16px;
   padding-top: 10px;
-  background: linear-gradient(180deg, transparent 0%, var(--bg-elevated) 30%);
+  background: var(--bg-elevated);
 }
+</style>
+
+<style scoped>
+.plan-grid{gap:8px}.plan-card{padding:26px 9px 12px;display:flex;flex-direction:column;text-align:left}.plan-name{font-size:13px;min-height:20px}.plan-price{display:flex;flex-wrap:wrap;align-items:baseline;gap:1px}.plan-price .amount{font-size:22px}.plan-price .unit{margin-left:0;font-size:9px}.plan-credits,.plan-vip,.plan-desc{font-size:10px;line-height:1.5;overflow-wrap:anywhere}.plan-desc{margin-bottom:10px}.plan-action{margin-top:auto;padding-top:10px;font-size:11px;gap:3px}.plan-badge{top:6px;right:6px;font-size:8px;padding:1px 4px}.plan-card.popular{border:1px solid var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--bg-elevated))}@media(max-width:350px){.plan-grid{gap:5px}.plan-card{padding-left:7px;padding-right:7px}.plan-name{font-size:12px}.plan-price .amount{font-size:19px}.plan-action{font-size:10px}}
 </style>

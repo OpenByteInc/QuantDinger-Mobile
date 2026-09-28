@@ -1,14 +1,8 @@
 <template>
-  <div class="security-page">
-    <van-nav-bar :title="$t('profile.change_password')" left-arrow @click-left="$router.back()" />
+  <div class="security-page account-page">
+    <van-nav-bar fixed placeholder safe-area-inset-top :title="$t('profile.change_password')" left-arrow @click-left="$router.back()" />
 
-    <div class="hero">
-      <div class="hero-icon">
-        <van-icon name="lock" />
-      </div>
-      <div class="hero-title">{{ $t('profile.change_password') }}</div>
-      <p class="hero-desc">{{ $t('profile.change_password_desc') }}</p>
-    </div>
+    <p class="page-intro">{{ $t('profile.change_password_desc') }}</p>
 
     <!-- Email verification (PC parity) -->
     <div class="form-card">
@@ -17,11 +11,11 @@
           <span class="meta-label">{{ $t('profile.change_pwd_email_label') }}</span>
           <span class="meta-value">{{ userEmail || '-' }}</span>
           <span v-if="userEmail" class="meta-hint">{{ $t('profile.change_pwd_email_hint') }}</span>
-          <span v-else class="meta-hint error">{{ $t('profile.change_pwd_no_email') }}</span>
+          <span v-else-if="!profileLoading" class="meta-hint error">{{ $t('profile.change_pwd_no_email') }}</span>
         </div>
       </div>
 
-      <van-field
+      <van-field label-align="top"
         v-model="form.code"
         :label="$t('profile.change_pwd_code_label')"
         :placeholder="$t('profile.change_pwd_code_placeholder')"
@@ -41,13 +35,13 @@
         </template>
       </van-field>
 
-      <van-field
+      <van-field label-align="top"
         v-model="form.new_password"
         :label="$t('profile.new_password')"
         type="password"
         :placeholder="$t('profile.new_password_placeholder')"
       />
-      <van-field
+      <van-field label-align="top"
         v-model="form.confirm_password"
         :label="$t('profile.confirm_password')"
         type="password"
@@ -72,7 +66,7 @@ export default {
   name: 'ProfileSecurity',
   data() {
     return {
-      submitting: false,
+      submitting: false, profileLoading: true,
       sendingCode: false,
       cooldown: 0,
       cooldownTimer: null,
@@ -102,13 +96,13 @@ export default {
   },
   methods: {
     async loadProfile() {
-      if (this.userEmail) return
+      if (this.userEmail) {this.profileLoading=false;return}
       try {
         const response = await userApi.getProfile()
         if (response?.data) this.userStore.setUserInfo(response.data)
       } catch (error) {
         console.error('Load profile for security page failed:', error)
-      }
+      } finally { this.profileLoading=false }
     },
     startCooldown() {
       this.cooldown = 60
@@ -197,7 +191,7 @@ export default {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(260px 180px at 100% 0%, var(--c-indigo-soft), transparent 62%);
+  background: var(--bg-elevated);
   pointer-events: none;
 }
 

@@ -1,6 +1,6 @@
 <template>
   <div class="notif-settings-page">
-    <van-nav-bar
+    <van-nav-bar fixed placeholder safe-area-inset-top
       :title="$t('notif_settings.title')"
       left-arrow
       :border="false"
@@ -38,7 +38,7 @@
         <van-icon name="chat-o" class="title-icon tg" />
         Telegram
       </div>
-      <van-field
+      <van-field label-align="top"
         v-model="form.telegram_bot_token"
         :label="$t('notif_settings.tg_bot_token')"
         :placeholder="$t('notif_settings.tg_bot_token_ph')"
@@ -46,7 +46,7 @@
       />
       <p class="field-hint">{{ $t('notif_settings.tg_bot_token_hint') }} <a @click.stop="openLink('https://t.me/BotFather')">@BotFather</a></p>
 
-      <van-field
+      <van-field label-align="top"
         v-model="form.telegram_chat_id"
         :label="$t('notif_settings.tg_chat_id')"
         :placeholder="$t('notif_settings.tg_chat_id_ph')"
@@ -60,7 +60,7 @@
         <van-icon name="envelop-o" class="title-icon email" />
         {{ $t('notif_settings.email') }}
       </div>
-      <van-field
+      <van-field label-align="top"
         v-model="form.email"
         :label="$t('notif_settings.email_label')"
         :placeholder="$t('notif_settings.email_ph')"
@@ -74,7 +74,7 @@
         <van-icon name="phone-o" class="title-icon sms" />
         {{ $t('notif_settings.sms') }}
       </div>
-      <van-field
+      <van-field label-align="top"
         v-model="form.phone"
         :label="$t('notif_settings.phone_label')"
         :placeholder="$t('notif_settings.phone_ph')"
@@ -88,7 +88,7 @@
         <van-icon name="comment-o" class="title-icon discord" />
         Discord
       </div>
-      <van-field
+      <van-field label-align="top"
         v-model="form.discord_webhook"
         :label="$t('notif_settings.discord_webhook')"
         :placeholder="$t('notif_settings.discord_webhook_ph')"
@@ -102,14 +102,14 @@
         <van-icon name="link-o" class="title-icon webhook" />
         {{ $t('notif_settings.webhook') }}
       </div>
-      <van-field
+      <van-field label-align="top"
         v-model="form.webhook_url"
         :label="$t('notif_settings.webhook_url')"
         :placeholder="$t('notif_settings.webhook_url_ph')"
       />
       <p class="field-hint">{{ $t('notif_settings.webhook_hint') }}</p>
 
-      <van-field
+      <van-field label-align="top"
         v-model="form.webhook_token"
         :label="$t('notif_settings.webhook_token')"
         :placeholder="$t('notif_settings.webhook_token_ph')"
@@ -357,4 +357,8 @@ export default {
   border: none;
   color: var(--text-on-accent);
 }
+</style>
+
+<style scoped>
+.card :deep(.van-field__label){width:100%;margin:0 0 7px;white-space:nowrap;font-size:13px}.card :deep(.van-field__body){min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-deep)}.card :deep(.van-cell:after){display:none}.field-hint{margin:4px 0 10px}.card-title{margin-bottom:12px}
 </style>

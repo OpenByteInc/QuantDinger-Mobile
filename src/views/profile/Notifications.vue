@@ -1,6 +1,6 @@
 <template>
-  <div class="notifications-page">
-    <van-nav-bar
+  <div class="notifications-page account-page">
+    <van-nav-bar fixed placeholder safe-area-inset-top
       :title="$t('notifications.title')"
       left-arrow
       :border="false"
@@ -24,10 +24,12 @@
           :class="{ active: activeCategory === filter.value }"
           @click="activeCategory = filter.value"
         >
-          {{ filter.label }}
+          <span>{{ filter.label }}</span>
           <small>{{ filter.count }}</small>
         </button>
       </div>
+      <p class="notification-count">{{ $t('profile_detail.notificationLimit',{count:notifications.length}) }}</p>
+      <van-button v-if="loadFailed" block @click="loadNotifications">{{ $t('audit.loadFailed') }}</van-button>
       <div class="notification-list">
         <button
           v-for="item in displayedNotifications"
@@ -62,8 +64,8 @@
         </button>
 
         <van-empty
-          v-if="!loading && displayedNotifications.length === 0"
-          :description="$t('notifications.empty')"
+          v-if="!loading && !loadFailed && displayedNotifications.length === 0"
+          :description="$t('notifications.empty')" image-size="56"
         />
       </div>
     </van-pull-refresh>
@@ -84,7 +86,7 @@
           <span class="detail-icon" :class="getType(selectedNotification)">
             <van-icon :name="getIcon(selectedNotification)" />
           </span>
-          <span>{{ formatTime(selectedNotification.created_at) }}</span>
+          <span>{{ fullTime(selectedNotification.created_at) }}</span>
         </div>
         <h2 class="detail-title">{{ getTitle(selectedNotification) }}</h2>
         <div class="detail-meta">
@@ -92,15 +94,15 @@
             {{ $t('notifications.strategy') }} #{{ selectedNotification.strategy_id }}
           </van-tag>
           <van-tag size="small" plain :type="getType(selectedNotification) === 'alert' ? 'danger' : 'success'">
-            {{ selectedNotification.event_type || getType(selectedNotification) }}
+            {{ $t('notifications.category_' + getType(selectedNotification)) }}
           </van-tag>
         </div>
-        <div class="detail-body">
+        <div v-if="!detailFields(selectedNotification).length" class="detail-body">
           {{ getDetailMessage(selectedNotification) }}
         </div>
+        <dl class="notification-fields"><div v-for="field in detailFields(selectedNotification)" :key="field.key"><dt>{{ $t('profile_detail.'+field.key) }}</dt><dd>{{ fieldValue(field) }}</dd></div></dl>
         <van-button
           v-if="selectedNotification.strategy_id"
-          round
           block
           type="primary"
           class="detail-action"
@@ -108,10 +110,6 @@
         >
           {{ $t('notifications.view_strategy') }}
         </van-button>
-        <details v-if="getTechnicalMessage(selectedNotification)" class="technical-details">
-          <summary>{{ $t('notifications.technical_details') }}</summary>
-          <code>{{ getTechnicalMessage(selectedNotification) }}</code>
-        </details>
       </div>
     </van-popup>
   </div>
@@ -120,6 +118,7 @@
 <script>
 import { strategyApi } from '@/api'
 import { useNotificationStore } from '@/stores'
+import {notificationPayload, notificationFields, notificationCategory, notificationTime} from '@/utils/notificationDetail'
 
 const MESSAGE_PREVIEW_LIMIT = 220
 
@@ -179,7 +178,7 @@ export default {
       refreshing: false,
       showDetail: false,
       selectedNotification: null,
-      activeCategory: 'all'
+      activeCategory: 'all', loadFailed: false
     }
   },
 
@@ -191,30 +190,7 @@ export default {
       return this.notificationStore.notifications
     },
     groupedNotifications() {
-      const groups = new Map()
-      this.notifications.forEach((item) => {
-        const type = this.getType(item)
-        const action = this.signalAction(item)
-        const symbol = this.notificationSymbol(item)
-        const time = this.notificationTimestamp(item)
-        const bucket = Math.floor(time / (30 * 60 * 1000))
-        const key = [item.strategy_id || 'general', type, action || 'event', symbol || 'all', bucket].join('|')
-        if (!groups.has(key)) groups.set(key, [])
-        groups.get(key).push(item)
-      })
-      return Array.from(groups.entries())
-        .map(([key, members]) => {
-          const latest = [...members].sort((a, b) => this.notificationTimestamp(b) - this.notificationTimestamp(a))[0]
-          const unread = members.some((item) => !item.is_read && !item.read)
-          return {
-            ...latest,
-            id: `group-${key}`,
-            is_read: unread ? 0 : 1,
-            read: !unread,
-            _members: members
-          }
-        })
-        .sort((a, b) => this.notificationTimestamp(b) - this.notificationTimestamp(a))
+      return [...this.notifications].sort((a,b)=>this.notificationTimestamp(b)-this.notificationTimestamp(a))
     },
     displayedNotifications() {
       if (this.activeCategory === 'all') return this.groupedNotifications
@@ -245,14 +221,16 @@ export default {
   methods: {
     async loadNotifications() {
       this.loading = true
+      this.loadFailed = false
       try {
         const [listRes, unreadRes] = await Promise.all([
-          strategyApi.getNotifications({ limit: 100 }),
+          strategyApi.getNotifications({ limit: 200 }),
           strategyApi.getUnreadNotificationCount()
         ])
         this.notificationStore.setNotifications(listRes.data || [])
         this.notificationStore.setUnreadCount(unreadRes.data || 0)
       } catch (error) {
+        this.loadFailed = true
         console.error('Load notifications failed:', error)
       } finally {
         this.loading = false
@@ -264,15 +242,10 @@ export default {
       this.refreshing = false
     },
 
-    getType(item) {
-      const text = `${item.event_type || ''} ${item.title || ''} ${item.message || ''} ${item.content || ''}`.toLowerCase()
-      if (/(risk|error|异常|fail|expired|失效|liquidat|强平|止损)/.test(text)) return 'alert'
-      if (/(signal|open_long|open_short|close_long|close_short|add_long|add_short|信号)/.test(text)) return 'signal'
-      if (/(trade|成交|order|filled|pending_order|下单|委托)/.test(text)) return 'trade'
-      if (/(system|account|credential|login|系统|账户)/.test(text)) return 'system'
-      return 'signal'
-    },
-
+    getType(item) { return notificationCategory(item) },
+    detailFields(item) { return notificationFields(item) },
+    fieldValue(field) { if(field.key==='method'){const methods={login_success:'passwordLogin',password_login:'passwordLogin',login:'passwordLogin',login_via_code:'codeLogin',mfa_login_success:'mfaLogin',oauth_login:'oauthLogin'};if(methods[field.value])return this.$t('profile_detail.'+methods[field.value])}if(field.key==='mode'&&['live','paper','signal'].includes(field.value))return this.$t(field.value==='live'?'credentials.environment_live':field.value==='paper'?'audit.paperMode':'notifications.category_signal');const key='notifications.action_label_'+field.value;return field.key==='signal'&&this.$te(key)?this.$t(key):field.value },
+    fullTime(value) { return notificationTime(value)?.toLocaleString(this.$i18n.locale) || '—' },
     getIcon(item) {
       const type = this.getType(item)
       const map = {
@@ -285,40 +258,20 @@ export default {
     },
 
     getTitle(item) {
+      const payload=notificationPayload(item)
+      if(payload.display?.template==='security.login' || item.signal_type==='security_login')return this.$t('profile_detail.loginAlert')
       const action = this.signalAction(item)
       const symbol = this.notificationSymbol(item)
       if (action) {
         return this.$t(`notifications.action_${action}`, { symbol: symbol || this.$t('notifications.the_strategy') })
       }
+      if(item.title) return toPlainNotificationText(item.title)
       const type = this.getType(item)
       return this.$t(`notifications.default_${type}_title`)
     },
 
-    getMessage(item) {
-      const action = this.signalAction(item)
-      const symbol = this.notificationSymbol(item)
-      if (action) {
-        const key = action.startsWith('open') || action.startsWith('add')
-          ? 'notifications.signal_detected'
-          : 'notifications.signal_closed'
-        return this.$t(key, {
-          symbol: symbol || this.$t('notifications.the_strategy'),
-          action: this.$t(`notifications.action_label_${action}`)
-        })
-      }
-      const plain = toPlainNotificationText(item.message || item.content, { limit: MESSAGE_PREVIEW_LIMIT })
-      if (this.getType(item) === 'alert') return this.$t('notifications.risk_requires_attention')
-      return plain || this.$t('notifications.no_content')
-    },
-
-    getDetailMessage(item) {
-      return this.getMessage(item)
-    },
-
-    getTechnicalMessage(item) {
-      return toPlainNotificationText(item.content || item.message, { preserveLines: true })
-    },
-
+    getMessage(item) { const fields=this.detailFields(item);if(fields.length)return fields.slice(0,4).map(field=>`${this.$t('profile_detail.'+field.key)}: ${this.fieldValue(field)}`).join(' · ');return toPlainNotificationText(item.message || item.content, {limit:MESSAGE_PREVIEW_LIMIT}) || this.$t('notifications.no_content') },
+    getDetailMessage(item) { return toPlainNotificationText(item.message || item.content, {preserveLines:true}) || this.$t('notifications.no_content') },
     signalAction(item) {
       const text = `${item.event_type || ''} ${item.title || ''} ${item.message || ''} ${item.content || ''}`.toLowerCase()
       const actions = ['open_long', 'open_short', 'add_long', 'add_short', 'close_long', 'close_short']
@@ -341,7 +294,8 @@ export default {
     },
 
     formatTime(value) {
-      const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value)
+      const date = notificationTime(value)
+      if(!date) return '—'
       if (Number.isNaN(date.getTime())) return this.$t('notifications.just_now')
       const now = Date.now()
       const diff = now - date.getTime()
@@ -360,8 +314,8 @@ export default {
       const unread = members.filter((member) => !member.is_read && !member.read)
       if (!unread.length) return
       try {
-        await Promise.allSettled(unread.map((member) => strategyApi.markNotificationRead(member.id)))
-        unread.forEach((member) => this.notificationStore.markAsRead(member.id))
+        const results = await Promise.allSettled(unread.map((member) => strategyApi.markNotificationRead(member.id)))
+        results.forEach((result,index) => {if(result.status==='fulfilled') this.notificationStore.markAsRead(unread[index].id)})
       } catch (error) {
         console.error('Mark notification read failed:', error)
       }
@@ -614,19 +568,4 @@ export default {
   word-break: break-word;
 }
 .detail-action { margin-top: 14px; }
-.technical-details {
-  margin-top: 14px;
-  color: var(--text-3);
-  font-size: 12px;
-}
-.technical-details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
-.technical-details code {
-  display: block;
-  padding: 12px;
-  border-radius: 12px;
-  background: var(--surface-deep);
-  color: var(--text-2);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
 </style>

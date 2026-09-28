@@ -1,8 +1,9 @@
 <template>
-  <div class="mfa-page">
-    <van-nav-bar :title="$t('profile.mfa_manage')" left-arrow @click-left="$router.back()" />
+  <div class="mfa-page account-page">
+    <van-nav-bar fixed placeholder safe-area-inset-top :title="$t('profile.mfa_manage')" left-arrow @click-left="$router.back()" />
 
-    <div class="status-card">
+    <van-button v-if="loadFailed" block @click="loadStatus">{{ $t('audit.loadFailed') }}</van-button>
+    <div v-if="!loading && !loadFailed" class="status-card">
       <div :class="['status-icon', status.enabled ? 'on' : 'off']">
         <van-icon name="shield-o" />
       </div>
@@ -20,11 +21,11 @@
       </div>
     </div>
 
-    <div v-if="!status.system_enabled" class="hint-card warn">
+    <div v-if="!loading && !loadFailed && !status.system_enabled" class="hint-card warn">
       <van-icon name="warning-o" />
       <span>{{ $t('profile.mfa_system_disabled') }}</span>
     </div>
-    <div v-else class="hint-card">
+    <div v-else-if="!loading && !loadFailed" class="hint-card">
       <van-icon name="info-o" />
       <span>{{ $t('profile.mfa_mobile_hint') }}</span>
     </div>
@@ -41,13 +42,13 @@
         v-if="!status.enabled"
         type="primary"
         block
-        :disabled="!status.system_enabled"
+        :disabled="loading || loadFailed || !status.system_enabled"
         :loading="starting"
         @click="startSetup"
       >
         {{ $t('profile.mfa_enable') }}
       </van-button>
-      <van-button v-else plain type="danger" block @click="disableVisible = true">
+      <van-button v-else :disabled="loading || loadFailed" plain type="danger" block @click="disableVisible = true">
         {{ $t('profile.mfa_disable') }}
       </van-button>
     </div>
@@ -63,7 +64,7 @@
         </div>
 
         <div class="qr-box">
-          <img v-if="setup.qr_image" :src="setup.qr_image" alt="MFA QR code" />
+          <img v-if="setup.qr_image" :src="setup.qr_image" :alt="$t('profile.mfa_app_title')" />
         </div>
 
         <div class="manual-box">
@@ -142,7 +143,7 @@ export default {
   name: 'ProfileMfa',
   data() {
     return {
-      loading: false,
+      loading: true, loadFailed: false,
       starting: false,
       confirming: false,
       disabling: false,
@@ -154,7 +155,7 @@ export default {
       setup: {},
       recoveryCodes: [],
       status: {
-        system_enabled: true,
+        system_enabled: false,
         enabled: false,
         risk_login_only: true,
         challenge_ttl_minutes: 5
@@ -167,10 +168,12 @@ export default {
   methods: {
     async loadStatus() {
       this.loading = true
+      this.loadFailed = false
       try {
         const res = await userApi.getMfaStatus()
         if (res?.data) this.status = { ...this.status, ...res.data }
       } catch (err) {
+        this.loadFailed = true
         showToast({ message: err?.response?.data?.msg || this.$t('profile.mfa_load_failed'), type: 'fail' })
       } finally {
         this.loading = false
@@ -292,7 +295,7 @@ export default {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(260px 180px at 100% 0%, var(--c-indigo-soft), transparent 62%);
+  background: var(--bg-elevated);
 }
 .status-icon,
 .status-main { position: relative; }

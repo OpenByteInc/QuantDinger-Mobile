@@ -5,7 +5,7 @@ import { t } from '@/locales'
 const routes = [
   {
     path: '/',
-    redirect: '/ai'
+    redirect: '/market'
   },
   {
     path: '/login',
@@ -15,12 +15,12 @@ const routes = [
   },
   {
     path: '/home',
-    redirect: '/ai'
+    redirect: '/market'
   },
   {
     path: '/trading',
     name: 'Trading',
-    component: () => import('@/views/trading/index.vue'),
+    component: () => import('@/views/v2/LiveOverview.vue'),
     meta: { titleKey: 'trading.title' }
   },
   {
@@ -31,29 +31,27 @@ const routes = [
   },
   {
     path: '/trading/create',
-    name: 'BotCreate',
-    component: () => import('@/views/trading/CreateBot.vue'),
-    meta: { titleKey: 'bot_create.title' }
-  },
-  {
-    path: '/trading/create/configure',
     name: 'StrategyCreate',
     component: () => import('@/views/trading/CreateStrategy.vue'),
     meta: { titleKey: 'script_strategy.title' }
   },
   {
+    path: '/trading/create/configure',
+    redirect: to => ({ path: '/trading/create', query: to.query })
+  },
+  {
     path: '/trading/create/script',
-    redirect: '/trading/create/configure'
+    redirect: to => ({ path: '/trading/create', query: to.query })
   },
   {
     path: '/ai',
     name: 'AiHub',
-    component: () => import('@/views/ai-hub/index.vue'),
+    component: () => import('@/views/v2/AiResearch.vue'),
     meta: { titleKey: 'ai_hub.title' }
   },
   {
     path: '/quick-trade',
-    redirect: { path: '/indicators/chart', query: { trade: '1' } }
+    redirect: to => ({ path: '/indicators/chart', query: { ...to.query, trade: '1' } })
   },
   {
     path: '/ai-analysis',
@@ -70,6 +68,12 @@ const routes = [
   {
     path: '/market',
     name: 'Market',
+    component: () => import('@/views/v2/StrategyHub.vue'),
+    meta: { titleKey: 'market.title' }
+  },
+  {
+    path: '/market/all',
+    name: 'MarketCatalog',
     component: () => import('@/views/market/index.vue'),
     meta: { titleKey: 'market.title' }
   },
@@ -102,7 +106,7 @@ const routes = [
   {
     path: '/profile',
     name: 'Profile',
-    component: () => import('@/views/profile/index.vue'),
+    component: () => import('@/views/v2/ProfileHub.vue'),
     meta: { titleKey: 'profile.title' }
   },
   {
@@ -126,6 +130,12 @@ const routes = [
     name: 'ProfileAbout',
     component: () => import('@/views/profile/About.vue'),
     meta: { titleKey: 'about.title' }
+  },
+  {
+    path: '/profile/account',
+    name: 'ProfileAccount',
+    component: () => import('@/views/profile/Account.vue'),
+    meta: { titleKey: 'profile.edit_profile' }
   },
   {
     path: '/profile/security',
@@ -170,10 +180,20 @@ const routes = [
     meta: { titleKey: 'credentials.title' }
   },
   {
+    path: '/profile/credentials/:id(\\d+)',
+    name: 'CredentialDetail',
+    component: () => import('@/views/profile/CredentialDetail.vue'),
+    meta: { titleKey: 'profile_detail.details' }
+  },
+  {
     path: '/profile/credentials/new',
     name: 'CredentialCreate',
     component: () => import('@/views/profile/CredentialForm.vue'),
     meta: { titleKey: 'credentials.add_title' }
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/market'
   },
   {
     path: '/assets',

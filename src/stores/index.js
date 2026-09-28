@@ -4,6 +4,11 @@ import { initialLocale, setLocale as applyLocale } from '@/locales'
 
 export const pinia = createPinia()
 
+const ACCENT_OPTIONS = [
+  'gold', 'ocean', 'emerald', 'violet', 'coral',
+  'crimson', 'sunrise', 'sky', 'mint', 'pink', 'cyan', 'yellow', 'plum'
+]
+
 const CRYPTO_EXCHANGE_IDS = new Set([
   'binance',
   'okx',
@@ -157,6 +162,9 @@ export const useDashboardStore = defineStore('dashboard', {
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
     theme: localStorage.getItem('theme') || DEFAULT_THEME,
+    accent: ACCENT_OPTIONS.includes(localStorage.getItem('accent'))
+      ? localStorage.getItem('accent')
+      : 'gold',
     locale: initialLocale
   }),
 
@@ -165,6 +173,13 @@ export const useSettingsStore = defineStore('settings', {
       this.theme = theme
       localStorage.setItem('theme', theme)
       document.documentElement.setAttribute('data-theme', theme)
+    },
+
+    setAccent(accent) {
+      if (!ACCENT_OPTIONS.includes(accent)) return
+      this.accent = accent
+      localStorage.setItem('accent', accent)
+      document.documentElement.setAttribute('data-accent', accent)
     },
 
     setLocale(locale) {

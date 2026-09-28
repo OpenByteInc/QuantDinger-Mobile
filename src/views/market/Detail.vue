@@ -1,9 +1,10 @@
 <template>
   <div class="detail-page">
-    <van-nav-bar :title="indicator?.name || $t('market.title')" left-arrow @click-left="$router.back()" />
+    <van-nav-bar fixed placeholder safe-area-inset-top :title="indicator?.name || $t('market.title')" left-arrow @click-left="$router.back()" />
 
     <van-loading v-if="loading" class="loading" vertical>{{ $t('common.loading') }}</van-loading>
 
+    <van-empty v-else-if="!indicator" :description="$t('audit.loadFailed')"><van-button @click="load">{{ $t('common.retry') }}</van-button></van-empty>
     <template v-else-if="indicator">
       <div class="hero">
         <div class="hero-main">
@@ -409,10 +410,12 @@ export default {
             this.performance = null
           }
         }
+      } catch {
+        this.indicator = null
       } finally {
         this.loading = false
       }
-      this.loadComments(1)
+      if (this.indicator) this.loadComments(1)
     },
     async loadComments(page = 1) {
       this.commentsLoading = true
@@ -591,7 +594,7 @@ export default {
         this.showAdaptation = false
         if (sourceId) {
           this.$router.push({
-            path: '/trading/create/configure',
+            path: '/trading/create',
             query: { source_id: sourceId, name: this.indicator?.name || '', requires_backtest: '1' }
           })
         }
@@ -638,7 +641,7 @@ export default {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(320px 220px at 100% 0%, var(--c-amber-soft), transparent 62%);
+  background: var(--bg-elevated);
   pointer-events: none;
 }
 .hero-main {
@@ -664,7 +667,7 @@ export default {
   padding: 2px 8px;
   border-radius: 999px;
   color: #1f1300;
-  background: linear-gradient(135deg, #fde68a, #f59e0b);
+  background: var(--bg-elevated);
   border: 1px solid rgba(245, 158, 11, 0.36);
   font-size: 11px;
   font-weight: 900;
@@ -674,9 +677,7 @@ export default {
   width: 76px;
   min-height: 76px;
   border-radius: 20px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(250, 204, 21, 0.24), transparent 58%),
-    rgba(255, 255, 255, 0.06);
+  background: var(--bg-elevated);
   border: 1px solid rgba(250, 204, 21, 0.22);
   display: flex;
   flex-direction: column;
@@ -745,9 +746,7 @@ export default {
 }
 .publisher-meta span { display: inline-flex; align-items: center; gap: 3px; }
 .contract-card {
-  background:
-    radial-gradient(260px 180px at 100% 0%, rgba(124, 92, 255, 0.11), transparent 62%),
-    var(--bg-elevated);
+  background: var(--bg-elevated);
 }
 .contract-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .contract-title-row .card-title { margin-bottom: 0; }
@@ -814,9 +813,7 @@ export default {
 }
 .desc { font-size: 13px; color: var(--text-2); line-height: 1.7; white-space: pre-wrap; }
 .performance-card {
-  background:
-    radial-gradient(260px 180px at 100% 0%, rgba(56, 189, 248, 0.1), transparent 62%),
-    var(--bg-elevated);
+  background: var(--bg-elevated);
 }
 .curve-panel {
   margin: 8px 0 14px;

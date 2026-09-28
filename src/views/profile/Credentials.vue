@@ -1,6 +1,6 @@
 <template>
-  <div class="credentials-page">
-    <van-nav-bar
+  <div class="credentials-page account-page">
+    <van-nav-bar fixed placeholder safe-area-inset-top
       :title="$t('credentials.title')"
       left-arrow
       :border="false"
@@ -15,24 +15,15 @@
 
     <!-- Existing accounts are the primary mobile task. -->
     <div class="list-card primary-list">
-      <div class="card-head">
-        <div class="card-head-left">
-          <div class="card-icon blue"><van-icon name="records" /></div>
-          <div>
-            <div class="card-title">{{ $t('credentials.list_title') }}</div>
-            <p class="card-desc">{{ $t('credentials.list_desc', { count: credentials.length }) }}</p>
-          </div>
-        </div>
-      </div>
+      <p class="account-list-count">{{ $t('credentials.list_desc', { count: credentials.length }) }}</p>
 
-      <div v-if="credentials.length" class="cred-list">
+      <van-button v-if="loadFailed" block @click="loadData">{{ $t('audit.loadFailed') }}</van-button>
+      <div v-else-if="credentials.length" class="cred-list">
         <div v-for="item in credentials" :key="item.id" class="cred-row">
-          <div class="cred-left">
-            <div class="cred-logo" :style="exchangeBrand(item.exchange_id)">
-              {{ exchangeShort(item.exchange_id) }}
-            </div>
+          <button type="button" class="cred-left" @click="$router.push(`/profile/credentials/${item.id}`)">
+            <ExchangeLogo :exchange="item.exchange_id" :size="40" />
             <div class="cred-info">
-              <span class="row-title">{{ item.name }}</span>
+              <span class="row-title">{{ item.name || formatExchange(item.exchange_id) }}</span>
               <span class="row-subtitle">
                 {{ formatExchange(item.exchange_id) }}
                 <span v-if="item.api_key_hint"> · {{ item.api_key_hint }}</span>
@@ -46,26 +37,12 @@
                 </small>
                 <small class="credential-tag">{{ credentialScopeLabel(item) }}</small>
               </span>
-              <span v-if="credentialLastChecked(item)" class="last-checked">
-                {{ $t('credentials.last_checked', { time: credentialLastChecked(item) }) }}
-              </span>
-            </div>
-          </div>
-          <div class="cred-actions">
-            <van-button size="mini" plain @click="openRename(item)">
-              {{ $t('credentials.rename') }}
-            </van-button>
-            <van-button size="mini" plain type="danger" @click="removeCredential(item)">
-              {{ $t('credentials.delete') }}
-            </van-button>
-          </div>
+            </div><van-icon name="arrow"/>
+          </button>
+          <button type="button" class="account-manage" :aria-label="$t('profile_detail.manage')" @click="manageTarget=item;showManage=true"><van-icon name="ellipsis"/></button>
         </div>
       </div>
-      <van-empty v-else-if="!loading" :description="$t('credentials.empty')">
-        <van-button round type="primary" size="small" @click="$router.push('/profile/credentials/new')">
-          {{ $t('credentials.add') }}
-        </van-button>
-      </van-empty>
+      <div v-else-if="!loading" class="account-empty"><div class="provider-stack"><ExchangeLogo v-for="id in ['binance','okx','alpaca']" :key="id" :exchange="id" :size="44"/></div><h3>{{ $t('account_ui.connectTitle') }}</h3><p>{{ $t('account_ui.connectHint') }}</p><van-button block type="primary" @click="$router.push('/profile/credentials/new')">{{ $t('account_ui.connectAction') }}</van-button></div>
     </div>
 
     <!-- One-click signup -->
@@ -87,9 +64,7 @@
           class="signup-card-item"
           @click="openExchangeSignup(item)"
         >
-          <div class="signup-logo" :style="{ background: item.brandBg, color: item.brandColor }">
-            {{ item.short }}
-          </div>
+          <ExchangeLogo :exchange="item.id" :size="36" />
           <div class="signup-meta">
             <div class="signup-name">{{ item.name }}</div>
             <div class="signup-rebate">{{ $t('credentials.rebate') }}</div>
@@ -99,6 +74,7 @@
       </div>
     </div>
 
+    <van-action-sheet v-model:show="showManage" :title="manageTarget?.name || formatExchange(manageTarget?.exchange_id)" :cancel-text="$t('common.cancel')" :actions="[{name:$t('credentials.rename'),value:'rename'},{name:$t('credentials.delete'),value:'delete',color:'var(--v2-red)'}]" @select="onManage" />
     <van-popup v-model:show="showRename" position="bottom" round>
       <div class="rename-sheet">
         <div class="rename-title">{{ $t('credentials.rename_title') }}</div>
@@ -124,6 +100,7 @@
 </template>
 
 <script>
+import ExchangeLogo from '@/components/ExchangeLogo.vue'
 import { showConfirmDialog, showToast } from 'vant'
 import { credentialsApi } from '@/api'
 import { useCredentialsStore } from '@/stores'
@@ -132,11 +109,12 @@ import { openExternal } from '@/utils/external'
 
 export default {
   name: 'CredentialList',
+  components: { ExchangeLogo },
 
   data() {
     return {
-      loading: false,
-      showSignup: false,
+      loading: false, loadFailed: false,
+      showSignup: false, showManage: false, manageTarget: null,
       showRename: false,
       renaming: false,
       renameCredential: null,
@@ -149,7 +127,7 @@ export default {
       return useCredentialsStore()
     },
     credentials() {
-      return this.credentialsStore.cryptoItems
+      return this.credentialsStore.items
     },
     signupCards() {
       return EXCHANGE_SIGNUP_CARDS
@@ -161,13 +139,16 @@ export default {
   },
 
   methods: {
+    onManage(action) { this.showManage=false; if(action.value==='rename')this.openRename(this.manageTarget);else this.removeCredential(this.manageTarget) },
     async loadData() {
       this.loading = true
+      this.loadFailed = false
       try {
         const listRes = await credentialsApi.list()
         this.credentialsStore.setItems(listRes.data || [])
       } catch (error) {
-        console.error('Load credentials failed:', error)
+        this.loadFailed = true
+        this.credentialsStore.setItems([])
       } finally {
         this.loading = false
       }
@@ -197,6 +178,7 @@ export default {
     },
 
     credentialEnvironmentLabel(item) {
+      if (item?.exchange_id === 'alpaca') return this.$t(/paper/i.test(item.api_key_hint || '') ? 'audit.paperMode' : 'credentials.environment_live')
       const environment = String(item?.environment || (item?.enable_demo_trading ? 'demo' : 'live')).toLowerCase()
       if (environment === 'testnet') return this.$t('credentials.environment_testnet')
       if (environment === 'demo') return this.$t('credentials.environment_demo')
@@ -204,6 +186,7 @@ export default {
     },
 
     credentialScopeLabel(item) {
+      if (item?.exchange_id === 'alpaca') return this.$t('account_ui.usStocks')
       const scope = String(item?.market_scope || 'both').toLowerCase()
       if (scope === 'spot') return this.$t('credentials.market_scope_spot')
       if (scope === 'swap') return this.$t('credentials.market_scope_swap')
@@ -218,11 +201,13 @@ export default {
     },
 
     credentialHealthLabel(item) {
-      return this.$t(this.credentialHealthy(item) ? 'credentials.status_connected' : 'credentials.status_check')
+      if (!this.credentialHealthy(item)) return this.$t('credentials.status_check')
+      const verified = item?.last_test_success === true || item?.test_success === true || item?.connection_status === 'connected'
+      return this.$t(verified ? 'credentials.status_connected' : 'account_ui.saved')
     },
 
     credentialLastChecked(item) {
-      const value = item?.last_tested_at || item?.last_checked_at || item?.updated_at
+      const value = item?.last_tested_at || item?.last_checked_at
       if (!value) return ''
       const date = new Date(value)
       return Number.isNaN(date.getTime()) ? '' : date.toLocaleString()
@@ -542,4 +527,8 @@ export default {
   transform: translate(-50%, -50%);
   color: var(--text);
 }
+</style>
+
+<style scoped>
+.list-card,.signup-card{border-radius:12px;box-shadow:none;border-color:var(--border)}.card-icon.blue,.card-icon.gold{background:var(--surface-raised);color:var(--text-2);border:1px solid var(--border)}.card-title{font-weight:650}.account-empty{padding:20px 8px 8px;text-align:center}.provider-stack{display:flex;justify-content:center;gap:12px;margin:0 0 18px}.account-empty h3{font-size:18px;margin:0 0 8px}.account-empty p{max-width:320px;margin:0 auto 22px;color:var(--text-3);font-size:12px;line-height:1.7}.account-empty .van-button{border-radius:8px;height:44px}.signup-toggle{margin-bottom:0}.signup-grid{margin-top:16px;grid-template-columns:1fr 1fr}.signup-card-item{padding:10px 8px;gap:7px;border-radius:8px}.signup-arrow{display:none}.cred-row{flex-wrap:wrap}.cred-actions{width:100%;justify-content:flex-end}.cred-actions .van-button{padding:0 10px;min-height:30px}.cred-info{gap:5px}
 </style>

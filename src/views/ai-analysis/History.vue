@@ -1,6 +1,6 @@
 <template>
   <div class="history-page">
-    <van-nav-bar :title="$t('ai_analysis.history_title')" left-arrow @click-left="$router.back()" />
+    <van-nav-bar fixed placeholder safe-area-inset-top :title="$t('ai_analysis.history_title')" left-arrow @click-left="$router.back()" />
 
     <van-list
       v-if="list.length"
@@ -31,7 +31,7 @@
           </div>
         </div>
 
-        <div class="meta">
+        <div v-if="isCurrentReport(item)" class="meta">
           <span class="confidence">{{ $t('ai_analysis.confidence') }}: {{ formatConfidence(item.confidence) }}%</span>
           <span v-if="item.price" class="price">${{ formatNumber(item.price) }}</span>
         </div>
@@ -50,7 +50,7 @@
             type="primary"
             :disabled="(item.status || '').toLowerCase() === 'processing'"
             @click="openItem(item)"
-          >{{ $t('ai_analysis.view_result') }}</van-button>
+          >{{ $t(isCurrentReport(item)?'ai_analysis.view_result':'professional_report.regenerate') }}</van-button>
           <span class="action-link" @click="removeItem(item)">{{ $t('ai_analysis.delete_record') }}</span>
         </div>
       </div>
@@ -143,19 +143,24 @@ export default {
 
       const payload = buildHistoryResultPayload(item)
       if (!payload) {
-        showToast({ message: this.$t('professional_report.contract_required_desc'), type: 'fail' })
+        this.aiStore.setLastResult(null)
+        this.$router.push({path:'/ai-analysis',query:{market:item.market,symbol:item.symbol}})
+        showToast({ message: this.$t('professional_report.contract_required_desc') })
         return
       }
       this.aiStore.setLastResult(payload)
       this.$router.push('/ai-analysis')
     },
+    isCurrentReport(item) { return Boolean(buildHistoryResultPayload(item)) },
     decisionText(item) {
+      if (!this.isCurrentReport(item)) return this.$t('professional_report.contract_required')
       const d = String(item.decision || '').toUpperCase()
       if (d.includes('BUY')) return this.$t('ai_analysis.decision_buy')
       if (d.includes('SELL')) return this.$t('ai_analysis.decision_sell')
       return this.$t('ai_analysis.decision_hold')
     },
     decisionTone(item) {
+      if (!this.isCurrentReport(item)) return 'warning'
       const d = String(item.decision || '').toUpperCase()
       if (d.includes('BUY')) return 'success'
       if (d.includes('SELL')) return 'danger'

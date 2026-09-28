@@ -536,7 +536,7 @@ html[data-theme='light'] :where(.van-picker__mask) {
   .order-card,
   .history-card,
   .setting-card
-) {
+):not(:where(.account-page *)) {
   background: var(--bg-elevated) !important;
   border: 1px solid var(--border) !important;
   box-shadow: var(--shadow-card);

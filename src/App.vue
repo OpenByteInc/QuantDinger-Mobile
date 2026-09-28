@@ -1,8 +1,8 @@
 <template>
-  <div class="app-container">
-    <main class="app-main" :class="{ 'with-bottom-nav': showBottomNav }">
+  <div class="app-container" :style="!showBottomNav ? {'--shell-tabbar-height':'var(--safe-area-bottom)'} : undefined">
+    <main ref="main" class="app-main" :class="{ 'with-bottom-nav': showBottomNav }">
       <router-view v-slot="{ Component }">
-        <keep-alive :include="['Trading', 'AiHub', 'Profile', 'IndicatorChart']">
+        <keep-alive :include="['StrategyHubV2', 'LiveOverviewV2', 'AiResearchV2', 'ProfileV2', 'IndicatorChart']">
           <component :is="Component" />
         </keep-alive>
       </router-view>
@@ -27,7 +27,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useNotificationStore } from '@/stores'
@@ -37,22 +37,24 @@ const router = useRouter()
 const { t } = useI18n()
 const notificationStore = useNotificationStore()
 
+const main=ref(null)
+watch(()=>route.fullPath,async()=>{await nextTick();main.value?.scrollTo({top:0})})
 const unreadCount = computed(() => notificationStore.unreadCount)
-const showBottomNav = computed(() => !route.meta.public)
+const showBottomNav = computed(() => !route.meta.public && ['/market','/trading','/ai','/indicators/chart','/profile'].includes(route.path))
 const tabs = computed(() => [
-  { key: 'ai', label: t('tabs.ai'), icon: 'cluster-o', path: '/ai' },
-  { key: 'market', label: t('tabs.market'), icon: 'shop-o', path: '/market' },
-  { key: 'chart', label: t('tabs.chart'), icon: 'chart-trending-o', path: '/indicators/chart' },
-  { key: 'strategy', label: t('tabs.strategy'), icon: 'apps-o', path: '/trading' },
-  { key: 'profile', label: t('tabs.profile'), icon: 'contact-o', path: '/profile' }
+  { key: 'strategy', label: t('v2.nav.strategy'), icon: 'wap-home', path: '/market' },
+  { key: 'live', label: t('v2.nav.live'), icon: 'play-circle', path: '/trading' },
+  { key: 'research', label: t('v2.nav.research'), icon: 'chat', path: '/ai' },
+  { key: 'indicator', label: t('v2.nav.indicator'), icon: 'graphic', path: '/indicators/chart' },
+  { key: 'profile', label: t('v2.nav.profile'), icon: 'manager', path: '/profile' }
 ])
 
 const isActive = (item) => {
   const current = route.path
-  if (item.key === 'chart') return current === '/indicators/chart'
-  if (item.key === 'strategy') return current === '/trading' || current.startsWith('/trading/')
+  if (item.key === 'indicator') return current === '/indicators/chart'
+  if (item.key === 'live') return current === '/trading' || current.startsWith('/trading/strategy/')
   if (item.key === 'profile') return current === '/profile' || current.startsWith('/profile/')
-  if (item.key === 'market') return current === '/market' || current.startsWith('/market/')
+  if (item.key === 'strategy') return current === '/market' || current.startsWith('/market/') || current.startsWith('/trading/create')
   return current === item.path
 }
 
@@ -64,7 +66,7 @@ const goTab = (item) => {
 
 <style scoped>
 .app-container {
-  --shell-tabbar-height: calc(62px + var(--safe-area-bottom));
+  --shell-tabbar-height: calc(68px + var(--safe-area-bottom));
   width: 100%;
   height: 100%;
   display: flex;
@@ -96,12 +98,10 @@ const goTab = (item) => {
   height: var(--shell-tabbar-height);
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  padding: 5px 4px var(--safe-area-bottom);
+  padding: 6px 6px var(--safe-area-bottom);
   border-top: 1px solid var(--border-strong);
-  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, .18);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: var(--v2-surface);
+  box-shadow: none;
 }
 
 .shell-tab {
@@ -110,12 +110,12 @@ const goTab = (item) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   border: 0;
   background: transparent;
   color: var(--text-3);
-  font-size: 9px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -125,12 +125,12 @@ const goTab = (item) => {
   height: 27px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 0;
 }
 
-.tab-icon .van-icon { font-size: 19px; }
-.shell-tab.active { color: var(--accent); }
-.shell-tab.active .tab-icon { background: var(--accent-soft); }
+.tab-icon .van-icon { font-size: 22px; }
+.shell-tab.active { color: var(--v2-brand-strong); }
+.shell-tab.active .tab-icon { color: var(--v2-brand-strong); }
 .tab-icon small {
   position: absolute;
   top: -4px;

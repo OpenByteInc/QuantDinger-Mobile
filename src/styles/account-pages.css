@@ -1,0 +1,171 @@
+.account-page.account-page.account-page {
+  --bg: var(--v2-bg); --bg-elevated: var(--v2-surface); --surface-raised: var(--v2-surface-2);
+  --text: var(--v2-text); --text-2: var(--v2-muted); --text-3: var(--v2-muted);
+  --border: var(--v2-line); --hairline: var(--v2-line); --accent: var(--v2-brand);
+  --primary-color: var(--v2-brand); --text-on-accent: var(--v2-on-brand);
+  --accent-soft: var(--v2-surface-2); --shadow-card: none; --page-gutter: 16px; --page-nav-max-width: 520px;
+  --van-primary-color: var(--v2-brand); --van-button-primary-background: var(--v2-brand);
+  --van-button-primary-border-color: var(--v2-brand); --van-button-primary-color: var(--v2-on-brand);
+  --van-background-2: var(--v2-surface); --van-text-color: var(--v2-text);
+  width: 100%; max-width: 520px; margin: 0 auto; min-height: 100%;
+  background: var(--v2-bg); color: var(--v2-text); font-family: -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+}
+.account-page .van-nav-bar { background: var(--v2-bg); border-bottom: 1px solid var(--v2-line); }
+.account-page .van-nav-bar__title { font-size: 16px; font-weight: 600; color: var(--v2-text); }
+.account-page .van-nav-bar .van-icon { color: var(--v2-text); }
+.account-page .van-button { border-radius: 8px; box-shadow: none; font-weight: 600; }
+.account-page .van-button--primary:not(.van-button--plain) { background: var(--v2-brand); border-color: var(--v2-brand); color: var(--v2-on-brand); }
+.account-page .van-button--default { background: var(--v2-surface); color: var(--v2-text); border-color: var(--v2-line); }
+.account-page .van-empty__description { color: var(--v2-muted); }
+.account-page .van-popup { background: var(--v2-surface); color: var(--v2-text); }
+.account-page .van-field__control { color: var(--v2-text); }
+.account-page .page-intro { margin: 20px 16px; font-size: 13px; color: var(--v2-muted); line-height: 1.7; }
+.account-page .text-button { min-height: 36px; padding: 0; border: 0; background: transparent; color: var(--v2-text); font-size: 13px; }
+.account-page .text-button:disabled { opacity: .4; }
+.account-page .plain-empty { padding: 48px 12px; text-align: center; font-size: 13px; color: var(--v2-muted); }
+.account-page .plain-tabs { display: flex; border-bottom: 1px solid var(--v2-line); gap: 22px; overflow-x: auto; }
+.account-page .plain-tabs button { flex-shrink: 0; padding: 12px 0; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--v2-muted); font-size: 13px; }
+.account-page .plain-tabs button.active { color: var(--v2-text); border-bottom-color: var(--v2-brand); font-weight: 600; }
+
+.account-page.notifications-page .notification-filters {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px;
+  margin: 14px 16px 0; padding: 4px; border: 0; border-radius: 10px;
+  background: var(--v2-surface-2); overflow: visible;
+}
+.account-page.notifications-page .notification-filters button {
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  min-width: 0; min-height: 48px; padding: 6px 2px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--v2-muted); font-size: 12px; line-height: 1.3;
+}
+.account-page.notifications-page .notification-filters button span { white-space: nowrap; }
+.account-page.notifications-page .notification-filters small {
+  color: inherit; font-size: 10px; line-height: 1.2; font-variant-numeric: tabular-nums; opacity: .8;
+}
+.account-page.notifications-page .notification-filters button.active {
+  color: var(--v2-on-brand); background: var(--v2-brand); font-weight: 600;
+}
+.account-page.notifications-page .notification-filters button:focus-visible { outline: 2px solid var(--v2-text); outline-offset: 2px; }
+.account-page.notifications-page .nav-link { color: var(--v2-text); font-size: 12px; }
+.account-page.notifications-page .notification-count { margin: 12px 16px 0; color: var(--v2-muted); font-size: 11px; }
+.account-page.notifications-page .notification-list { padding: 0 16px 16px; }
+.account-page.notifications-page .notification-item { padding: 16px 0; margin: 0; border: 0; border-bottom: 1px solid var(--v2-line); border-radius: 0; background: transparent; gap: 10px; }
+.account-page.notifications-page .icon-wrapper { width: 30px; height: 30px; border-radius: 8px; background: var(--v2-surface-2); color: var(--v2-muted); position: relative; }
+.account-page.notifications-page .unread .icon-wrapper::after { content: ''; position: absolute; top: -2px; right: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--v2-brand); }
+.account-page.notifications-page .header { align-items: flex-start; gap: 8px; }
+.account-page.notifications-page .title { white-space: normal; font-size: 14px; line-height: 1.45; font-weight: 600; }
+.account-page.notifications-page .message { margin: 6px 0 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; line-height: 1.6; }
+.account-page.notifications-page .time { font-size: 10px; padding-top: 3px; }
+.account-page.notifications-page .van-tag { color: var(--v2-muted); font-size: 10px; border: 0; background: var(--v2-surface-2); border-radius: 3px; padding: 2px 5px; }
+.account-page.notifications-page .van-tag::after { border: 0; }
+.account-page.notifications-page .detail-title { font-size: 18px; font-weight: 650; }
+.account-page.notifications-page .detail-body { padding: 12px 0; border: 0; border-radius: 0; background: transparent; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.8; }
+.account-page.notifications-page .detail-panel { max-width: 520px; margin: auto; }
+.account-page.notifications-page .notification-fields { margin: 0 0 16px; }
+.account-page.notifications-page .notification-fields>div { display: grid; grid-template-columns: 100px minmax(0,1fr); gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--v2-line); font-size: 12px; }
+.account-page.notifications-page .notification-fields dt { color: var(--v2-muted); }
+.account-page.notifications-page .notification-fields dd { margin: 0; overflow-wrap: anywhere; }
+
+.account-page.page .library-tabs { gap: 0; margin: 14px 16px; padding: 3px; border-radius: 8px; background: var(--v2-surface-2); }
+.account-page.page .library-tab { flex: 1; min-width: 0; border: 0; background: transparent; border-radius: 6px; padding: 0 5px; font-weight: 500; }
+.account-page.page .library-tab.active { background: var(--v2-brand); color: var(--v2-on-brand); font-weight: 600; }
+.account-page.page .library-tab .van-icon { display: none; }
+.account-page.page .library-tab small, .account-page.page .library-tab.active small { background: transparent; color: inherit; padding: 0; min-width: 0; height: auto; border-radius: 0; line-height: 1.2; font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; opacity: .75; margin-left: 2px; }
+.account-page.page .list { gap: 0; padding: 0 16px; }
+.account-page.page .card { padding: 18px 0; border: 0; border-bottom: 1px solid var(--v2-line); border-radius: 0; background: transparent; }
+.account-page.page .title { font-size: 16px; font-weight: 650; line-height: 1.5; }
+.account-page.page .row { align-items: flex-start; gap: 8px; }
+.account-page.page .asset,.account-page.page .vip-free { border: 0; border-radius: 4px; color: var(--v2-muted); background: var(--v2-surface-2); font-weight: 500; }
+.account-page.page .desc { margin: 8px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.account-page.page .price { color: var(--v2-text); font-size: 12px; }
+.account-page.page .actions { gap: 8px; }
+.account-page.page .actions .van-button { min-height: 36px; font-size: 12px; }
+
+.account-page.credentials-page .list-card { margin: 0 16px; padding: 0; border: 0; background: transparent; }
+.account-page.credentials-page .account-list-count { font-size: 12px; color: var(--v2-muted); margin: 18px 0 6px; }
+.account-page.credentials-page .cred-row { flex-wrap: nowrap; gap: 2px; padding: 0; }
+.account-page.credentials-page .cred-row+.cred-row::before { left: 0; }
+.account-page.credentials-page .cred-left { padding: 14px 0; border: 0; background: transparent; text-align: left; color: var(--v2-text); }
+.account-page.credentials-page .cred-left>.van-icon { font-size: 13px; color: var(--v2-muted); }
+.account-page.credentials-page .cred-info { gap: 4px; }
+.account-page.credentials-page .row-title { font-size: 14px; font-weight: 600; }
+.account-page.credentials-page .row-subtitle { font-size: 11px; }
+.account-page.credentials-page .credential-tags { margin: 0; gap: 5px; }
+.account-page.credentials-page .credential-tag { background: var(--v2-surface-2); border: 0; border-radius: 3px; color: var(--v2-muted); padding: 2px 4px; }
+.account-page.credentials-page .credential-tag:first-child { display: none; }
+.account-page.credentials-page .credential-tag.needs-check { display: inline; color: var(--v2-red); }
+.account-page.credentials-page .account-manage { width: 36px; align-self: stretch; background: transparent; border: 0; color: var(--v2-muted); font-size: 20px; }
+.account-page.credentials-page .signup-card { margin-top: 24px; padding: 12px; }
+.account-page.credentials-page .card-desc { font-size: 11px; }
+
+.account-page.security-page .form-card { border: 0; padding: 0; margin: 0 16px; background: transparent; box-shadow: none; }
+.account-page.security-page .email-row { padding: 14px 0; margin-bottom: 12px; border-bottom: 1px solid var(--v2-line); }
+.account-page.security-page .van-field { padding: 10px 0; background: transparent; border: 0; }
+.account-page.security-page .van-field::after { display: none; }
+.account-page.security-page .van-field__label { width: 100%; margin: 0 0 8px; color: var(--v2-text); font-size: 13px; }
+.account-page.security-page .van-field__body { min-height: 44px; padding: 0 10px; border: 1px solid var(--v2-line); border-radius: 8px; background: var(--v2-surface-2); }
+.account-page.security-page .van-field__button { padding: 0; }
+.account-page.security-page .code-field .van-button { font-size: 11px; padding: 0 8px; height: 30px; }
+.account-page.mfa-page .status-card { padding: 16px; border: 1px solid var(--v2-line); border-radius: 12px; margin: 16px; gap: 12px; background: var(--v2-surface); }
+.account-page.mfa-page .status-card::before { display: none; }
+.account-page.mfa-page .status-icon { width: 36px; height: 36px; border-radius: 8px; background: var(--v2-surface-2); color: var(--v2-text); font-size: 20px; }
+.account-page.mfa-page .status-title { font-size: 15px; font-weight: 600; }
+.account-page.mfa-page .status-tags { margin-top: 8px; }
+.account-page.mfa-page .status-tag { border-radius: 4px; font-weight: 500; }
+.account-page.mfa-page .status-tag.soft { background: var(--v2-surface-2); color: var(--v2-muted); }
+.account-page.mfa-page .hint-card { border: 0; padding: 0; background: transparent; color: var(--v2-muted); line-height: 1.7; }
+.account-page.mfa-page .feature-card { padding: 16px; border: 1px solid var(--v2-line); border-radius: 12px; background: var(--v2-surface); }
+.account-page.mfa-page .feature-icon { width: 32px; height: 32px; background: var(--v2-surface-2); color: var(--v2-text); border-radius: 6px; }
+.account-page.mfa-page .feature-title { font-weight: 600; font-size: 14px; }
+.account-page.referral-page .stats-row { display: flex; gap: 0; border: 1px solid var(--v2-line); border-radius: 10px; padding: 14px 0; }
+.account-page.referral-page .stat-card { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; flex: 1; padding: 0 8px; border: 0; border-radius: 0; min-width: 0; background: transparent; }
+.account-page.referral-page .stat-card+.stat-card { border-left: 1px solid var(--v2-line); }
+.account-page.referral-page .stat-card .value { font-size: 24px; font-weight: 650; }
+.account-page.referral-page .card { padding: 16px; border: 1px solid var(--v2-line); border-radius: 12px; margin: 0 16px 16px; background: var(--v2-surface); }
+.account-page.referral-page .link-box { flex-direction: column; align-items: stretch; }
+.account-page.referral-page .link { border: 1px solid var(--v2-line); border-radius: 8px; padding: 12px; }
+.account-page.referral-page .link-box .van-button { height: 40px; }
+.account-page.referral-page .hint { background: transparent; padding: 10px 0; color: var(--v2-muted); }
+.account-page.referral-page .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--v2-surface-2); color: var(--v2-text); }
+.account-page.referral-page .invite-row { padding: 12px 0; }
+
+.account-page.notifications-page {background:var(--v2-bg)}
+.account-page.notifications-page .icon-wrapper:is(.signal,.system,.trade,.alert){background:var(--v2-surface-2);color:var(--v2-muted)}
+.account-page.notifications-page .van-tag--plain{color:var(--v2-muted)!important;border-color:transparent!important}
+.account-page .referral-loading{padding:20px;text-align:center}
+.account-page .referral-more{max-width:calc(100% - 32px);margin:16px}
+
+.account-page.notifications-page .notification-item.unread {background:transparent}
+
+/* Fixed secondary navigation keeps its own placeholder and stays below dialogs. */
+.app-main .van-nav-bar--fixed {
+  position: fixed; top: 0; left: 0; right: 0; width: 100%;
+  max-width: var(--page-nav-max-width, 100%); margin-inline: auto; z-index: 100;
+  background: var(--v2-bg) !important; border-bottom: 1px solid var(--v2-line);
+}
+.app-main .van-nav-bar--fixed .van-nav-bar__title {color:var(--v2-text)}
+.app-main .van-nav-bar--fixed .van-icon {color:var(--v2-text)}
+.account-page {--purchase-paid:#9b6300;--purchase-vip:#7049b8}
+[data-theme="dark"] .account-page {--purchase-paid:#efbd55;--purchase-vip:#c2a5ff}
+.account-page.page .price.is-paid {color:var(--purchase-paid)}
+.account-page.page .price.is-free {color:var(--v2-green)}
+.account-page.page .vip-free {color:var(--purchase-vip);background:color-mix(in srgb,var(--purchase-vip) 12%,var(--v2-surface))}
+.account-page.page .price {padding:3px 7px;border-radius:4px;font-weight:600;white-space:nowrap}
+.account-page.page .price.is-free {background:color-mix(in srgb,var(--v2-green) 10%,var(--v2-surface))}
+.account-page.page .price.is-paid {background:color-mix(in srgb,var(--purchase-paid) 10%,var(--v2-surface))}
+.account-page.mfa-page .status-icon,.account-page.mfa-page .feature-icon {flex-shrink:0;display:grid;place-items:center;margin:0}
+.account-page.mfa-page .status-main,.account-page.mfa-page .feature-copy {min-width:0}
+.account-page.mfa-page .hint-card {margin:16px;gap:10px}
+.account-page.mfa-page .hint-card>.van-icon {margin-top:3px;flex-shrink:0}
+.account-page.referral-page .hint>.van-icon {flex-shrink:0}
+.account-page.referral-page .invite-row {gap:12px}
+.account-page.referral-page .invite-row .col {min-width:0}
+.account-page.referral-page .invite-row .name {overflow-wrap:anywhere}
+.account-page.login-logs-page .log-head {flex-wrap:wrap;gap:6px}
+.account-page.login-logs-page .method {flex-wrap:wrap;gap:7px}
+.account-page.login-logs-page .method-label {white-space:nowrap}
+.account-page.login-logs-page .flags {display:inline-flex;align-items:center;margin:0;gap:4px}
+.account-page.login-logs-page .flags span {white-space:nowrap;border-radius:4px;font-weight:500}
+.account-page.login-logs-page .log-head>.time {margin-left:auto}
+.account-page.login-logs-page .meta-item .val {white-space:normal;overflow-wrap:anywhere}
+
+.account-page.login-logs-page .lab {color:var(--v2-muted)}

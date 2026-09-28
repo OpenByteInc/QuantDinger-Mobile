@@ -1,7 +1,5 @@
 import { Capacitor } from '@capacitor/core'
 
-export const OFFICIAL_SERVER_URL = 'https://api.quantdinger.com'
-
 const isNativeRuntime =
   typeof Capacitor !== 'undefined' &&
   typeof Capacitor.isNativePlatform === 'function' &&
@@ -21,8 +19,7 @@ const webOrigin = getWebOrigin()
 export const DEFAULT_SERVER_URL =
   normalizeServerUrl(
     (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DEFAULT_SERVER_URL) ||
-      (isNativeRuntime ? OFFICIAL_SERVER_URL : webOrigin) ||
-      OFFICIAL_SERVER_URL
+      webOrigin
   )
 
 export const resolveServerUrl = () => DEFAULT_SERVER_URL

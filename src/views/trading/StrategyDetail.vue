@@ -1,899 +1,175 @@
 <template>
   <div class="page">
-    <van-nav-bar :title="strategy?.strategy_name || $t('script_strategy.title')" left-arrow @click-left="$router.back()">
-      <template #right>
-        <van-icon name="replay" @click="load" />
-      </template>
+    <van-nav-bar fixed placeholder safe-area-inset-top :title="$t('live_detail.title')" left-arrow @click-left="$router.back()">
+      <template #right><button type="button" class="nav-action" :aria-label="$t('live_detail.refresh')" :disabled="loading" @click="load"><van-icon name="replay" /></button></template>
     </van-nav-bar>
-
-    <van-loading v-if="loading" class="loading" vertical>{{ $t('common.loading') }}</van-loading>
-
+    <van-loading v-if="loading && !strategy" class="loading" vertical>{{ $t('common.loading') }}</van-loading>
     <template v-else-if="strategy">
-      <div class="summary-card">
-        <div class="summary-head">
-          <div>
-            <div class="strategy-name">{{ strategy.strategy_name }}</div>
-            <div class="strategy-symbol">{{ strategy.symbol || '-' }} · {{ strategy.timeframe || '-' }}</div>
-          </div>
-          <span :class="['status', strategy.status]">{{ statusText }}</span>
+      <section class="hero-card">
+        <div class="hero-title-row"><div class="hero-copy"><h1>{{ strategy.strategy_name || strategy.name }}</h1><div class="hero-tags"><span>{{ strategySymbol }}</span><span :class="['status-pill', statusTone]">{{ statusText }}</span><span class="mode-pill">{{ executionModeText }}</span><span v-if="exchangeName" class="exchange-pill">{{ exchangeName }}</span></div></div></div>
+        <div class="hero-time"><span>{{ $t('live_detail.startedAt') }} · {{ time(runtimeHealth.started_at || strategy.started_at || strategy.created_at) || '-' }}</span><span>{{ $t('live_detail.heartbeat') }} · {{ time(lastActivity) || '-' }}</span></div>
+        <div class="runtime-strip"><div><span>{{ $t('live_detail.runtimeHealth') }}</span><strong :class="healthTone">{{ healthText }}</strong></div><div><span>{{ $t('live_detail.latency') }}</span><strong>{{ runtimeLatency }} ms</strong></div><div><span>{{ pendingLabel }}</span><strong>{{ pendingCount }}</strong></div></div>
+        <div class="control-bar">
+          <template v-if="isRunning"><van-button plain :loading="actionLoading" @click="confirmStop(false)">{{ $t('live_detail.pauseOnly') }}</van-button><van-button plain type="danger" :loading="actionLoading" @click="confirmStop(true)">{{ $t('live_detail.stopAndClose') }}</van-button></template>
+          <template v-else><van-button v-if="hasRetainedLivePosition" plain type="danger" :loading="actionLoading" @click="confirmCloseRetained">{{ $t('live_detail.closeRetainedPosition') }}</van-button><van-button v-if="hasRetainedVirtualPosition" plain type="danger" :loading="actionLoading" @click="confirmStop(true)">{{ $t('live_detail.settleVirtual') }}</van-button><van-button type="primary" :loading="actionLoading" :disabled="!exposureReady" @click="start">{{ $t('live_detail.start') }}</van-button><van-button plain @click="edit">{{ $t('live_detail.edit') }}</van-button><van-button plain type="danger" :disabled="hasOpenExposure || !exposureReady" @click="remove">{{ $t('live_detail.delete') }}</van-button></template>
         </div>
-        <div class="summary-grid">
-          <div><span>{{ $t('trading.initial_capital') }}</span><strong>{{ money(strategy.initial_capital) }}</strong></div>
-          <div><span>{{ $t('trading.leverage') }}</span><strong>{{ strategy.trading_config?.leverage || strategy.leverage || 1 }}x</strong></div>
-          <div><span>{{ $t('indicator_bot.execution_mode') }}</span><strong>{{ executionModeText }}</strong></div>
-          <div><span>{{ $t('trading.market_type') }}</span><strong>{{ marketTypeText }}</strong></div>
-        </div>
-      </div>
+      </section>
 
-      <button
-        v-if="hasOwnershipDrift"
-        type="button"
-        class="risk-card"
-        @click="openOwnershipRepair"
-      >
-        <span class="risk-icon"><van-icon name="warning-o" /></span>
-        <span class="risk-copy">
-          <strong>{{ $t('trading.position_ownership_drift_title') }}</strong>
-          <small>{{ $t('trading.position_ownership_drift_desc') }}</small>
-        </span>
-        <van-icon name="arrow" />
-      </button>
+      <button v-if="hasOwnershipDrift" type="button" class="risk-card" @click="openOwnershipRepair"><van-icon name="warning-o" /><span><strong>{{ $t('trading.position_ownership_drift_title') }}</strong><small>{{ $t('trading.position_ownership_drift_desc') }}</small></span><van-icon name="arrow" /></button>
+      <button v-else-if="hasUnmanagedPosition" type="button" class="risk-card" @click="activeTab = 'overview'"><van-icon name="warning-o" /><span><strong>{{ $t('trading.stopped_with_positions', { count: positions.length }) }}</strong><small>{{ $t('trading.stopped_with_positions_desc') }}</small></span><van-icon name="arrow" /></button>
 
-      <button
-        v-else-if="hasUnmanagedPosition"
-        type="button"
-        class="risk-card"
-        @click="activeTab = 'positions'"
-      >
-        <span class="risk-icon"><van-icon name="warning-o" /></span>
-        <span class="risk-copy">
-          <strong>{{ $t('trading.stopped_with_positions', { count: positions.length }) }}</strong>
-          <small>{{ $t('trading.stopped_with_positions_desc') }}</small>
-        </span>
-        <van-icon name="arrow" />
-      </button>
+      <section class="metric-section"><header><h2>{{ $t('live_detail.financialOverview') }}</h2><span>{{ financialContext }}</span></header><div class="metric-grid">
+        <article><span>{{ $t('live_detail.strategyCapital') }}</span><strong>{{ money(performanceSummary.capital) }}</strong><small>{{ financialSuffix }}</small></article>
+        <article class="primary-metric"><span>{{ $t('live_detail.currentEquity') }}</span><strong>{{ money(performanceSummary.latestEquity) }}</strong><small>{{ financialSuffix }}</small></article>
+        <article><span>{{ $t('live_detail.cumulativeNetPnl') }}</span><strong :class="pnlClass(performanceSummary.netPnl)">{{ signedMoney(performanceSummary.netPnl) }}</strong><small>{{ financialSuffix }}</small></article>
+        <article><span>{{ $t('live_detail.currentExposure') }}</span><strong>{{ money(performanceSummary.grossExposure) }}</strong><small>{{ financialSuffix }}</small></article>
+        <article><span>{{ $t('live_detail.leverage') }}</span><strong>{{ leverage }}×</strong><small>{{ marketTypeText }}</small></article>
+      </div></section>
 
-      <van-tabs v-model:active="activeTab" sticky>
-        <van-tab :title="$t('trading.tab_overview')" name="overview">
-          <div class="panel overview-panel">
-            <div class="overview-section">
-              <div class="section-heading">{{ $t('trading.attention_items') }}</div>
-              <div v-if="hasOwnershipDrift" class="attention-row danger">
-                <van-icon name="warning-o" />
-                <span>{{ $t('trading.position_ownership_risk_desc') }}</span>
-                <button type="button" @click="openOwnershipRepair">{{ $t('trading.position_ownership_open_repair') }}</button>
-              </div>
-              <div v-else-if="hasUnmanagedPosition" class="attention-row danger">
-                <van-icon name="warning-o" />
-                <span>{{ $t('trading.position_requires_attention') }}</span>
-                <button type="button" @click="activeTab = 'positions'">{{ $t('trading.view_positions') }}</button>
-              </div>
-              <div v-else-if="strategy.status === 'error'" class="attention-row danger">
-                <van-icon name="warning-o" />
-                <span>{{ $t('trading.strategy_run_error') }}</span>
-                <button type="button" @click="activeTab = 'logs'">{{ $t('trading.view_events') }}</button>
-              </div>
-              <div v-else class="attention-row safe">
-                <van-icon name="passed" />
-                <span>{{ $t('trading.no_attention_items') }}</span>
-              </div>
-            </div>
+      <section class="metric-section"><header><h2>{{ $t('live_detail.performanceOverview') }}</h2><span>{{ $t('live_detail.realtimeData') }}</span></header><div class="metric-grid">
+        <article><span>{{ $t('live_detail.todayPnl') }}</span><strong :class="pnlClass(todayPnl)">{{ signedMoney(todayPnl) }}</strong></article>
+        <article><span>{{ $t('live_detail.totalReturn') }}</span><strong :class="pnlClass(performanceSummary.totalReturnPct)">{{ signedPercent(performanceSummary.totalReturnPct) }}</strong></article>
+        <article><span>{{ $t('live_detail.maxDrawdown') }}</span><strong class="warning-value">{{ percent(Math.abs(performanceSummary.maxDrawdownPct)) }}</strong></article>
+        <article><span>{{ $t('live_detail.winRate') }}</span><strong>{{ percent(performanceSummary.winRate) }}</strong><small>{{ $t('live_detail.winRateSample', { wins: performanceSummary.wins, total: performanceSummary.completedTrades }) }}</small></article>
+        <article><span>{{ $t('live_detail.completedTrades') }}</span><strong>{{ performanceSummary.completedTrades }}</strong></article>
+      </div></section>
 
-            <div class="overview-section">
-              <div class="section-heading">{{ $t('trading.runtime_overview') }}</div>
-              <div class="overview-grid">
-                <div><span>{{ $t('trading.strategy_source') }}</span><strong>{{ sourceName }}</strong></div>
-                <div><span>{{ $t('trading.execution_account') }}</span><strong>{{ accountName }}</strong></div>
-                <div><span>{{ $t('trading.current_positions') }}</span><strong>{{ positions.length }}</strong></div>
-                <div><span>{{ $t('trading.recent_trades') }}</span><strong>{{ trades.length }}</strong></div>
-                <div><span>{{ $t('trading.last_signal') }}</span><strong>{{ latestEventSummary }}</strong></div>
-                <div><span>{{ $t('trading.last_updated') }}</span><strong>{{ time(strategy.updated_at || strategy.created_at) || '-' }}</strong></div>
-              </div>
-            </div>
-          </div>
+      <van-button v-if="detailFailed" class="partial-failure" block plain @click="load">{{ $t('audit.loadFailed') }}</van-button>
+
+      <van-tabs v-model:active="activeTab" sticky :offset-top="46" swipe-threshold="4">
+        <van-tab v-if="isGridStrategy" :title="$t(isLiveStrategy ? 'live_detail.tabGridOrders' : 'live_detail.tabVirtualOrders')" name="grid-orders">
+          <section class="tab-panel"><div class="section-title-row"><div><h3>{{ $t(isLiveStrategy ? 'live_detail.tabGridOrders' : 'live_detail.tabVirtualOrders') }}</h3><p>{{ $t('trading.grid_orders_hint') }}</p></div><van-button size="small" plain :loading="gridOrdersLoading" @click="loadGridOrders(true)">{{ $t('trading.grid_orders_sync') }}</van-button></div>
+            <div class="mini-kpis"><div><span>{{ $t('trading.grid_orders_open') }}</span><strong>{{ gridOrderSummary.total || gridOrders.length }}</strong></div><div><span>{{ $t('trading.grid_orders_verified') }}</span><strong>{{ gridOrderSummary.verified_exchange_orders || 0 }}</strong></div><div :class="{ loss: Number(gridOrderSummary.unverified_orders || 0) > 0 }"><span>{{ $t('trading.grid_orders_unverified') }}</span><strong>{{ gridOrderSummary.unverified_orders || 0 }}</strong></div></div>
+            <div v-if="gridOrders.length" class="record-list"><article v-for="order in gridOrders" :key="order.id" class="record-card"><div class="record-head"><strong>#{{ order.cell_index }} · {{ order.purpose_label || order.purpose }}</strong><span>{{ order.status }}</span></div><dl><div><dt>{{ $t('trading.grid_orders_side') }}</dt><dd>{{ order.side }}</dd></div><div><dt>{{ $t('trading.grid_orders_price') }}</dt><dd>{{ number(order.price) }}</dd></div><div><dt>{{ $t('trading.grid_orders_quantity') }}</dt><dd>{{ number(order.quantity) }}</dd></div><div><dt>{{ $t('live_detail.executionId') }}</dt><dd class="mono">{{ order.exchange_order_id || '-' }}</dd></div></dl><time>{{ time(order.updated_at) }}</time></article></div><van-empty v-else :description="$t('trading.grid_orders_empty')" />
+          </section>
         </van-tab>
-        <van-tab :title="$t('trading.tab_params')" name="params">
-          <div class="panel">
-            <div v-if="parameterRows.length" class="row-list">
-              <div v-for="item in parameterRows" :key="item.name" class="data-row">
-                <span>{{ item.name }}</span>
-                <strong>{{ item.value }}</strong>
-              </div>
-            </div>
-            <van-empty v-else :description="$t('script_strategy.parameters_empty')" />
-          </div>
+
+        <van-tab :title="$t('live_detail.tabOverview')" name="overview">
+          <section class="tab-panel stacked-panels">
+            <article class="content-card"><div class="section-title-row compact"><h3>{{ $t('live_detail.currentPositions') }}</h3><span>{{ $t('live_detail.positionCount', { count: positions.length }) }}</span></div>
+              <button v-if="isLiveStrategy" type="button" :class="['ownership-entry', { danger: hasOwnershipDrift }]" @click="openOwnershipRepair"><span><strong>{{ $t('trading.position_ownership_title') }}</strong><small>{{ hasOwnershipDrift ? $t('trading.position_ownership_drift_desc') : $t('trading.position_ownership_summary') }}</small></span><em :class="{ danger: hasOwnershipDrift }">{{ $t(hasOwnershipDrift ? 'trading.position_ownership_blocked' : 'trading.position_ownership_normal') }}</em><van-icon name="arrow" /></button>
+              <div v-if="positions.length" class="record-list"><article v-for="(item, index) in positions" :key="item.id || item.symbol || index" class="record-card"><div class="record-head"><strong>{{ item.symbol || strategySymbol }}</strong><span>{{ sideText(item.side) }} · {{ positionLeverage(item) }}×</span></div><dl><div><dt>{{ $t('live_detail.quantity') }}</dt><dd>{{ number(item.quantity) }}</dd></div><div><dt>{{ $t('live_detail.positionCostValue') }}</dt><dd>{{ money(positionCost(item)) }} / {{ money(positionValue(item)) }}</dd></div><div><dt>{{ $t('live_detail.averageCurrentPrice') }}</dt><dd>{{ number(item.entry_price) }} / {{ number(item.current_price) }}</dd></div><div><dt>{{ $t('live_detail.unrealizedRoi') }}</dt><dd :class="pnlClass(item.unrealized_pnl)">{{ signedMoney(item.unrealized_pnl) }} / {{ signedPercent(positionRoi(item)) }}</dd></div></dl></article></div><van-empty v-else :description="$t('trading.no_positions')" />
+            </article>
+            <article class="content-card equity-card"><div class="section-title-row compact"><h3>{{ $t('live_detail.equityCurve') }}</h3><span>{{ $t('live_detail.realtimeData') }}</span></div><div v-if="equityPoints.length >= 2" class="equity-chart"><div class="chart-value-row"><strong>{{ money(performanceSummary.latestEquity) }} {{ currency }}</strong><span :class="pnlClass(performanceSummary.netPnl)">{{ signedMoney(performanceSummary.netPnl) }}</span></div><svg viewBox="0 0 320 132" preserveAspectRatio="none" role="img" :aria-label="$t('live_detail.equityCurve')"><line v-for="y in [18, 50, 82, 114]" :key="y" x1="0" :y1="y" x2="320" :y2="y" class="chart-grid-line" /><polygon :points="equityAreaPoints" class="equity-area" /><polyline :points="equityPolyline" class="equity-line" /></svg><div class="chart-axis"><span>{{ curveStartLabel }}</span><span>{{ curveEndLabel }}</span></div></div><van-empty v-else :description="$t('live_detail.noEquity')" /></article>
+          </section>
         </van-tab>
-        <van-tab :title="$t('trading.tab_positions')" name="positions">
-          <div class="panel">
-            <button
-              v-if="isLiveStrategy"
-              type="button"
-              :class="['ownership-entry', { danger: hasOwnershipDrift }]"
-              @click="openOwnershipRepair"
-            >
-              <span class="ownership-entry-copy">
-                <strong>{{ $t('trading.position_ownership_title') }}</strong>
-                <small>{{ hasOwnershipDrift ? $t('trading.position_ownership_drift_desc') : $t('trading.position_ownership_summary') }}</small>
-              </span>
-              <span :class="['ownership-state', { danger: hasOwnershipDrift }]">
-                {{ $t(hasOwnershipDrift ? 'trading.position_ownership_blocked' : 'trading.position_ownership_normal') }}
-              </span>
-              <van-icon name="arrow" />
-            </button>
-            <div v-if="positions.length" class="row-list">
-              <div v-for="(item, index) in positions" :key="item.id || item.symbol || index" class="record">
-                <div><strong>{{ item.symbol || strategy.symbol }}</strong><span>{{ sideText(item.side) }}</span></div>
-                <div><span>{{ $t('trading.size') }}</span><strong>{{ number(item.quantity) }}</strong></div>
-                <div><span>{{ $t('trading.entry_price') }}</span><strong>{{ number(item.entry_price) }}</strong></div>
-                <div><span>{{ $t('trading.mark_price') }}</span><strong>{{ number(item.current_price) }}</strong></div>
-                <div><span>{{ $t('trading.pnl') }}</span><strong :class="pnlClass(item.unrealized_pnl)">{{ signedNumber(item.unrealized_pnl) }}</strong></div>
-              </div>
-            </div>
-            <van-empty v-else :description="$t('trading.no_positions')" />
-          </div>
-        </van-tab>
-        <van-tab v-if="isGridStrategy" :title="$t('trading.tab_grid_orders')" name="grid-orders">
-          <div class="panel">
-            <div class="grid-sync-head">
-              <div>
-                <strong>{{ $t('trading.grid_orders_title') }}</strong>
-                <small>{{ $t('trading.grid_orders_hint') }}</small>
-              </div>
-              <van-button size="small" plain :loading="gridOrdersLoading" @click="loadGridOrders(true)">
-                {{ $t('trading.grid_orders_sync') }}
-              </van-button>
-            </div>
-            <div class="grid-order-kpis">
-              <div><span>{{ $t('trading.grid_orders_open') }}</span><strong>{{ gridOrderSummary.total || gridOrders.length }}</strong></div>
-              <div><span>{{ $t('trading.grid_orders_verified') }}</span><strong>{{ gridOrderSummary.verified_exchange_orders || 0 }}</strong></div>
-              <div :class="{ danger: Number(gridOrderSummary.unverified_orders || 0) > 0 }"><span>{{ $t('trading.grid_orders_unverified') }}</span><strong>{{ gridOrderSummary.unverified_orders || 0 }}</strong></div>
-            </div>
-            <div v-if="gridOrders.length" class="row-list">
-              <article v-for="order in gridOrders" :key="order.id" class="record grid-order-card">
-                <div><strong>#{{ order.cell_index }} · {{ order.purpose_label || order.purpose }}</strong><span>{{ order.status }}</span></div>
-                <div><span>{{ $t('trading.grid_orders_side') }}</span><strong>{{ order.side }}</strong></div>
-                <div><span>{{ $t('trading.grid_orders_price') }}</span><strong>{{ number(order.price) }}</strong></div>
-                <div><span>{{ $t('trading.grid_orders_quantity') }}</span><strong>{{ number(order.quantity) }}</strong></div>
-                <div><span>{{ $t('trading.grid_orders_exchange_id') }}</span><code :class="{ missing: !order.exchange_order_id }">{{ order.exchange_order_id || $t('trading.grid_orders_not_verified') }}</code></div>
-                <time>{{ time(order.updated_at) }}</time>
-              </article>
-            </div>
-            <van-empty v-else :description="$t('trading.grid_orders_empty')" />
-          </div>
-        </van-tab>
-        <van-tab :title="$t('trading.tab_trades')" name="trades">
-          <div class="panel">
-            <div v-if="trades.length" class="row-list">
-              <div v-for="(item, index) in trades" :key="item.id || index" class="record">
-                <div><strong>{{ item.symbol || strategy.symbol }}</strong><span>{{ tradeSideText(item.side) }}</span></div>
-                <div><span>{{ $t('trading.size') }}</span><strong>{{ number(item.quantity) }}</strong></div>
-                <div><span>{{ $t('trading.trade_price') }}</span><strong>{{ number(item.trade_price) }}</strong></div>
-                <div><span>{{ $t('trading.trade_value') }}</span><strong>{{ number(item.value) }}</strong></div>
-                <div><span>{{ $t('trading.trade_commission') }}</span><strong>{{ number(item.commission) }}</strong></div>
-                <div><span>{{ $t('trading.pnl') }}</span><strong :class="pnlClass(item.pnl)">{{ signedNumber(item.pnl) }}</strong></div>
-                <time v-if="item.created_at">{{ time(item.created_at) }}</time>
-              </div>
-            </div>
-            <van-empty v-else :description="$t('trading.no_trades')" />
-          </div>
-        </van-tab>
-        <van-tab :title="$t('trading.tab_logs')" name="logs">
-          <div class="panel">
-            <div v-if="logs.length" class="log-list">
-              <div v-for="(item, index) in logs" :key="item.id || index" class="log-row">
-                <span>{{ time(item.created_at || item.timestamp) }}</span>
-                <p>{{ logSummary(item) }}</p>
-                <details v-if="rawLogText(item) !== logSummary(item)">
-                  <summary>{{ $t('trading.technical_details') }}</summary>
-                  <code>{{ rawLogText(item) }}</code>
-                </details>
-              </div>
-            </div>
-            <van-empty v-else :description="$t('trading.no_logs')" />
-          </div>
-        </van-tab>
+
+        <van-tab :title="$t('live_detail.tabTrades')" name="trades"><section class="tab-panel"><div class="section-title-row"><div><h3>{{ $t('live_detail.tradeSettlement') }}</h3><p>{{ $t('live_detail.settlementHint') }}</p></div><span>{{ $t('live_detail.tradeCount', { count: trades.length }) }}</span></div><div class="settlement-grid"><article v-for="item in settlementItems" :key="item.key"><span>{{ item.label }}</span><strong :class="item.tone">{{ item.value }}</strong></article></div><div v-if="Number(costSummary.pnl_pending_count || 0)" class="inline-warning"><van-icon name="warning-o" />{{ $t('live_detail.settlementPending', { count: costSummary.pnl_pending_count }) }}</div>
+          <div v-if="trades.length" class="record-list trade-list"><article v-for="(item, index) in trades" :key="item.id || index" class="record-card"><div class="record-head"><div><strong>{{ tradeTypeText(item) }}</strong><small>{{ item.symbol || strategySymbol }}</small></div><time>{{ time(item.created_at) }}</time></div><dl><div><dt>{{ $t('live_detail.referencePrice') }}</dt><dd>{{ number(item.reference_price) }}</dd></div><div><dt>{{ $t('live_detail.executionPrice') }}</dt><dd>{{ number(item.trade_price ?? item.price) }}</dd></div><div><dt>{{ $t('live_detail.deviation') }}</dt><dd>{{ signedPercent(item.price_deviation_pct) }}</dd></div><div><dt>{{ $t('live_detail.quantity') }}</dt><dd>{{ number(item.quantity ?? item.amount) }}</dd></div><div><dt>{{ $t('live_detail.amount') }}</dt><dd>{{ money(item.value) }}</dd></div><div><dt>{{ $t('live_detail.exchangePnl') }}</dt><dd :class="pnlClass(exchangePnl(item))">{{ signedMoney(exchangePnl(item)) }}</dd></div><div><dt>{{ $t('live_detail.systemPnl') }}</dt><dd :class="pnlClass(tradePnl(item))">{{ signedMoney(tradePnl(item)) }}</dd></div><div><dt>{{ $t('live_detail.commission') }}</dt><dd>{{ money(tradeFee(item)) }}</dd></div></dl><div v-if="item.exchange_order_id" class="record-foot"><span>{{ $t('live_detail.executionId') }}</span><code>{{ item.exchange_order_id }}</code></div></article></div><van-empty v-else :description="$t('trading.no_trades')" />
+        </section></van-tab>
+
+        <van-tab v-if="aiDecisionEnabled" :title="$t('live_detail.tabAiDecisions')" name="ai-decisions"><section class="tab-panel"><div v-if="aiDecisions.length" class="record-list"><article v-for="(item, index) in aiDecisions" :key="item.decision_uid || index" class="record-card decision-card"><div class="record-head"><div><span :class="['decision-pill', decisionTone(item)]">{{ decisionText(item) }}</span><strong>{{ tradeActionLabel(item.action) }} · {{ item.symbol || strategySymbol }}</strong></div><time>{{ time(item.created_at) }}</time></div><div class="decision-meta"><span>{{ $t('live_detail.provider') }} · {{ item.provider || '-' }}</span><span v-if="item.model">{{ $t('live_detail.model') }} · {{ item.model }}</span><span>{{ $t('live_detail.confidence') }} · {{ percent(Number(item.confidence || 0) * 100) }}</span><span>{{ Number(item.latency_ms || 0) }} ms</span></div><p>{{ item.reason || '-' }}</p></article></div><van-empty v-else :description="$t('live_detail.noAiDecisions')" /></section></van-tab>
+
+        <van-tab :title="$t('live_detail.tabReview')" name="review"><section class="tab-panel review-panel"><div class="review-toolbar"><button v-if="reviewHistory.length" type="button" class="history-picker" @click="showReviewHistory = true"><van-icon name="clock-o" /><span>{{ selectedReviewLabel }}</span><van-icon name="arrow-down" /></button><van-button type="primary" size="small" :loading="reviewLoading" @click="generateReview">{{ $t(review ? 'live_detail.regenerateReview' : 'live_detail.generateReview') }}</van-button></div><van-loading v-if="reviewLoading && !review" class="section-loading" vertical>{{ $t('common.loading') }}</van-loading>
+          <template v-else-if="review"><article class="review-summary"><div class="section-title-row compact"><h3>{{ $t('live_detail.aiSummary') }}</h3><span>{{ time(review.created_at || review.generated_at) }}</span></div><p>{{ reviewAi.summary || '-' }}</p><ul v-if="reviewAi.cautions?.length"><li v-for="(item, index) in reviewAi.cautions" :key="index">{{ item }}</li></ul></article><div class="review-metrics"><article v-for="item in reviewMetricItems" :key="item.key"><span>{{ item.label }}</span><strong :class="item.tone">{{ item.value }}</strong><small v-if="item.hint">{{ item.hint }}</small></article></div><article class="review-list-card"><h3>{{ $t('live_detail.diagnostics') }}</h3><div v-if="reviewDiagnostics.length" class="review-items"><div v-for="(item, index) in reviewDiagnostics" :key="item.code || index"><em>{{ item.severity || '-' }}</em><span><strong>{{ item.title || item.code }}</strong><small>{{ item.detail || item.description }}</small></span></div></div><van-empty v-else :description="$t('live_detail.noReview')" /></article><article class="review-list-card"><h3>{{ $t('live_detail.recommendations') }}</h3><div v-if="reviewRecommendations.length" class="review-items"><div v-for="(item, index) in reviewRecommendations" :key="item.code || index"><em>{{ item.priority || '-' }}</em><span><strong>{{ item.title || item.code }}</strong><small>{{ item.detail || item.description }}</small></span></div></div><van-empty v-else :description="$t('live_detail.noReview')" /></article></template>
+          <div v-else class="review-empty"><van-icon name="records-o" /><h3>{{ $t('live_detail.noReview') }}</h3><p>{{ $t('live_detail.noReviewDesc') }}</p><van-button type="primary" :loading="reviewLoading" @click="generateReview">{{ $t('live_detail.generateReview') }}</van-button></div>
+        </section></van-tab>
+
+        <van-tab :title="$t('live_detail.tabLogs')" name="logs"><section class="tab-panel"><div v-if="logs.length" class="log-filter-tabs"><button v-for="item in logFilterOptions" :key="item.value" type="button" :class="['log-filter-tab', `level-${item.value}`, { active: logFilter === item.value }]" :aria-pressed="logFilter === item.value" @click="logFilter = item.value"><span>{{ item.label }}</span><em>{{ item.count > 99 ? '99+' : item.count }}</em></button></div><div v-if="filteredLogs.length" class="log-list"><article v-for="(item, index) in filteredLogs" :key="item.id || index" :class="['log-card', `level-${normalizeLogLevel(item)}`]"><div class="log-meta"><time>{{ time(item.created_at || item.timestamp) }}</time><span :class="['log-level', `level-${normalizeLogLevel(item)}`]">{{ logLevelText(item) }}</span></div><p>{{ logSummary(item) }}</p><details v-if="rawLogText(item) !== logSummary(item)"><summary>{{ $t('live_detail.technicalDetails') }}</summary><code>{{ rawLogText(item) }}</code></details></article></div><van-empty v-else :description="$t(logs.length ? 'live_detail.noFilteredLogs' : 'trading.no_logs')" /></section></van-tab>
       </van-tabs>
-
-      <div class="actions">
-        <van-button v-if="hasOwnershipDrift" type="danger" round @click="openOwnershipRepair">
-          {{ $t('trading.position_ownership_open_repair') }}
-        </van-button>
-        <van-button v-else-if="hasUnmanagedPosition" type="danger" round @click="activeTab = 'positions'">
-          {{ $t('trading.handle_positions') }}
-        </van-button>
-        <van-button v-else-if="strategy.status !== 'running'" type="primary" round :loading="actionLoading" @click="start">
-          {{ $t('trading.action_start') }}
-        </van-button>
-        <van-button v-else type="warning" round :loading="actionLoading" @click="requestStop">
-          {{ $t('trading.action_stop') }}
-        </van-button>
-        <van-button v-if="strategy.status !== 'running'" round @click="edit">{{ $t('trading.action_edit') }}</van-button>
-        <van-button
-          v-if="strategy.status !== 'running'"
-          type="danger"
-          plain
-          round
-          :disabled="hasOpenExposure"
-          @click="remove"
-        >{{ $t('trading.action_delete') }}</van-button>
-      </div>
     </template>
 
-    <van-action-sheet
-      v-model:show="showStopActions"
-      :actions="stopActions"
-      :cancel-text="$t('common.cancel')"
-      :description="$t('trading.stop_policy_desc')"
-      close-on-click-action
-      @select="onStopAction"
-    />
-
-    <van-popup
-      v-model:show="showOwnershipRepair"
-      position="bottom"
-      round
-      teleport="body"
-      class="ownership-sheet"
-    >
-      <div class="ownership-sheet-head">
-        <div>
-          <strong>{{ $t('trading.position_ownership_title') }}</strong>
-          <small>{{ $t('trading.position_ownership_risk_title') }}</small>
-        </div>
-        <button type="button" :aria-label="$t('common.close')" @click="showOwnershipRepair = false">
-          <van-icon name="cross" />
-        </button>
-      </div>
-
-      <div class="ownership-risk-note">
-        <van-icon name="warning-o" />
-        <span>{{ $t('trading.position_ownership_risk_desc') }}</span>
-      </div>
-
-      <van-loading v-if="ownershipLoading" class="ownership-loading" vertical>{{ $t('common.loading') }}</van-loading>
-      <div v-else-if="ownershipRows.length" class="ownership-list">
-        <article v-for="row in ownershipRows" :key="`${row.symbol}:${row.side}`" class="ownership-card">
-          <div class="ownership-card-head">
-            <div>
-              <strong>{{ row.symbol }}</strong>
-              <span>{{ sideText(row.side) }}</span>
-            </div>
-            <span :class="['ownership-state', { danger: row.status === 'drift_blocked' }]">
-              {{ $t(row.status === 'drift_blocked' ? 'trading.position_ownership_blocked' : 'trading.position_ownership_normal') }}
-            </span>
-          </div>
-          <div class="ownership-qty-grid">
-            <div><span>{{ $t('trading.position_ownership_account') }}</span><strong>{{ ownershipQty(row.account_qty) }}</strong></div>
-            <div><span>{{ $t('trading.position_ownership_strategy') }}</span><strong>{{ ownershipQty(row.strategy_qty) }}</strong></div>
-            <div><span>{{ $t('trading.position_ownership_protected') }}</span><strong>{{ ownershipQty(row.protected_qty) }}</strong></div>
-            <div><span>{{ $t('trading.position_ownership_unknown') }}</span><strong :class="{ loss: ownershipHasUnknown(row) }">{{ ownershipQty(row.unknown_qty) }}</strong></div>
-          </div>
-          <div class="ownership-meta">
-            <span>{{ $t('trading.position_ownership_mode') }}</span>
-            <strong>{{ $t(row.coexistence_mode === 'advanced' ? 'trading.position_ownership_advanced' : 'trading.position_ownership_strict') }}</strong>
-          </div>
-          <small v-if="row.updated_at" class="ownership-updated">
-            {{ $t('trading.position_ownership_updated', { time: time(row.updated_at) }) }}
-          </small>
-          <div class="ownership-actions">
-            <van-button
-              v-if="ownership.advanced_coexistence_available && (row.coexistence_mode !== 'advanced' || ownershipHasUnknown(row))"
-              size="small"
-              type="warning"
-              plain
-              :loading="ownershipRepairKey === `${row.symbol}:${row.side}:protect_manual`"
-              @click="repairOwnership(row, 'protect_manual')"
-            >{{ $t('trading.position_ownership_protect') }}</van-button>
-            <van-button
-              v-else-if="row.coexistence_mode === 'advanced'"
-              size="small"
-              plain
-              :loading="ownershipRepairKey === `${row.symbol}:${row.side}:strict_mode`"
-              @click="repairOwnership(row, 'strict_mode')"
-            >{{ $t('trading.position_ownership_use_strict') }}</van-button>
-            <van-button
-              size="small"
-              type="primary"
-              plain
-              :loading="ownershipRepairKey === `${row.symbol}:${row.side}:recheck`"
-              @click="repairOwnership(row, 'recheck')"
-            >{{ $t('trading.position_ownership_recheck') }}</van-button>
-          </div>
-        </article>
-      </div>
-      <van-empty v-else :description="$t('trading.no_positions')" />
+    <van-empty v-else :description="$t('audit.loadFailed')"><van-button @click="load">{{ $t('common.retry') }}</van-button></van-empty>
+    <van-action-sheet v-model:show="showReviewHistory" :actions="reviewHistoryActions" :cancel-text="$t('common.cancel')" @select="selectReview" />
+    <van-popup v-model:show="showOwnershipRepair" position="bottom" round teleport="body" class="ownership-sheet">
+      <div class="sheet-head"><div><strong>{{ $t('trading.position_ownership_title') }}</strong><small>{{ $t('trading.position_ownership_risk_title') }}</small></div><button type="button" :aria-label="$t('common.close')" @click="showOwnershipRepair = false"><van-icon name="cross" /></button></div><div class="sheet-warning"><van-icon name="warning-o" /><span>{{ $t('trading.position_ownership_risk_desc') }}</span></div><van-loading v-if="ownershipLoading" class="section-loading" vertical>{{ $t('common.loading') }}</van-loading>
+      <div v-else-if="ownershipRows.length" class="record-list"><article v-for="row in ownershipRows" :key="`${row.symbol}:${row.side}`" class="ownership-card"><div class="record-head"><div><strong>{{ row.symbol }}</strong><small>{{ sideText(row.side) }}</small></div><em :class="{ danger: row.status === 'drift_blocked' }">{{ $t(row.status === 'drift_blocked' ? 'trading.position_ownership_blocked' : 'trading.position_ownership_normal') }}</em></div><dl><div><dt>{{ $t('trading.position_ownership_account') }}</dt><dd>{{ ownershipQty(row.account_qty) }}</dd></div><div><dt>{{ $t('trading.position_ownership_strategy') }}</dt><dd>{{ ownershipQty(row.strategy_qty) }}</dd></div><div><dt>{{ $t('trading.position_ownership_protected') }}</dt><dd>{{ ownershipQty(row.protected_qty) }}</dd></div><div><dt>{{ $t('trading.position_ownership_unknown') }}</dt><dd :class="{ loss: ownershipHasUnknown(row) }">{{ ownershipQty(row.unknown_qty) }}</dd></div></dl><div class="ownership-actions"><van-button v-if="ownership.advanced_coexistence_available && (row.coexistence_mode !== 'advanced' || ownershipHasUnknown(row))" size="small" type="warning" plain :loading="ownershipRepairKey === `${row.symbol}:${row.side}:protect_manual`" @click="repairOwnership(row, 'protect_manual')">{{ $t('trading.position_ownership_protect') }}</van-button><van-button v-else-if="row.coexistence_mode === 'advanced'" size="small" plain :loading="ownershipRepairKey === `${row.symbol}:${row.side}:strict_mode`" @click="repairOwnership(row, 'strict_mode')">{{ $t('trading.position_ownership_use_strict') }}</van-button><van-button size="small" type="primary" plain :loading="ownershipRepairKey === `${row.symbol}:${row.side}:recheck`" @click="repairOwnership(row, 'recheck')">{{ $t('trading.position_ownership_recheck') }}</van-button></div></article></div><van-empty v-else :description="$t('trading.no_positions')" />
     </van-popup>
   </div>
 </template>
 
 <script>
 import { showConfirmDialog, showToast } from 'vant'
-import { scriptSourceApi, strategyApi } from '@/api'
+import { strategyApi } from '@/api'
+
+const EXIT_TYPES = ['close_long', 'close_short', 'reduce_long', 'reduce_short', 'sell', 'close']
 
 export default {
   name: 'StrategyDetail',
-  data() {
-    return {
-      strategy: null,
-      source: null,
-      positions: [],
-      trades: [],
-      logs: [],
-      gridOrders: [],
-      gridOrderSummary: {},
-      ownership: { items: [], status: 'ok', advanced_coexistence_available: false },
-      activeTab: 'overview',
-      loading: false,
-      actionLoading: false,
-      ownershipLoading: false,
-      gridOrdersLoading: false,
-      ownershipRepairKey: '',
-      showStopActions: false,
-      showOwnershipRepair: false
-    }
-  },
+  data() { return { strategy: null, positions: [], trades: [], logs: [], logFilter: 'all', equityCurve: [], performance: {}, costSummary: {}, aiDecisions: [], gridOrders: [], gridOrderSummary: {}, ownership: { items: [], status: 'ok', advanced_coexistence_available: false }, review: null, reviewHistory: [], selectedReviewId: null, activeTab: 'overview', loading: false, detailFailed: false, exposureReady: false, actionLoading: false, ownershipLoading: false, gridOrdersLoading: false, ownershipRepairKey: '', reviewLoading: false, reviewHistoryLoaded: false, showReviewHistory: false, showOwnershipRepair: false } },
   computed: {
     strategyId() { return Number(this.$route.params.id) },
-    statusText() {
-      const key = `trading.${this.strategy?.status || 'stopped'}`
-      const text = this.$t(key)
-      return text === key ? this.strategy?.status : text
-    },
-    executionModeText() {
-      const mode = this.strategy?.execution_mode === 'live' ? 'live' : 'signal'
-      return this.$t(`indicator_bot.execution_mode_${mode}`)
-    },
-    isLiveStrategy() {
-      return this.strategy?.execution_mode === 'live'
-    },
-    isGridStrategy() {
-      const config = this.strategy?.trading_config || {}
-      const type = String(this.strategy?.bot_type || config.bot_type || config.executor_type || '').toLowerCase()
-      const template = String(this.strategy?.template_key || config.template_key || '').toLowerCase()
-      return type === 'grid' || template.includes('robot_v2_grid')
-    },
-    hasOpenExposure() {
-      const pending = Number(this.strategy?.pending_order_count || this.strategy?.open_order_count || 0)
-      return this.positions.length > 0 || pending > 0
-    },
-    hasUnmanagedPosition() {
-      return this.strategy?.status !== 'running' && this.positions.length > 0
-    },
-    ownershipRows() {
-      return Array.isArray(this.ownership?.items) ? this.ownership.items : []
-    },
-    hasOwnershipDrift() {
-      return this.ownership?.status === 'drift_blocked' || this.ownershipRows.some((row) => row.status === 'drift_blocked')
-    },
-    sourceName() {
-      return this.source?.name || this.source?.strategy_name || this.strategy?.source_name || this.$t('trading.custom_strategy')
-    },
-    accountName() {
-      if (!this.isLiveStrategy) return this.$t('trading.no_account_needed')
-      const exchange = this.strategy?.exchange_config || {}
-      return exchange.credential_name || exchange.account_name || exchange.exchange_name || exchange.exchange_id || this.$t('trading.account_unset')
-    },
-    latestEventSummary() {
-      const first = this.logs[0]
-      return first ? this.logSummary(first) : this.$t('trading.no_recent_event')
-    },
-    stopActions() {
-      return [
-        {
-          name: this.$t('trading.stop_only'),
-          subname: this.$t('trading.stop_only_desc'),
-          closePositions: false
-        },
-        {
-          name: this.$t('trading.stop_and_close'),
-          subname: this.$t('trading.stop_and_close_desc'),
-          color: 'var(--down)',
-          closePositions: true
-        }
-      ]
-    },
-    marketTypeText() {
-      const value = String(this.strategy?.market_type || this.strategy?.trading_config?.market_type || '').toLowerCase()
-      if (value === 'spot') return this.$t('trading.market_spot')
-      if (value === 'swap') return this.$t('trading.market_futures')
-      return value || '-'
-    },
-    parameterDefinitions() {
-      const schema = this.parseObject(this.source?.param_schema)
-      return Array.isArray(schema.params) ? schema.params : []
-    },
-    parameterRows() {
-      const params = this.strategy?.trading_config?.params || {}
-      return Object.entries(params).map(([name, value]) => ({
-        name: this.parameterLabel(name),
-        value: typeof value === 'object' ? JSON.stringify(value) : String(value)
-      }))
-    }
+    runtimeHealth() { return this.strategy?.runtime_health && typeof this.strategy.runtime_health === 'object' ? this.strategy.runtime_health : {} },
+    isRunning() { return String(this.strategy?.status || '').toLowerCase() === 'running' },
+    statusText() { const key = `trading.${this.strategy?.status || 'stopped'}`; const value = this.$t(key); return value === key ? String(this.strategy?.status || '-') : value },
+    statusTone() { return this.needsAttention ? 'attention' : this.isRunning ? 'running' : 'stopped' },
+    healthState() { if (this.runtimeHealth.position_drift_blocked || Number(this.runtimeHealth.position_drift_count || 0) > 0) return 'degraded'; return String(this.runtimeHealth.health || (this.isRunning ? 'unknown' : 'inactive')).toLowerCase() },
+    healthText() { return this.$t(`live_detail.${['healthy', 'degraded', 'stale', 'offline', 'inactive'].includes(this.healthState) ? this.healthState : 'unknown'}`) },
+    healthTone() { return `health-${this.healthState}` },
+    needsAttention() { return Boolean(this.strategy?.error_message) || ['degraded', 'stale', 'offline'].includes(this.healthState) || Number(this.runtimeHealth.failed_orders || 0) > 0 || Boolean(this.runtimeHealth.position_drift_blocked) },
+    runtimeLatency() { const value = this.runtimeHealth.latency_ms ?? this.runtimeHealth.loop_latency_ms; return Number.isFinite(Number(value)) ? Number(value) : '-' },
+    pendingCount() { return Number(this.runtimeHealth.pending_orders || 0) },
+    pendingLabel() { return this.$t(this.isLiveStrategy ? 'live_detail.pendingOrders' : 'live_detail.pendingSignals') },
+    lastActivity() { return this.runtimeHealth.last_heartbeat_at || this.strategy?.trading_config?.last_execution_time || this.strategy?.trading_config?.last_signal_time || this.strategy?.updated_at || this.strategy?.created_at },
+    executionMode() { return this.strategy?.execution_mode === 'live' ? 'live' : 'signal' },
+    executionModeText() { return this.$t(`indicator_bot.execution_mode_${this.executionMode}`) },
+    isLiveStrategy() { return this.executionMode === 'live' },
+    strategySymbol() { return String(this.strategy?.symbol || this.strategy?.trading_config?.symbol || '-') },
+    exchangeId() { return String(this.strategy?.exchange_config?.exchange_id || this.strategy?.trading_config?.exchange_id || '').toLowerCase() },
+    exchangeName() { const labels = { binance: 'Binance', okx: 'OKX', bybit: 'Bybit', gate: 'Gate.io', bitget: 'Bitget', htx: 'HTX', huobi: 'HTX', alpaca: 'Alpaca' }; return labels[this.exchangeId] || (this.exchangeId ? this.exchangeId.toUpperCase() : '') },
+    leverage() { const value = Number(this.strategy?.trading_config?.leverage ?? this.strategy?.leverage ?? 1); return Number.isFinite(value) && value > 0 ? value : 1 },
+    marketType() { return String(this.strategy?.trading_config?.market_type || this.strategy?.market_type || 'spot').toLowerCase() },
+    marketTypeText() { return this.$t(this.marketType === 'spot' ? 'live_detail.spot' : 'live_detail.perpetual') },
+    currency() { const explicit = String(this.strategy?.quote_currency || this.strategy?.currency || this.strategy?.trading_config?.quote_currency || '').toUpperCase(); if (explicit) return explicit; const symbol = this.strategySymbol.replace(/^[^:]+:/, '').replace(/@(spot|swap|future|futures)$/i, ''); if (symbol.includes('/')) return symbol.split('/')[1].toUpperCase(); return this.exchangeId === 'alpaca' ? 'USD' : 'USDT' },
+    financialSuffix() { return this.isLiveStrategy ? this.currency : this.$t('live_detail.virtualAccount') },
+    financialContext() { return this.$t(this.isLiveStrategy ? 'live_detail.netPnlBasis' : 'live_detail.virtualBasis') },
+    todayPnl() { return this.finite(this.strategy?.today_pnl) },
+    performanceSummary() { const capital = this.finite(this.strategy?.initial_capital ?? this.strategy?.trading_config?.initial_capital) ?? 0; const lastCurve = this.equityPoints.length ? this.equityPoints[this.equityPoints.length - 1].value : null; const latestEquity = this.finite(this.performance.latest_equity) ?? lastCurve ?? (capital + (this.finite(this.strategy?.total_pnl) ?? 0)); const netPnl = latestEquity - capital; const totalReturnPct = this.finite(this.performance.total_return_pct) ?? (capital ? netPnl / capital * 100 : 0); const maxDrawdownPct = this.finite(this.performance.max_drawdown_pct) ?? this.curveMaxDrawdown; const settled = this.trades.filter(item => this.isExitTrade(item) && this.finite(item?.profit) != null); const wins = settled.filter(item => Number(item.profit) > 0).length; return { capital, latestEquity, netPnl, totalReturnPct, maxDrawdownPct, winRate: settled.length ? wins / settled.length * 100 : 0, wins, completedTrades: settled.length, grossExposure: this.finite(this.runtimeHealth.gross_exposure) ?? 0 } },
+    equityPoints() { return (Array.isArray(this.equityCurve) ? this.equityCurve : []).map(item => ({ value: this.finite(item?.equity ?? item?.value), time: item?.timestamp || item?.time || item?.created_at })).filter(item => item.value != null) },
+    curveMaxDrawdown() { let peak = this.equityPoints[0]?.value || 0; let max = 0; this.equityPoints.forEach(({ value }) => { peak = Math.max(peak, value); if (peak > 0) max = Math.max(max, (peak - value) / peak * 100) }); return max },
+    chartCoordinates() { const values = this.equityPoints.map(item => item.value); if (values.length < 2) return []; const min = Math.min(...values); const max = Math.max(...values); const range = max - min || 1; return values.map((value, index) => ({ x: index / (values.length - 1) * 320, y: 116 - (value - min) / range * 96 })) },
+    equityPolyline() { return this.chartCoordinates.map(point => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' ') },
+    equityAreaPoints() { return this.chartCoordinates.length ? `0,126 ${this.equityPolyline} 320,126` : '' },
+    curveStartLabel() { return this.shortTime(this.equityPoints[0]?.time) }, curveEndLabel() { return this.shortTime(this.equityPoints[this.equityPoints.length - 1]?.time) },
+    isGridStrategy() { const config = this.strategy?.trading_config || {}; const type = String(this.strategy?.resolved_bot_type || this.strategy?.bot_type || config.bot_type || config.executor_type || '').toLowerCase().replace(/-/g, '_'); const params = config.bot_params && typeof config.bot_params === 'object' ? config.bot_params : {}; const keys = Object.keys(params).map(key => key.toLowerCase().replace(/_/g, '')); return type === 'grid' || ['gridcount', 'lowerprice', 'upperprice'].every(key => keys.includes(key)) || String(this.strategy?.template_key || config.template_key || '').toLowerCase().includes('robot_v2_grid') || String(this.runtimeHealth.trigger_mode || '').toLowerCase() === 'exchange_resting_orders' },
+    aiDecisionEnabled() { return Boolean(this.strategy?.trading_config?.ai_decision_filter) },
+    hasOpenExposure() { return this.positions.length > 0 || this.pendingCount > 0 }, hasRetainedLivePosition() { return !this.isRunning && this.isLiveStrategy && this.positions.length > 0 }, hasRetainedVirtualPosition() { return !this.isRunning && !this.isLiveStrategy && Math.abs(this.performanceSummary.grossExposure) > 1e-8 }, hasUnmanagedPosition() { return !this.isRunning && this.positions.length > 0 },
+    logFilterOptions() { return ['all', 'trade', 'signal', 'warning', 'error'].map(value => ({ value, label: this.$t(`live_detail.log${value.replace(/^./, letter => letter.toUpperCase())}`), count: value === 'all' ? this.logs.length : this.logs.filter(item => this.normalizeLogLevel(item) === value).length })) },
+    filteredLogs() { return this.logFilter === 'all' ? this.logs : this.logs.filter(item => this.normalizeLogLevel(item) === this.logFilter) },
+    ownershipRows() { return Array.isArray(this.ownership?.items) ? this.ownership.items : [] }, hasOwnershipDrift() { return this.ownership?.status === 'drift_blocked' || this.ownershipRows.some(row => row.status === 'drift_blocked') },
+    settlementItems() { const s = this.costSummary || {}; const items = [{ key: 'gross', label: this.$t('live_detail.grossRealized'), value: this.signedMoney(s.gross_realized_pnl), tone: this.pnlClass(s.gross_realized_pnl) }, { key: 'open', label: this.$t('live_detail.openingCommission'), value: this.expense(s.opening_commission), tone: this.pnlClass(-Number(s.opening_commission || 0)) }, { key: 'close', label: this.$t('live_detail.closingCommission'), value: this.expense(s.closing_commission), tone: this.pnlClass(-Number(s.closing_commission || 0)) }]; const broker = [{ key: 'regulatory', label: this.$t('live_detail.regulatoryFees'), raw: s.regulatory_payment }, { key: 'adr', label: this.$t('live_detail.adrFees'), raw: s.adr_payment }, { key: 'marginInterest', label: this.$t('live_detail.marginInterest'), raw: s.margin_interest_payment }, { key: 'brokerOther', label: this.$t('live_detail.otherBrokerFees'), raw: s.other_broker_payment }]; if (s.broker_activity_applicable || broker.some(item => Math.abs(Number(item.raw || 0)) > 0)) broker.forEach(item => items.push({ ...item, value: this.signedMoney(item.raw), tone: this.pnlClass(item.raw) })); if (s.slippage_cost != null) items.push({ key: 'slippage', label: this.$t('live_detail.slippageCost'), value: this.expense(s.slippage_cost), tone: this.pnlClass(-Number(s.slippage_cost || 0)) }); items.push({ key: 'funding', label: this.$t('live_detail.fundingPayment'), value: this.signedMoney(s.funding_payment), tone: this.pnlClass(s.funding_payment) }, { key: 'net', label: this.$t('live_detail.netRealized'), value: this.signedMoney(s.net_realized_pnl), tone: this.pnlClass(s.net_realized_pnl) }); return items },
+    reviewHistoryActions() { return this.reviewHistory.map(item => ({ name: this.reviewHistoryLabel(item), reportId: item.id })) }, selectedReviewLabel() { const item = this.reviewHistory.find(row => Number(row.id) === Number(this.selectedReviewId)); return item ? this.reviewHistoryLabel(item) : this.$t('live_detail.reviewHistory') },
+    reviewAi() { return this.review?.ai && typeof this.review.ai === 'object' ? this.review.ai : {} }, reviewMetrics() { return this.review?.metrics && typeof this.review.metrics === 'object' ? this.review.metrics : {} }, reviewDiagnostics() { return Array.isArray(this.review?.diagnostics) ? this.review.diagnostics : [] }, reviewRecommendations() { return Array.isArray(this.review?.recommendations) ? this.review.recommendations : [] },
+    reviewMetricItems() { const m = this.reviewMetrics; return [{ key: 'net', label: this.$t('live_detail.cumulativeNetPnl'), value: this.signedMoney(m.window_net_pnl ?? m.total_net_pnl), tone: this.pnlClass(m.window_net_pnl ?? m.total_net_pnl) }, { key: 'return', label: this.$t('live_detail.totalReturn'), value: this.signedPercent(m.performance_total_return_pct ?? m.total_return_pct), tone: this.pnlClass(m.performance_total_return_pct ?? m.total_return_pct) }, { key: 'win', label: this.$t('live_detail.winRate'), value: this.percent(m.win_rate), tone: '', hint: `${m.winning_trades || 0}/${m.closed_trades_with_pnl || 0}` }, { key: 'factor', label: this.$t('live_detail.profitFactor'), value: this.number(m.profit_factor, 2), tone: '' }, { key: 'drawdown', label: this.$t('live_detail.maxDrawdown'), value: this.percent(m.performance_max_drawdown_pct ?? m.max_drawdown_pct), tone: 'warning-value' }, { key: 'fees', label: this.$t('live_detail.totalFees'), value: this.money(m.total_commission), tone: '' }, { key: 'open', label: this.$t('live_detail.openPositions'), value: String(m.open_position_count || 0), tone: '', hint: this.signedMoney(m.unrealized_pnl) }] }
   },
+  watch: { activeTab(value) { if (value === 'review' && !this.reviewHistoryLoaded) this.loadReviewHistory() } },
   mounted() { this.load() },
   methods: {
-    async load() {
-      this.loading = true
-      try {
-        const [strategy, positions, trades, logs] = await Promise.allSettled([
-          strategyApi.getDetail(this.strategyId),
-          strategyApi.getPositions(this.strategyId),
-          strategyApi.getTrades(this.strategyId, 30),
-          strategyApi.getLogs(this.strategyId, 100)
-        ])
-        this.strategy = strategy.status === 'fulfilled' ? strategy.value.data : null
-        this.source = null
-        const sourceId = Number(this.strategy?.trading_config?.script_source_id)
-        if (sourceId > 0) {
-          try {
-            const response = await scriptSourceApi.getDetail(sourceId)
-            this.source = response?.data || null
-          } catch (error) {
-            console.error('Load strategy source detail failed:', error)
-          }
-        }
-        this.positions = positions.status === 'fulfilled' ? (positions.value.data || []) : []
-        this.trades = trades.status === 'fulfilled' ? (trades.value.data || []) : []
-        this.logs = logs.status === 'fulfilled' ? (logs.value.data || []) : []
-        if (this.isLiveStrategy) await this.loadOwnership(false)
-        else this.ownership = { items: [], status: 'ok', advanced_coexistence_available: false }
-        if (this.isGridStrategy) await this.loadGridOrders(false)
-        else {
-          this.gridOrders = []
-          this.gridOrderSummary = {}
-        }
-      } finally {
-        this.loading = false
-      }
-    },
-    async loadOwnership(showFailure = true) {
-      this.ownershipLoading = true
-      try {
-        const response = await strategyApi.getPositionOwnership(this.strategyId)
-        this.ownership = response?.data || { items: [], status: 'ok', advanced_coexistence_available: false }
-      } catch (error) {
-        if (showFailure) showToast({ message: this.$t('trading.position_ownership_load_failed'), type: 'fail' })
-      } finally {
-        this.ownershipLoading = false
-      }
-    },
-    async loadGridOrders(sync = false) {
-      this.gridOrdersLoading = true
-      try {
-        const response = await strategyApi.getGridRestingOrders(this.strategyId, sync)
-        const data = response?.data || {}
-        this.gridOrders = data.orders || data.items || []
-        this.gridOrderSummary = data.summary || {}
-        if (sync && this.gridOrderSummary.sync_ok === false) {
-          showToast({ message: this.$t('trading.grid_orders_sync_failed'), type: 'fail' })
-        }
-      } catch (error) {
-        if (sync) showToast({ message: this.$t('trading.grid_orders_sync_failed'), type: 'fail' })
-      } finally {
-        this.gridOrdersLoading = false
-      }
-    },
-    async openOwnershipRepair() {
-      this.activeTab = 'positions'
-      this.showOwnershipRepair = true
-      await this.loadOwnership()
-    },
-    ownershipQty(value) {
-      const amount = Number(value)
-      if (!Number.isFinite(amount)) return '-'
-      return amount.toLocaleString(undefined, { maximumFractionDigits: 8 })
-    },
-    ownershipHasUnknown(row) {
-      return Math.abs(Number(row?.unknown_qty || 0)) > Math.abs(Number(row?.tolerance || 0))
-    },
-    async repairOwnership(row, action) {
-      const key = `${row.symbol}:${row.side}:${action}`
-      if (this.ownershipRepairKey) return
-      if (action === 'protect_manual' || action === 'strict_mode') {
-        try {
-          const isProtect = action === 'protect_manual'
-          await showConfirmDialog({
-            title: this.$t(isProtect
-              ? 'trading.position_ownership_protect_confirm_title'
-              : 'trading.position_ownership_strict_confirm_title'),
-            message: this.$t(isProtect
-              ? 'trading.position_ownership_protect_confirm'
-              : 'trading.position_ownership_strict_confirm')
-          })
-        } catch {
-          return
-        }
-      }
-      this.ownershipRepairKey = key
-      try {
-        await strategyApi.repairPositionOwnership({
-          id: this.strategyId,
-          symbol: row.symbol,
-          side: row.side,
-          action
-        })
-        showToast({ message: this.$t('trading.position_ownership_repair_success'), type: 'success' })
-        const [positions] = await Promise.all([
-          strategyApi.getPositions(this.strategyId),
-          this.loadOwnership(false)
-        ])
-        this.positions = positions?.data || []
-      } catch (error) {
-        showToast({ message: this.$t('trading.position_ownership_repair_failed'), type: 'fail' })
-      } finally {
-        this.ownershipRepairKey = ''
-      }
-    },
-    parseObject(value) {
-      if (value && typeof value === 'object' && !Array.isArray(value)) return value
-      if (typeof value !== 'string' || !value.trim()) return {}
-      try {
-        const parsed = JSON.parse(value)
-        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
-      } catch {
-        return {}
-      }
-    },
-    parameterLabel(name) {
-      const definition = this.parameterDefinitions.find((item) => item.name === name)
-      if (definition?.label_key && this.$te(definition.label_key)) return this.$t(definition.label_key)
-      return definition?.label || name
-    },
-    money(value) {
-      const amount = Number(value || 0)
-      return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    },
-    number(value) {
-      const amount = Number(value)
-      if (!Number.isFinite(amount)) return '-'
-      return amount.toLocaleString(undefined, { maximumFractionDigits: 8 })
-    },
-    signedNumber(value) {
-      const amount = Number(value || 0)
-      const prefix = amount > 0 ? '+' : ''
-      return `${prefix}${this.number(amount)}`
-    },
-    pnlClass(value) {
-      const amount = Number(value || 0)
-      return amount > 0 ? 'profit' : (amount < 0 ? 'loss' : '')
-    },
-    sideText(value) {
-      const side = String(value || '').toLowerCase()
-      if (side === 'long' || side === 'buy') return this.$t('trading.side_long')
-      if (side === 'short' || side === 'sell') return this.$t('trading.side_short')
-      return value || '-'
-    },
-    tradeSideText(value) {
-      const side = String(value || '').toLowerCase()
-      const key = `trading.trade_${side}`
-      const translated = this.$t(key)
-      return translated === key ? this.sideText(side) : translated
-    },
-    time(value) {
-      if (!value) return ''
-      const numeric = Number(value)
-      const date = Number.isFinite(numeric)
-        ? new Date(numeric * (numeric < 1e12 ? 1000 : 1))
-        : new Date(value)
-      return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString()
-    },
-    rawLogText(item) {
-      if (typeof item === 'string') return item
-      return String(item?.message || item?.content || item?.event_type || '')
-    },
-    logSummary(item) {
-      const raw = this.rawLogText(item)
-      const text = raw.toLowerCase()
-      if (/(position ownership drift|position_drift_detected|account and strategy positions differ)/.test(text)) {
-        const readQty = (name) => {
-          const match = raw.match(new RegExp(`${name}\\s*[=:]\\s*(-?[\\d.e+-]+)`, 'i'))
-          return match ? this.ownershipQty(match[1]) : '-'
-        }
-        const quantities = ['account', 'strategy', 'protected', 'unknown'].reduce((result, name) => {
-          result[name] = readQty(name)
-          return result
-        }, {})
-        if (Object.values(quantities).some((value) => value !== '-')) {
-          return this.$t('trading.position_ownership_log', quantities)
-        }
-        return this.$t('trading.position_ownership_drift_event')
-      }
-      if (/(open_long|enter_long|buy signal)/.test(text)) return this.$t('trading.event_open_long')
-      if (/(open_short|enter_short|sell signal)/.test(text)) return this.$t('trading.event_open_short')
-      if (/(close_long|exit_long)/.test(text)) return this.$t('trading.event_close_long')
-      if (/(close_short|exit_short)/.test(text)) return this.$t('trading.event_close_short')
-      if (/(pending_order|order pending)/.test(text)) return this.$t('trading.event_order_pending')
-      if (/(error|failed|exception)/.test(text)) return this.$t('trading.event_run_error')
-      return raw || this.$t('trading.no_recent_event')
-    },
-    edit() {
-      this.$router.push({ path: '/trading/create/configure', query: { edit: this.strategyId } })
-    },
-    async start() {
-      if (this.hasOpenExposure) {
-        try {
-          await showConfirmDialog({
-            title: this.$t('trading.restart_with_position_title'),
-            message: this.$t('trading.restart_with_position_msg', { count: this.positions.length })
-          })
-        } catch {
-          return
-        }
-      }
-      this.actionLoading = true
-      try {
-        await strategyApi.start(this.strategyId)
-        showToast({ message: this.$t('trading.start_success'), type: 'success' })
-        await this.load()
-      } finally {
-        this.actionLoading = false
-      }
-    },
-    async requestStop() {
-      if (this.isLiveStrategy) {
-        this.showStopActions = true
-        return
-      }
-      await this.confirmStop(false)
-    },
-    async onStopAction(action) {
-      this.showStopActions = false
-      await this.confirmStop(Boolean(action?.closePositions))
-    },
-    async confirmStop(closePositions) {
-      try {
-        await showConfirmDialog({
-          title: this.$t(closePositions ? 'trading.confirm_stop_close_title' : 'trading.confirm_stop_title'),
-          message: this.$t(closePositions ? 'trading.confirm_stop_close_msg' : 'trading.confirm_stop_msg')
-        })
-      } catch (error) {
-        return
-      }
-      this.actionLoading = true
-      try {
-        await strategyApi.stop(this.strategyId, closePositions)
-        showToast({
-          message: this.$t(closePositions ? 'trading.stop_close_success' : 'trading.stop_success'),
-          type: 'success'
-        })
-        await this.load()
-      } finally {
-        this.actionLoading = false
-      }
-    },
-    async remove() {
-      if (this.hasOpenExposure) {
-        showToast({ message: this.$t('trading.delete_blocked_exposure'), type: 'fail' })
-        return
-      }
-      await showConfirmDialog({
-        title: this.$t('trading.confirm_delete_title'),
-        message: this.$t('trading.confirm_delete_msg')
-      })
-      await strategyApi.delete(this.strategyId)
-      showToast({ message: this.$t('trading.delete_success'), type: 'success' })
-      this.$router.replace('/trading')
-    }
+    async load() { if (this.loading) return; this.loading = true; this.exposureReady = false; this.detailFailed = false; try { const [detail, positions, ledger, logs, performance, curve, decisions] = await Promise.allSettled([strategyApi.getDetail(this.strategyId), strategyApi.getPositions(this.strategyId), strategyApi.getTradeLedger(this.strategyId), strategyApi.getLogs(this.strategyId, 100), strategyApi.getPerformance(this.strategyId), strategyApi.getEquityCurve(this.strategyId), strategyApi.getAiDecisions(this.strategyId)]); this.exposureReady = detail.status === 'fulfilled' && positions.status === 'fulfilled'; this.detailFailed = [detail, positions, ledger, logs, performance, curve].some(result => result.status === 'rejected'); if (detail.status === 'fulfilled') this.strategy = detail.value.data; this.positions = positions.status === 'fulfilled' ? positions.value.data || [] : []; const ledgerData = ledger.status === 'fulfilled' ? ledger.value.data || {} : {}; this.trades = ledgerData.items || []; this.costSummary = ledgerData.cost_summary || {}; this.logs = logs.status === 'fulfilled' ? logs.value.data || [] : []; this.performance = performance.status === 'fulfilled' ? performance.value.data || {} : {}; this.equityCurve = curve.status === 'fulfilled' ? curve.value.data || [] : []; this.aiDecisions = decisions.status === 'fulfilled' ? decisions.value.data || [] : []; if (this.isLiveStrategy) await this.loadOwnership(false); else this.ownership = { items: [], status: 'ok', advanced_coexistence_available: false }; if (this.isGridStrategy) await this.loadGridOrders(false); else { this.gridOrders = []; this.gridOrderSummary = {} } } finally { this.loading = false } },
+    async loadOwnership(showFailure = true) { this.ownershipLoading = true; try { const response = await strategyApi.getPositionOwnership(this.strategyId); this.ownership = response?.data || { items: [], status: 'ok', advanced_coexistence_available: false } } catch { if (showFailure) showToast({ message: this.$t('trading.position_ownership_load_failed'), type: 'fail' }) } finally { this.ownershipLoading = false } },
+    async loadGridOrders(sync = false) { this.gridOrdersLoading = true; try { const response = await strategyApi.getGridRestingOrders(this.strategyId, sync); const data = response?.data || {}; this.gridOrders = data.orders || data.items || []; this.gridOrderSummary = data.summary || {}; if (sync && this.gridOrderSummary.sync_ok === false) showToast({ message: this.$t('trading.grid_orders_sync_failed'), type: 'fail' }) } catch { if (sync) showToast({ message: this.$t('trading.grid_orders_sync_failed'), type: 'fail' }) } finally { this.gridOrdersLoading = false } },
+    async loadReviewHistory() { this.reviewHistoryLoaded = true; try { const response = await strategyApi.getReviewHistory(this.strategyId, { limit: 20 }); this.reviewHistory = response?.data || []; if (!this.review && this.reviewHistory.length) await this.loadReview(this.reviewHistory[0].id) } catch { this.reviewHistory = [] } },
+    async loadReview(reportId) { if (!reportId) return; this.reviewLoading = true; try { const response = await strategyApi.getReviewHistory(this.strategyId, { report_id: reportId }); this.review = response?.data || null; this.selectedReviewId = reportId } catch { showToast({ message: this.$t('live_detail.reviewFailed'), type: 'fail' }) } finally { this.reviewLoading = false } },
+    async generateReview() { try { await showConfirmDialog({ title: this.$t('live_detail.reviewConfirmTitle'), message: this.$t('live_detail.reviewConfirmMessage') }) } catch { return } this.reviewLoading = true; try { const response = await strategyApi.generateReview(this.strategyId, { lookback_days: 30, include_ai: true, language: this.$i18n.locale }); this.review = response?.data || null; this.selectedReviewId = this.review?.history_id || null; await this.loadReviewHistory() } catch { showToast({ message: this.$t('live_detail.reviewFailed'), type: 'fail' }) } finally { this.reviewLoading = false } },
+    async selectReview(action) { this.showReviewHistory = false; await this.loadReview(action.reportId) }, reviewHistoryLabel(item) { return this.time(item.created_at || item.generated_at) || `#${item.id}` }, async openOwnershipRepair() { this.showOwnershipRepair = true; await this.loadOwnership() },
+    ownershipQty(value) { const amount = this.finite(value); return amount == null ? '-' : amount.toLocaleString(undefined, { maximumFractionDigits: 8 }) }, ownershipHasUnknown(row) { return Math.abs(Number(row?.unknown_qty || 0)) > Math.abs(Number(row?.tolerance || 0)) },
+    async repairOwnership(row, action) { const key = `${row.symbol}:${row.side}:${action}`; if (this.ownershipRepairKey) return; if (action !== 'recheck') { try { const isProtect = action === 'protect_manual'; await showConfirmDialog({ title: this.$t(isProtect ? 'trading.position_ownership_protect_confirm_title' : 'trading.position_ownership_strict_confirm_title'), message: this.$t(isProtect ? 'trading.position_ownership_protect_confirm' : 'trading.position_ownership_strict_confirm') }) } catch { return } } this.ownershipRepairKey = key; try { await strategyApi.repairPositionOwnership({ id: this.strategyId, symbol: row.symbol, side: row.side, action }); showToast({ message: this.$t('trading.position_ownership_repair_success'), type: 'success' }); const [positions] = await Promise.all([strategyApi.getPositions(this.strategyId), this.loadOwnership(false)]); this.positions = positions?.data || [] } catch { showToast({ message: this.$t('trading.position_ownership_repair_failed'), type: 'fail' }) } finally { this.ownershipRepairKey = '' } },
+    finite(value) { if (value == null || value === '' || !Number.isFinite(Number(value))) return null; return Number(value) }, number(value, digits = 8) { const amount = this.finite(value); return amount == null ? '-' : amount.toLocaleString(undefined, { maximumFractionDigits: digits }) }, money(value) { const amount = this.finite(value); return amount == null ? '—' : amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }, signedMoney(value) { const amount = this.finite(value); return amount == null ? '—' : `${amount > 0 ? '+' : ''}${this.money(amount)}` }, expense(value) { const amount = this.finite(value); return amount == null ? '—' : this.signedMoney(-Math.abs(amount)) }, percent(value) { const amount = this.finite(value); return amount == null ? '—' : `${Math.abs(amount).toFixed(2)}%` }, signedPercent(value) { const amount = this.finite(value); return amount == null ? '—' : `${amount > 0 ? '+' : ''}${amount.toFixed(2)}%` }, pnlClass(value) { const amount = Number(value || 0); return amount > 0 ? 'profit' : amount < 0 ? 'loss' : '' },
+    time(value) { if (!value) return ''; const numeric = /^\d+(?:\.\d+)?$/.test(String(value)) ? Number(value) : null; const date = new Date(numeric != null ? numeric * (numeric < 1e12 ? 1000 : 1) : value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString() }, shortTime(value) { if (!value) return ''; const numeric = /^\d+(?:\.\d+)?$/.test(String(value)) ? Number(value) : null; const date = new Date(numeric != null ? numeric * (numeric < 1e12 ? 1000 : 1) : value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) },
+    positionLeverage(item) { const value = this.finite(item?.leverage); return value != null && value > 0 ? value : this.leverage }, positionCost(item) { return Math.abs((this.finite(item?.entry_price) || 0) * (this.finite(item?.quantity) || 0)) }, positionValue(item) { return Math.abs((this.finite(item?.current_price) || 0) * (this.finite(item?.quantity) || 0)) }, positionRoi(item) { const direct = this.finite(item?.profit_pct_on_margin ?? item?.roi ?? item?.unrealized_pnl_percentage); if (direct != null) return direct; const margin = this.positionCost(item) / this.positionLeverage(item); return margin ? Number(item?.unrealized_pnl || 0) / margin * 100 : 0 },
+    sideText(value) { const side = String(value || '').toLowerCase(); if (side === 'long' || side === 'buy') return this.$t('trading.side_long'); if (side === 'short' || side === 'sell') return this.$t('trading.side_short'); return value || '-' }, isExitTrade(item) { const type = String(item?.type || item?.side || '').toLowerCase(); return EXIT_TYPES.some(value => type === value || type.startsWith(`${value}_`)) }, tradePnl(item) { return this.finite(item?.net_pnl ?? item?.pnl ?? item?.profit ?? item?.realized_pnl) ?? 0 }, tradeFee(item) { return this.finite(item?.total_commission ?? item?.commission_quote ?? item?.commission) ?? 0 }, exchangePnl(item) { const value = item?.exchange_pnl; return this.finite(value && typeof value === 'object' ? value.amount : value) },
+    tradeTypeText(item) { const type = String(item?.type || item?.side || ''); const key = `trading.trade_${type.toLowerCase()}`; const translated = this.$t(key); return translated === key ? type || '-' : translated }, tradeActionLabel(action) { const key = `trading.trade_${String(action || '').toLowerCase()}`; const translated = this.$t(key); return translated === key ? action || '-' : translated }, decisionTone(item) { return item?.decision === 'reject' || item?.allowed === false ? 'reject' : item?.decision === 'pass' ? 'pass' : 'skipped' }, decisionText(item) { return this.$t(`live_detail.decision${this.decisionTone(item).replace(/^./, value => value.toUpperCase())}`) },
+    rawLogText(item) { return typeof item === 'string' ? item : String(item?.message || item?.content || item?.event_type || '') }, normalizeLogLevel(item) { const level = String(typeof item === 'string' ? 'info' : item?.level || item?.severity || 'info').trim().toLowerCase(); return level === 'warn' ? 'warning' : level }, logLevelText(item) { const level = this.normalizeLogLevel(item); const key = `live_detail.log${level.replace(/^./, letter => letter.toUpperCase())}`; return this.$te(key) ? this.$t(key) : level }, logSummary(item) { const raw = this.rawLogText(item); if (this.$te(raw)) return this.$t(raw, item?.params || item?.message_params || {}); const text = raw.toLowerCase(); if (/(position ownership drift|position_drift_detected|account and strategy positions differ)/.test(text)) return this.$t('trading.position_ownership_drift_event'); if (/(open_long|enter_long|buy signal)/.test(text)) return this.$t('trading.event_open_long'); if (/(open_short|enter_short|sell signal)/.test(text)) return this.$t('trading.event_open_short'); if (/(close_long|exit_long)/.test(text)) return this.$t('trading.event_close_long'); if (/(close_short|exit_short)/.test(text)) return this.$t('trading.event_close_short'); if (/(pending_order|order pending)/.test(text)) return this.$t('trading.event_order_pending'); if (/(error|failed|exception)/.test(text)) return this.$t('trading.event_run_error'); return raw || this.$t('trading.no_recent_event') },
+    edit() { this.$router.push({ path: '/trading/create', query: { edit: this.strategyId } }) },
+    async start() { if (!this.exposureReady) return; if (this.hasOpenExposure) { try { await showConfirmDialog({ title: this.$t('trading.restart_with_position_title'), message: this.$t('trading.restart_with_position_msg', { count: this.positions.length }) }) } catch { return } } this.actionLoading = true; try { await strategyApi.start(this.strategyId); showToast({ message: this.$t('trading.start_success'), type: 'success' }); await this.load() } finally { this.actionLoading = false } },
+    async confirmStop(closePositions) { try { await showConfirmDialog({ title: this.$t(closePositions ? 'trading.confirm_stop_close_title' : 'trading.confirm_stop_title'), message: this.$t(closePositions ? 'trading.confirm_stop_close_msg' : 'trading.confirm_stop_msg') }) } catch { return } this.actionLoading = true; try { await strategyApi.stop(this.strategyId, closePositions); showToast({ message: this.$t(closePositions ? 'trading.stop_close_success' : 'trading.stop_success'), type: 'success' }); await this.load() } finally { this.actionLoading = false } },
+    async confirmCloseRetained() { try { await showConfirmDialog({ title: this.$t('live_detail.closeRetainedTitle'), message: this.$t('live_detail.closeRetainedMessage') }) } catch { return } this.actionLoading = true; try { await strategyApi.stop(this.strategyId, true); showToast({ message: this.$t('live_detail.closeRetainedQueued'), type: 'success' }); await this.load() } finally { this.actionLoading = false } },
+    async remove() { if (!this.exposureReady || this.hasOpenExposure) { if (this.hasOpenExposure) showToast({ message: this.$t('trading.delete_blocked_exposure'), type: 'fail' }); return } try { await showConfirmDialog({ title: this.$t('trading.confirm_delete_title'), message: this.$t('trading.confirm_delete_msg') }) } catch { return } await strategyApi.delete(this.strategyId); showToast({ message: this.$t('trading.delete_success'), type: 'success' }); this.$router.replace('/trading') }
   }
 }
 </script>
 
 <style scoped>
-.page {
-  min-height: 100vh;
-  padding-bottom: calc(160px + var(--safe-area-bottom, 0px));
-  color: var(--text);
-}
-:deep(.van-nav-bar), :deep(.van-tabs__nav) { background: var(--bg); }
-:deep(.van-nav-bar__title), :deep(.van-nav-bar .van-icon), :deep(.van-tab) { color: var(--text); }
-.loading { margin-top: 80px; color: var(--text-2); }
-.summary-card, .panel {
-  margin: 12px var(--page-gutter);
-  padding: 16px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-}
-.risk-card {
-  width: auto;
-  min-height: 72px;
-  margin: 0 var(--page-gutter) 12px;
-  padding: 13px 14px;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  border: 1px solid color-mix(in srgb, var(--down) 44%, var(--border));
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--down) 10%, var(--bg-elevated));
-  color: var(--down);
-  text-align: left;
-}
-.risk-icon {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  border-radius: 12px;
-  background: var(--down-soft);
-  font-size: 19px;
-}
-.risk-copy { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-.risk-copy strong { color: var(--text); font-size: 14px; }
-.risk-copy small { color: var(--text-2); font-size: 12px; line-height: 1.4; }
-.overview-panel { display: flex; flex-direction: column; gap: 18px; }
-.overview-section { display: flex; flex-direction: column; gap: 10px; }
-.section-heading { color: var(--text); font-size: 14px; font-weight: 800; }
-.attention-row {
-  min-height: 48px;
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 12px;
-  font-size: 12px;
-}
-.attention-row span { flex: 1; }
-.attention-row button { border: 0; background: transparent; color: inherit; font-weight: 800; }
-.attention-row.danger { color: var(--down); background: var(--down-soft); }
-.attention-row.safe { color: var(--up); background: var(--up-soft); }
-.overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.overview-grid div { min-width: 0; padding: 11px; border-radius: 12px; background: var(--bg); }
-.overview-grid span, .overview-grid strong { display: block; }
-.overview-grid span { color: var(--text-2); font-size: 11px; }
-.overview-grid strong {
-  margin-top: 5px;
-  overflow: hidden;
-  color: var(--text);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.summary-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
-.strategy-name { font-size: 19px; font-weight: 900; }
-.strategy-symbol { margin-top: 5px; color: var(--text-2); font-size: 12px; }
-.status { padding: 4px 9px; border-radius: 999px; color: var(--text-2); background: var(--bg); }
-.status.running { color: var(--up); background: rgba(34, 197, 94, 0.12); }
-.status.error { color: var(--down); background: rgba(239, 68, 68, 0.12); }
-.summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
-.summary-grid div, .data-row, .record div { display: flex; justify-content: space-between; gap: 8px; }
-.summary-grid span, .data-row span, .record span { color: var(--text-2); font-size: 12px; }
-.summary-grid strong, .data-row strong, .record strong { color: var(--text); }
-.ownership-entry {
-  width: 100%;
-  min-height: 66px;
-  margin-bottom: 14px;
-  padding: 11px 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg);
-  color: var(--text);
-  text-align: left;
-}
-.ownership-entry.danger {
-  border-color: color-mix(in srgb, var(--down) 45%, var(--border));
-  background: color-mix(in srgb, var(--down) 8%, var(--bg));
-}
-.ownership-entry-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
-.ownership-entry-copy strong { font-size: 13px; }
-.ownership-entry-copy small { color: var(--text-2); font-size: 11px; line-height: 1.4; }
-.ownership-state {
-  flex: 0 0 auto;
-  padding: 4px 7px;
-  border-radius: 999px;
-  color: var(--up);
-  background: var(--up-soft);
-  font-size: 10px;
-  font-weight: 800;
-}
-.ownership-state.danger { color: var(--down); background: var(--down-soft); }
-.row-list { display: flex; flex-direction: column; gap: 12px; }
-.data-row { padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-.record { display: grid; gap: 8px; padding: 12px; border-radius: var(--radius-sm); background: var(--bg); }
-.record time { color: var(--text-3); font-size: 11px; text-align: right; }
-.grid-sync-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.grid-sync-head > div { display: flex; flex-direction: column; gap: 4px; }
-.grid-sync-head small { color: var(--text-2); font-size: 11px; line-height: 1.4; }
-.grid-order-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
-.grid-order-kpis div { padding: 9px; border-radius: 10px; background: var(--bg); }
-.grid-order-kpis span, .grid-order-kpis strong { display: block; }
-.grid-order-kpis span { color: var(--text-2); font-size: 10px; }
-.grid-order-kpis strong { margin-top: 4px; }
-.grid-order-kpis .danger strong, .grid-order-card code.missing { color: var(--down); }
-.grid-order-card code { max-width: 62%; color: var(--primary); font-size: 10px; text-align: right; word-break: break-all; }
-.profit { color: var(--up) !important; }
-.loss { color: var(--down) !important; }
-.log-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
-.log-row span { color: var(--text-3); font-size: 11px; }
-.log-row p { margin: 5px 0 0; color: var(--text); word-break: break-word; }
-.log-row details { margin-top: 8px; color: var(--text-3); font-size: 11px; }
-.log-row summary { min-height: 28px; cursor: pointer; }
-.log-row code { display: block; padding: 9px; border-radius: 8px; background: var(--bg); white-space: pre-wrap; word-break: break-word; }
-.actions {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: var(--shell-tabbar-height, calc(62px + var(--safe-area-bottom, 0px)));
-  display: flex;
-  gap: 8px;
-  padding: 10px 16px 12px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-elevated);
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, .16);
-  z-index: 90;
-}
-.actions :deep(.van-button) { flex: 1; }
-.ownership-sheet {
-  max-height: min(82vh, 720px);
-  padding: 0 16px calc(18px + env(safe-area-inset-bottom));
-  overflow-y: auto;
-  background: var(--bg-elevated);
-  color: var(--text);
-}
-.ownership-sheet-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  margin: 0 -16px;
-  padding: 18px 16px 12px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  background: var(--bg-elevated);
-}
-.ownership-sheet-head > div { display: flex; flex-direction: column; gap: 4px; }
-.ownership-sheet-head strong { font-size: 17px; }
-.ownership-sheet-head small { color: var(--text-2); font-size: 11px; }
-.ownership-sheet-head button {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  border: 0;
-  border-radius: 50%;
-  background: var(--bg);
-  color: var(--text-2);
-  font-size: 18px;
-}
-.ownership-risk-note {
-  margin-bottom: 12px;
-  padding: 10px 12px;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  border-radius: 10px;
-  color: var(--down);
-  background: var(--down-soft);
-  font-size: 11px;
-  line-height: 1.5;
-}
-.ownership-loading { padding: 44px 0; color: var(--text-2); }
-.ownership-list { display: flex; flex-direction: column; gap: 12px; }
-.ownership-card {
-  padding: 13px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--bg);
-}
-.ownership-card-head, .ownership-card-head > div, .ownership-meta, .ownership-actions {
-  display: flex;
-  align-items: center;
-}
-.ownership-card-head { justify-content: space-between; gap: 10px; }
-.ownership-card-head > div { gap: 7px; }
-.ownership-card-head > div span { color: var(--text-2); font-size: 11px; }
-.ownership-qty-grid { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.ownership-qty-grid div { min-width: 0; padding: 9px; border-radius: 9px; background: var(--bg-elevated); }
-.ownership-qty-grid span, .ownership-qty-grid strong { display: block; }
-.ownership-qty-grid span { color: var(--text-3); font-size: 10px; }
-.ownership-qty-grid strong { margin-top: 4px; overflow-wrap: anywhere; font-size: 12px; }
-.ownership-meta { margin-top: 10px; justify-content: space-between; color: var(--text-2); font-size: 11px; }
-.ownership-meta strong { color: var(--text); }
-.ownership-updated { display: block; margin-top: 5px; color: var(--text-3); font-size: 10px; }
-.ownership-actions { margin-top: 12px; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.page{--detail-gutter:16px;min-height:100vh;padding-bottom: var(--shell-tabbar-height);color:var(--text);background:var(--bg)}:deep(.van-nav-bar){background:var(--bg)}:deep(.van-tabs__wrap),:deep(.van-tabs__nav),:deep(.van-sticky--fixed){background:var(--bg-elevated)!important}:deep(.van-sticky--fixed){z-index:80!important;box-shadow:0 1px 0 var(--border)}:deep(.van-nav-bar__title),:deep(.van-nav-bar .van-icon),:deep(.van-tab){color:var(--text)}:deep(.van-tabs__line){background:var(--accent)}.nav-action{width:36px;height:36px;border:0;border-radius:10px;color:var(--text);background:transparent;font-size:19px}.nav-action:disabled{opacity:.45}.loading{padding-top:110px;color:var(--text-2)}
+.hero-card,.metric-section,.tab-panel{margin:12px var(--detail-gutter);border:1px solid var(--border);border-radius:16px;background:var(--bg-elevated)}.hero-card{padding:17px}.hero-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.hero-copy{min-width:0}.hero-copy h1{margin:0;color:var(--text);font-size:21px;line-height:1.25;overflow-wrap:anywhere}.hero-tags{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:8px;color:var(--text-2);font-size:12px}.status-pill,.mode-pill,.exchange-pill,.decision-pill{padding:3px 7px;border-radius:6px;font-size:10px;font-weight:800}.status-pill.running,.decision-pill.pass{color:var(--up);background:var(--up-soft)}.status-pill.attention,.decision-pill.reject{color:var(--down);background:var(--down-soft)}.status-pill.stopped,.decision-pill.skipped,.mode-pill{color:var(--text-2);background:var(--bg)}.exchange-pill{color:var(--accent);background:var(--accent-soft)}.hero-time{display:flex;flex-wrap:wrap;gap:5px 14px;margin-top:12px;color:var(--text-3);font-size:10px;font-variant-numeric:tabular-nums}.runtime-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;padding:11px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}.runtime-strip div{min-width:0}.runtime-strip span,.runtime-strip strong{display:block}.runtime-strip span{color:var(--text-3);font-size:10px}.runtime-strip strong{margin-top:4px;color:var(--text);font-size:12px}.health-healthy{color:var(--up)!important}.health-degraded,.health-stale{color:var(--warn)!important}.health-offline{color:var(--down)!important}.control-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;margin-top:13px}.control-bar :deep(.van-button){min-width:0;height:38px;border-radius:10px;font-size:12px}
+.risk-card{width:calc(100% - 2 * var(--detail-gutter));min-height:68px;margin:0 var(--detail-gutter) 12px;padding:12px 14px;display:flex;align-items:center;gap:10px;border:1px solid color-mix(in srgb,var(--down) 42%,var(--border));border-radius:14px;color:var(--down);background:color-mix(in srgb,var(--down) 9%,var(--bg-elevated));text-align:left}.risk-card>span{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}.risk-card strong{color:var(--text);font-size:13px}.risk-card small{color:var(--text-2);font-size:10px;line-height:1.45}
+.metric-section{padding:14px}.metric-section>header,.section-title-row,.record-head,.review-toolbar,.sheet-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.metric-section>header h2,.section-title-row h3,.review-list-card h3{margin:0;color:var(--text);font-size:14px}.metric-section>header span,.section-title-row>span{color:var(--text-3);font-size:10px}.section-title-row p{margin:4px 0 0;color:var(--text-3);font-size:10px;line-height:1.4}.metric-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}.metric-grid article{min-width:0;min-height:72px;padding:11px;border:1px solid var(--border);border-radius:11px;background:var(--bg)}.metric-grid article:last-child:nth-child(odd){grid-column:1/-1}.metric-grid span,.metric-grid strong,.metric-grid small{display:block}.metric-grid span{color:var(--text-3);font-size:10px}.metric-grid strong{margin-top:6px;color:var(--text);font-size:16px;font-variant-numeric:tabular-nums}.metric-grid small{margin-top:3px;color:var(--text-3);font-size:9px}.metric-grid .primary-metric{border-color:color-mix(in srgb,var(--accent) 35%,var(--border));background:var(--accent-softer)}.profit{color:var(--up)!important}.loss{color:var(--down)!important}.warning-value{color:var(--warn)!important}.partial-failure{width:calc(100% - 2 * var(--detail-gutter));margin:0 var(--detail-gutter) 12px}
+.tab-panel{min-height:320px;padding:14px}.stacked-panels{display:flex;flex-direction:column;gap:12px;border:0;padding:0;background:transparent}.content-card,.review-summary,.review-list-card{padding:14px;border:1px solid var(--border);border-radius:15px;background:var(--bg-elevated)}.section-title-row.compact{align-items:center}.section-title-row.compact>span{white-space:nowrap}.ownership-entry{width:100%;min-height:60px;margin-top:11px;padding:10px;display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:11px;color:var(--text);background:var(--bg);text-align:left}.ownership-entry.danger{border-color:color-mix(in srgb,var(--down) 45%,var(--border))}.ownership-entry>span{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}.ownership-entry strong{font-size:12px}.ownership-entry small{color:var(--text-3);font-size:9px;line-height:1.4}.ownership-entry em,.ownership-card em{padding:3px 6px;border-radius:999px;color:var(--up);background:var(--up-soft);font-size:9px;font-style:normal;white-space:nowrap}.ownership-entry em.danger,.ownership-card em.danger{color:var(--down);background:var(--down-soft)}
+.record-list{display:flex;flex-direction:column;gap:10px;margin-top:12px}.record-card{padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--bg)}.record-head{align-items:center}.record-head>div{min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:7px}.record-head strong{color:var(--text);font-size:13px}.record-head span,.record-head small,.record-head time{color:var(--text-3);font-size:10px}.record-card dl,.ownership-card dl{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin:12px 0 0}.record-card dl div,.ownership-card dl div{min-width:0}.record-card dt,.ownership-card dt{color:var(--text-3);font-size:9px}.record-card dd,.ownership-card dd{margin:4px 0 0;color:var(--text);font-size:11px;font-weight:700;overflow-wrap:anywhere}.record-card>time{display:block;margin-top:9px;color:var(--text-3);font-size:9px;text-align:right}.mono,.record-foot code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px!important}.mini-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:11px}.mini-kpis div{padding:9px;border-radius:9px;background:var(--bg)}.mini-kpis span,.mini-kpis strong{display:block}.mini-kpis span{color:var(--text-3);font-size:9px}.mini-kpis strong{margin-top:4px;color:var(--text);font-size:14px}
+.equity-card{min-height:255px}.equity-chart{margin-top:13px}.chart-value-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}.chart-value-row strong{font-size:14px}.chart-value-row span{font-size:11px;font-weight:800}.equity-chart svg{width:100%;height:150px;overflow:visible}.chart-grid-line{stroke:var(--border);stroke-width:1;vector-effect:non-scaling-stroke}.equity-area{fill:var(--accent-soft);stroke:none}.equity-line{fill:none;stroke:var(--accent);stroke-width:2.2;vector-effect:non-scaling-stroke}.chart-axis{display:flex;justify-content:space-between;color:var(--text-3);font-size:9px}
+.settlement-grid,.review-metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}.settlement-grid article,.review-metrics article{min-width:0;padding:10px;border-radius:10px;background:var(--bg)}.settlement-grid span,.settlement-grid strong,.review-metrics span,.review-metrics strong,.review-metrics small{display:block}.settlement-grid span,.review-metrics span{color:var(--text-3);font-size:9px}.settlement-grid strong,.review-metrics strong{margin-top:5px;color:var(--text);font-size:13px}.review-metrics small{margin-top:3px;color:var(--text-3);font-size:9px}.inline-warning{margin-top:10px;padding:9px 10px;display:flex;align-items:center;gap:7px;border-radius:9px;color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,transparent);font-size:10px}.trade-list{margin-top:16px}.record-foot{display:flex;justify-content:space-between;gap:10px;margin-top:10px;padding-top:9px;border-top:1px solid var(--border);color:var(--text-3);font-size:9px}.record-foot code{max-width:70%;color:var(--text-2);overflow-wrap:anywhere}.decision-meta{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;color:var(--text-3);font-size:9px}.decision-card p{margin:10px 0 0;color:var(--text-2);font-size:11px;line-height:1.55;overflow-wrap:anywhere}
+.review-toolbar{align-items:center}.history-picker{min-width:0;max-width:62%;height:34px;padding:0 10px;display:flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:9px;color:var(--text);background:var(--bg)}.history-picker span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}.review-summary{margin-top:12px;background:var(--bg)}.review-summary p{margin:12px 0 0;color:var(--text-2);font-size:12px;line-height:1.65}.review-summary ul{margin:10px 0 0;padding-left:18px;color:var(--warn);font-size:10px;line-height:1.55}.review-list-card{margin-top:10px;background:var(--bg)}.review-items{display:flex;flex-direction:column;gap:10px;margin-top:11px}.review-items>div{display:flex;align-items:flex-start;gap:9px;padding-top:10px;border-top:1px solid var(--border)}.review-items em{padding:3px 6px;border-radius:6px;color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,transparent);font-size:9px;font-style:normal}.review-items span{min-width:0;flex:1}.review-items strong,.review-items small{display:block}.review-items strong{color:var(--text);font-size:11px}.review-items small{margin-top:4px;color:var(--text-3);font-size:10px;line-height:1.5}.review-empty{min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}.review-empty>.van-icon{color:var(--accent);font-size:34px}.review-empty h3{margin:13px 0 0;font-size:16px}.review-empty p{max-width:270px;margin:7px 0 16px;color:var(--text-3);font-size:11px;line-height:1.5}
+.section-loading{padding:60px 0;color:var(--text-3)}.log-filter-tabs{display:flex;gap:7px;margin-bottom:10px;padding-bottom:2px;overflow-x:auto;scrollbar-width:none}.log-filter-tabs::-webkit-scrollbar{display:none}.log-filter-tab{min-height:32px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;border:1px solid var(--border);border-radius:999px;color:var(--text-2);background:var(--bg);font-size:10px}.log-filter-tab em{min-width:18px;height:18px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;color:var(--text-3);background:var(--bg-elevated);font-size:9px;font-style:normal}.log-filter-tab.active{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}.log-filter-tab.level-warning.active{border-color:var(--warn);color:var(--warn);background:color-mix(in srgb,var(--warn) 11%,transparent)}.log-filter-tab.level-error.active{border-color:var(--down);color:var(--down);background:var(--down-soft)}.log-card{padding:12px 0;border-bottom:1px solid var(--border)}.log-card.level-warning,.log-card.level-error{margin:0 -8px;padding:12px 8px;border-radius:9px}.log-card.level-warning{background:color-mix(in srgb,var(--warn) 7%,transparent)}.log-card.level-error{background:color-mix(in srgb,var(--down) 7%,transparent)}.log-meta{display:flex;align-items:center;justify-content:space-between;gap:8px}.log-card time{color:var(--text-3);font-size:9px}.log-level{padding:3px 7px;border-radius:999px;color:var(--text-2);background:var(--bg);font-size:9px;font-weight:700}.log-level.level-trade{color:var(--up);background:var(--up-soft)}.log-level.level-signal{color:var(--accent);background:var(--accent-soft)}.log-level.level-warning{color:var(--warn);background:color-mix(in srgb,var(--warn) 11%,transparent)}.log-level.level-error{color:var(--down);background:var(--down-soft)}.log-card p{margin:6px 0 0;color:var(--text);font-size:11px;line-height:1.55;overflow-wrap:anywhere}.log-card details{margin-top:8px;color:var(--text-3);font-size:9px}.log-card code{display:block;margin-top:6px;padding:8px;border-radius:8px;background:var(--bg);white-space:pre-wrap;overflow-wrap:anywhere}
+.ownership-sheet{max-height:min(84vh,760px);padding:0 16px calc(18px + env(safe-area-inset-bottom));overflow-y:auto;color:var(--text);background:var(--bg-elevated)}.sheet-head{position:sticky;top:0;z-index:2;margin:0 -16px;padding:18px 16px 12px;background:var(--bg-elevated)}.sheet-head>div{display:flex;flex-direction:column;gap:3px}.sheet-head strong{font-size:17px}.sheet-head small{color:var(--text-3);font-size:10px}.sheet-head button{width:34px;height:34px;border:0;border-radius:50%;color:var(--text-2);background:var(--bg)}.sheet-warning{margin-bottom:12px;padding:10px;display:flex;gap:8px;border-radius:10px;color:var(--down);background:var(--down-soft);font-size:10px;line-height:1.5}.ownership-card{padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--bg)}.ownership-actions{margin-top:12px;display:flex;justify-content:flex-end;flex-wrap:wrap;gap:7px}
+@media (min-width:720px){.hero-card,.metric-section,.tab-panel,.risk-card{width:calc(100% - 2 * var(--detail-gutter));max-width:980px;margin-left:auto;margin-right:auto}.metric-grid{grid-template-columns:repeat(5,1fr)}.metric-grid article:last-child:nth-child(odd){grid-column:auto}.settlement-grid,.review-metrics{grid-template-columns:repeat(4,1fr)}.record-card dl,.ownership-card dl{grid-template-columns:repeat(4,1fr)}}
 </style>

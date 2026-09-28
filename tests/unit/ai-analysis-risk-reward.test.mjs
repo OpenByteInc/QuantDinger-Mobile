@@ -36,8 +36,9 @@ test('mobile analysis and AI hub negotiate and render only professional_report_v
   const hub = read('src/views/ai-hub/index.vue')
   const component = read('src/components/ProfessionalAnalysisReport.vue')
 
-  assert.match(analysis, /response_contract: 'professional_report_v1'/)
   assert.match(analysis, /<ProfessionalAnalysisReport/)
+  assert.match(analysis, /:show-regenerate="false"/)
+  assert.doesNotMatch(analysis, /runAnalysis|aiAnalysisApi|startProgress|SymbolPicker|ai_analysis\.analyze/)
   assert.match(hub, /response_contract: 'professional_report_v1'/)
   assert.match(hub, /professionalReportEnvelope/)
   assert.match(component, /evidence_snapshot/)
@@ -112,5 +113,6 @@ test('professional report localizes the common evidence and quality audit codes'
   assert.match(component, /\.evidence-collapse :deep\(\.van-cell\)[\s\S]*?color: var\(--text\)[\s\S]*?background: var\(--bg-elevated\)/)
   assert.match(component, /\.van-collapse-item__content[\s\S]*?background: var\(--bg-elevated\)/)
   assert.match(hub, /reportSummary\(report\)[\s\S]*?replace\(\/\\s\*\\\[/)
-  assert.match(hub, /decision_profile\?\.decision[\s\S]*?=== 'HOLD'\) return '--'/)
+  assert.match(hub, /const displayPlan = plan\.candidate_setup \|\| plan/)
+  assert.match(hub, /reportPlanIsCandidate\(report\)/)
 })

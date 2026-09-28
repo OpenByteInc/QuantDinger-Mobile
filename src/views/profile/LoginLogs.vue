@@ -1,6 +1,6 @@
 <template>
-  <div class="login-logs-page">
-    <van-nav-bar :title="$t('profile.login_logs')" left-arrow @click-left="$router.back()">
+  <div class="login-logs-page account-page">
+    <van-nav-bar fixed placeholder safe-area-inset-top :title="$t('profile.login_logs')" left-arrow @click-left="$router.back()">
       <template #right>
         <van-icon name="replay" @click="refresh" />
       </template>
@@ -17,7 +17,11 @@
           <div class="log-head">
             <div class="method">
               <span class="method-icon"><van-icon :name="methodIcon(item.action)" /></span>
-              <span>{{ actionLabel(item) }}</span>
+              <span class="method-label">{{ actionLabel(item) }}</span>
+              <div v-if="item.is_new_device || item.is_new_region" class="flags">
+                <span v-if="item.is_new_device"><van-icon name="phone-o" /> {{ $t('profile.login_log_new_device') }}</span>
+                <span v-if="item.is_new_region"><van-icon name="location-o" /> {{ $t('profile.login_log_new_region') }}</span>
+              </div>
             </div>
             <span class="time">{{ formatTime(item.created_at) }}</span>
           </div>
@@ -31,15 +35,10 @@
               <span class="lab">{{ $t('profile.login_log_ip') }}</span>
               <span class="val mono">{{ item.ip_address || '-' }}</span>
             </div>
-            <div class="meta-item full">
+            <div v-if="locationText(item)" class="meta-item full">
               <span class="lab">{{ $t('profile.login_log_location') }}</span>
               <span class="val">{{ locationText(item) }}</span>
             </div>
-          </div>
-
-          <div v-if="item.is_new_device || item.is_new_region" class="flags">
-            <span v-if="item.is_new_device"><van-icon name="phone-o" /> {{ $t('profile.login_log_new_device') }}</span>
-            <span v-if="item.is_new_region"><van-icon name="location-o" /> {{ $t('profile.login_log_new_region') }}</span>
           </div>
         </div>
       </div>
@@ -126,7 +125,7 @@ export default {
       return label === key ? (item.method || action) : label
     },
     locationText(item) {
-      return [item.location, item.isp].filter(Boolean).join(' · ') || '-'
+      return [item.location, item.isp].map(value => String(value || '').trim()).filter(value => value && !['-', '—', 'unknown', 'null', 'n/a'].includes(value.toLowerCase())).join(' · ')
     },
     formatTime(value) {
       if (!value) return '-'
@@ -268,4 +267,8 @@ export default {
   border-color: var(--border);
   color: var(--text);
 }
+</style>
+
+<style scoped>
+.log-list{gap:0}.log-card{padding:12px 14px;border-radius:0;border-bottom:0}.log-card:first-child{border-radius:12px 12px 0 0}.log-card:last-child{border-bottom:1px solid var(--border);border-radius:0 0 12px 12px}.log-card:only-child{border-radius:12px}.meta-grid{margin-top:8px;gap:5px 12px}.meta-item{flex-direction:row;align-items:baseline;gap:6px}.lab{white-space:nowrap;letter-spacing:0}.method{font-weight:600;font-size:13px}.method-icon{width:24px;height:24px;border-radius:6px;background:var(--surface-raised);color:var(--text-2)}.flags{margin-top:7px}.flags span{padding:2px 6px;font-size:10px}.hint-card{background:var(--surface-raised);color:var(--text-2);padding:10px 12px;font-size:11px}.time{font-size:10px}
 </style>

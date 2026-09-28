@@ -1,6 +1,6 @@
 <template>
   <div class="credential-form-page">
-    <van-nav-bar
+    <van-nav-bar fixed placeholder safe-area-inset-top
       :title="$t('credentials.add_title')"
       left-arrow
       :border="false"
@@ -15,25 +15,25 @@
           <p>{{ $t('credentials.section_basic_desc') }}</p>
         </div>
       </div>
-      <van-field
+      <van-field label-align="top"
         v-model="form.name"
         :label="$t('credentials.name')"
-        :placeholder="$t('credentials.name_placeholder')"
+        :placeholder="$t(isAlpaca ? 'account_ui.alpacaName' : 'credentials.name_placeholder')"
       />
       <van-cell
         :title="$t('credentials.exchange')"
         :value="selectedExchangeLabel || $t('credentials.exchange_placeholder')"
         is-link
         @click="showExchangePicker = true"
-      />
+      ><template #value><span class="selected-provider"><ExchangeLogo v-if="form.exchange_id" :exchange="form.exchange_id" :size="22"/>{{ selectedExchangeLabel || $t('credentials.exchange_placeholder') }}</span></template></van-cell>
       <van-cell
-        :title="$t('credentials.environment')"
+        v-if="!isAlpaca" :title="$t('credentials.environment')"
         :value="environmentLabel"
         is-link
         @click="showEnvironmentPicker = true"
       />
-      <div class="field-hint">{{ environmentHint }}</div>
-      <van-cell
+      <div class="field-hint">{{ isAlpaca ? $t('account_ui.alpacaEnvironment') : environmentHint }}</div>
+      <van-cell v-if="!isAlpaca"
         :title="$t('credentials.market_scope')"
         :value="marketScopeLabel"
         is-link
@@ -41,7 +41,7 @@
       />
     </div>
 
-    <div class="egress-card">
+    <div v-if="!isAlpaca" class="egress-card">
       <div class="section-heading">
         <span class="section-icon amber"><van-icon name="shield-o" /></span>
         <div>
@@ -76,30 +76,30 @@
         <span class="section-icon violet"><van-icon name="exchange" /></span>
         <div>
           <div class="section-title">{{ $t('credentials.section_keys') }}</div>
-          <p>{{ $t('credentials.section_keys_desc') }}</p>
+          <p>{{ $t(isAlpaca ? 'account_ui.alpacaKeysHint' : 'credentials.section_keys_desc') }}</p>
         </div>
       </div>
       <div v-if="selectedExchangeDocsUrl" class="api-doc-card">
         <div class="api-doc-copy">
           <span class="api-doc-title">{{ $t('credentials.api_doc_title') }}</span>
-          <p>{{ $t('credentials.api_doc_desc', { exchange: selectedExchangeLabel }) }}</p>
+          <p>{{ isAlpaca ? $t('account_ui.alpacaKeysHint') : $t('credentials.api_doc_desc', { exchange: selectedExchangeLabel }) }}</p>
         </div>
         <button type="button" class="api-doc-action" @click="openDocs">
           {{ $t('credentials.api_doc_action') }}
         </button>
       </div>
-      <van-field
+      <van-field label-align="top"
         v-model="form.api_key"
         :label="$t('credentials.api_key')"
         :placeholder="$t('credentials.api_key_placeholder')"
       />
-      <van-field
+      <van-field label-align="top"
         v-model="form.secret_key"
         :label="$t('credentials.secret_key')"
         type="password"
         :placeholder="$t('credentials.secret_key_placeholder')"
       />
-      <van-field
+      <van-field label-align="top"
         v-if="needsPassphrase"
         v-model="form.passphrase"
         :label="$t('credentials.passphrase')"
@@ -135,11 +135,7 @@
     </div>
 
     <van-popup v-model:show="showExchangePicker" position="bottom" round>
-      <van-picker
-        :columns="exchangeColumns"
-        @cancel="showExchangePicker = false"
-        @confirm="onSelectExchange"
-      />
+      <div class="provider-picker"><h3>{{ $t('credentials.exchange') }}</h3><button v-for="option in exchangeColumns" :key="option.value" @click="onSelectExchange(option)"><ExchangeLogo :exchange="option.value" :size="32"/><span>{{ option.text }}</span><small>{{ $t(option.value === 'alpaca' ? 'account_ui.usStocks' : 'account_ui.crypto') }}</small><van-icon v-if="form.exchange_id === option.value" name="success"/></button></div>
     </van-popup>
     <van-popup v-model:show="showEnvironmentPicker" position="bottom" round>
       <van-picker
@@ -159,6 +155,7 @@
 </template>
 
 <script>
+import ExchangeLogo from '@/components/ExchangeLogo.vue'
 import { showToast } from 'vant'
 import { credentialsApi } from '@/api'
 import { useCredentialsStore } from '@/stores'
@@ -169,6 +166,7 @@ const PASSPHRASE_EXCHANGES = ['okx', 'bitget']
 
 export default {
   name: 'CredentialCreate',
+  components: { ExchangeLogo },
 
   data() {
     return {
@@ -180,7 +178,7 @@ export default {
       showMarketScopePicker: false,
       form: {
         name: '',
-        exchange_id: '',
+        exchange_id: this.$route.query.exchange === 'alpaca' ? 'alpaca' : '',
         api_key: '',
         secret_key: '',
         passphrase: '',
@@ -191,6 +189,7 @@ export default {
   },
 
   computed: {
+    isAlpaca() { return this.form.exchange_id === 'alpaca' },
     credentialsStore() {
       return useCredentialsStore()
     },
@@ -348,6 +347,7 @@ export default {
     },
 
     credentialPayload() {
+      if (this.isAlpaca) return { name: this.form.name.trim(), exchange_id: 'alpaca', api_key: this.form.api_key.trim(), secret_key: this.form.secret_key.trim() }
       return {
         name: this.form.name.trim(),
         exchange_id: this.form.exchange_id,
@@ -467,9 +467,7 @@ export default {
 
 .egress-card {
   border-color: color-mix(in srgb, var(--c-amber) 30%, var(--border));
-  background:
-    radial-gradient(240px 140px at 100% 0%, color-mix(in srgb, var(--c-amber) 12%, transparent), transparent 65%),
-    var(--bg-elevated);
+  background: var(--bg-elevated);
 }
 
 .ip-row {
@@ -675,4 +673,11 @@ export default {
   color: var(--text);
 }
 
+.exchange-option{display:flex;align-items:center;justify-content:center;gap:10px}
 </style>
+
+<style scoped>
+.form-card,.egress-card{border-radius:12px;box-shadow:none;padding:16px}.section-icon.blue,.section-icon.violet,.section-icon.amber{background:var(--surface-raised);color:var(--text-2);border:1px solid var(--border)}.section-heading p{font-weight:400;font-size:12px}.section-title{font-weight:650}.egress-card{border-color:var(--border)}.credential-form-page :deep(.van-field__label){width:100%;white-space:nowrap;margin:0 0 7px;font-size:13px}.credential-form-page :deep(.van-field__body){padding:0 12px;min-height:44px;background:var(--surface-deep);border:1px solid var(--border);border-radius:8px}.credential-form-page :deep(.van-field:after){display:none}.form-actions{border:0;padding:0;box-shadow:none;background:transparent;gap:10px;grid-template-columns:1fr 1.35fr}.form-actions :deep(.van-button){border-radius:9px;font-weight:600;box-shadow:none}.api-doc-card{padding:10px;border-color:var(--border);background:var(--surface-raised);border-radius:8px}.api-doc-action{border-radius:7px;background:none;color:var(--accent);padding:8px 4px}.api-doc-copy p{font-size:11px}.copy-ip-button{flex-direction:row;width:72px;flex-basis:72px;background:var(--surface-raised);border-color:var(--border);color:var(--text-2)}.ip-box{color:var(--text);font-weight:500}.provider-picker{padding:20px 18px calc(20px + var(--safe-area-bottom))}.provider-picker h3{font-size:17px;margin:0 0 12px}.provider-picker button{width:100%;display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 0;border:0;border-bottom:1px solid var(--border);background:none;color:var(--text);font-size:15px;text-align:left}.provider-picker button>span:not(.exchange-logo){flex:1}.provider-picker small{color:var(--text-3);font-size:11px}
+</style>
+
+<style scoped>.selected-provider{display:inline-flex;align-items:center;justify-content:flex-end;gap:7px}</style>

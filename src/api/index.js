@@ -4,6 +4,7 @@ import { resolveServerUrl } from '@/config'
 import router from '@/router'
 import { useUserStore } from '@/stores'
 import { getLocale, t } from '@/locales'
+import { apiErrorMessage } from '@/utils/apiError'
 
 const http = axios.create({
   timeout: 30000,
@@ -205,12 +206,23 @@ const unwrapItems = (data, key = 'items') => {
   return []
 }
 
-const normalizeStrategy = (raw = {}) => {
-  const tradingConfig = raw?.trading_config && typeof raw.trading_config === 'object' ? raw.trading_config : {}
-  const exchangeConfig = raw?.exchange_config && typeof raw.exchange_config === 'object' ? raw.exchange_config : {}
-  const notificationConfig = raw?.notification_config && typeof raw.notification_config === 'object' ? raw.notification_config : {}
+const asObject = (value) => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value
+  if (typeof value !== 'string' || !value.trim()) return {}
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch (_) {
+    return {}
+  }
+}
 
-  const name = raw.strategy_name || (raw.id ? t('trading.strategy_fallback', { id: raw.id }) : '')
+const normalizeStrategy = (raw = {}) => {
+  const tradingConfig = asObject(raw?.trading_config)
+  const exchangeConfig = asObject(raw?.exchange_config)
+  const notificationConfig = asObject(raw?.notification_config)
+
+  const name = raw.strategy_name || raw.name || (raw.id ? t('trading.strategy_fallback', { id: raw.id }) : '')
 
   const performance = raw.performance && typeof raw.performance === 'object'
     ? raw.performance
@@ -256,8 +268,8 @@ const normalizeTrade = (raw = {}) => ({
 const localizedApiMessage = (message, fallbackKey = 'api_errors.request_failed') => {
   const value = String(message || '').trim()
   if (value) {
-    if (/^no data found[.!]?$/i.test(value)) return t('api_errors.no_data')
-    if (value.includes('.')) {
+    if (/^(no data found[.!]?|No K-line data)$/i.test(value)) return t('api_errors.no_data')
+    if (/^[a-zA-Z_]\w*(?:\.\w+)+$/.test(value)) {
       const translated = t(value)
       if (translated && translated !== value) return translated
     }
@@ -341,7 +353,7 @@ http.interceptors.response.use(
     if (isSessionExpiredBusinessResponse(res) && !isAuthCredentialRequest(reqUrl)) {
       redirectToLoginIfNeeded(reqUrl)
     }
-    const message = localizedApiMessage(res?.msg || res?.message)
+    const message = localizedApiMessage(apiErrorMessage(res))
     showToast({ message, type: 'fail' })
     const error = new Error(message)
     error.backendMessage = res?.msg || res?.message || ''
@@ -372,7 +384,7 @@ http.interceptors.response.use(
           )
           break
         default:
-          message = localizedApiMessage(error.response.data?.message || error.response.data?.msg)
+          message = localizedApiMessage(apiErrorMessage(error.response.data))
       }
     } else if (error.message?.includes('timeout')) {
       message = t('api_errors.timeout')
@@ -401,6 +413,7 @@ export const authApi = {
 }
 
 export const credentialsApi = {
+  snapshot: (id) => http.get('/api/account/snapshot', {params:{credential_id:id},timeout:60000}),
   list: async () => {
     const res = await http.get('/api/credentials/list')
     return {
@@ -433,7 +446,7 @@ export const credentialsApi = {
 }
 
 export const quickTradeApi = {
-  getBalance: async (credentialId, marketType = 'swap') => {
+  getBalance: async (credentialId, marketType = 'swap', product = null) => {
     const res = await http.get('/api/quick-trade/balance', {
       params: { credential_id: credentialId, market_type: marketType }
     })
@@ -442,7 +455,7 @@ export const quickTradeApi = {
       data: res.data || { available: 0, total: 0, currency: 'USDT' }
     }
   },
-  getPosition: async ({ credentialId, symbol, marketType = 'swap' }) => {
+  getPosition: async ({ credentialId, symbol, marketType = 'swap', product = null }) => {
     const res = await http.get('/api/quick-trade/position', {
       params: {
         credential_id: credentialId,
@@ -457,6 +470,10 @@ export const quickTradeApi = {
   },
   placeOrder: (payload) => http.post('/api/quick-trade/place-order', payload),
   closePosition: (payload) => http.post('/api/quick-trade/close-position', payload),
+  cancelOrder: (tradeId) => http.post('/api/quick-trade/cancel-order', { trade_id: tradeId }),
+  getAiDecisions: (params) => http.get('/api/quick-trade/ai-decisions', { params }),
+  getEventRadar: (params) => http.get('/api/quick-trade/event-radar', { params }),
+  analyzeEventRadar: (payload) => http.post('/api/quick-trade/event-radar/analyze', payload, { timeout: 120000 }),
   getHistory: async (params = {}) => {
     const res = await http.get('/api/quick-trade/history', { params })
     return {
@@ -511,6 +528,20 @@ export const strategyApi = {
       data: unwrapItems(res.data, 'trades').map(normalizeTrade)
     }
   },
+  getTradeLedger: async (id, limit = 100) => {
+    const res = await http.get('/api/strategies/trades', {
+      params: { id, limit }
+    })
+    const payload = res.data && typeof res.data === 'object' ? res.data : {}
+    return {
+      ...res,
+      data: {
+        items: unwrapItems(payload, 'trades').map(normalizeTrade),
+        cost_summary: payload.cost_summary && typeof payload.cost_summary === 'object' ? payload.cost_summary : {},
+        ledger_mode: payload.ledger_mode || ''
+      }
+    }
+  },
   getPositions: async (id) => {
     const res = await http.get('/api/strategies/positions', {
       params: { id }
@@ -557,6 +588,28 @@ export const strategyApi = {
       data: res.data || {}
     }
   },
+  getAiDecisions: async (id, limit = 100) => {
+    const res = await http.get('/api/strategies/ai-decisions', {
+      params: { id, limit }
+    })
+    return {
+      ...res,
+      data: ensureArray(res.data)
+    }
+  },
+  getReviewHistory: async (id, params = {}) => {
+    const res = await http.get('/api/strategies/review-report/history', {
+      params: { id, ...params }
+    })
+    return {
+      ...res,
+      data: params.report_id ? (res.data || null) : ensureArray(res.data)
+    }
+  },
+  generateReview: (id, payload = {}) => http.post('/api/strategies/review-report', payload, {
+    params: { id },
+    timeout: 180000
+  }),
   getLogs: async (id, limit = 100) => {
     const res = await http.get('/api/strategies/logs', {
       params: { id, limit }
@@ -660,7 +713,16 @@ export const marketApi = {
         items: ensureArray(res.data?.items),
         total: Number(res.data?.total || 0),
         page: Number(res.data?.page || 1),
-        page_size: Number(res.data?.page_size || 12)
+        page_size: Number(res.data?.page_size || 12),
+        total_pages: Number(res.data?.total_pages || 0),
+        asset_type_counts: {
+          indicator: res.data?.asset_type_counts?.indicator === undefined
+            ? undefined
+            : Number(res.data.asset_type_counts.indicator || 0),
+          script_template: res.data?.asset_type_counts?.script_template === undefined
+            ? undefined
+            : Number(res.data.asset_type_counts.script_template || 0)
+        }
       }
     }
   },
@@ -715,7 +777,7 @@ export const watchlistApi = {
     const res = await http.get('/api/market/watchlist/get')
     return {
       ...res,
-      data: ensureArray(res.data).map((item) => ({
+      data: ensureArray(res.data?.watchlist || res.data).map((item) => ({
         ...item,
         name: item.name || item.symbol
       }))
@@ -1053,3 +1115,16 @@ export const billingApi = {
 }
 
 export default http
+
+async function alpacaRequest(method, path, data = {}) {
+  const response = await http.request({method, url: `/api/alpaca/${path}`, raw: true, ...(method === 'get' || method === 'delete' ? {params: data} : {data})})
+  if (response?.success !== true) throw new Error(localizedApiMessage(response?.error || response?.message || 'api_errors.request_failed'))
+  return response
+}
+export const alpacaApi = {
+  account: params => alpacaRequest('get', 'account', {...params, include_counts: false}),
+  positions: params => alpacaRequest('get', 'positions', params),
+  orders: params => alpacaRequest('get', 'orders', params),
+  placeOrder: payload => alpacaRequest('post', 'order', payload),
+  cancelOrder: (id, params) => alpacaRequest('delete', `order/${encodeURIComponent(id)}`, params)
+}

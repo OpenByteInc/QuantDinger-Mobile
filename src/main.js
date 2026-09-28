@@ -6,6 +6,8 @@ import i18n from './locales'
 
 import 'vant/lib/index.css'
 import './styles/index.css'
+import './styles/v2.css'
+import './styles/account-pages.css'
 
 import { Capacitor } from '@capacitor/core'
 import { App as CapApp } from '@capacitor/app'
@@ -22,11 +24,24 @@ app.use(i18n)
 app.use(router)
 
 const settingsStore = useSettingsStore()
-const exitRoutePaths = new Set(['/ai', '/trading', '/market', '/profile', '/login'])
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  const previewParams = new URLSearchParams(window.location.search)
+  if (previewParams.get('preview') === '1') {
+    const previewTheme = previewParams.get('theme')
+    const previewLocale = previewParams.get('lang')
+    if (['light', 'dark'].includes(previewTheme)) settingsStore.setTheme(previewTheme)
+    if (previewLocale) settingsStore.setLocale(previewLocale)
+  }
+}
+const exitRoutePaths = new Set(['/market', '/trading', '/ai', '/indicators/chart', '/profile', '/login'])
 let lastBackPressedAt = 0
 
 const applyThemeAttr = (theme) => {
   document.documentElement.setAttribute('data-theme', theme || 'dark')
+}
+
+const applyAccentAttr = (accent) => {
+  document.documentElement.setAttribute('data-accent', accent || 'gold')
 }
 
 const getNativeThemeChrome = (theme) => (
@@ -48,9 +63,11 @@ const syncStatusBar = async (theme) => {
 }
 
 applyThemeAttr(settingsStore.theme)
+applyAccentAttr(settingsStore.accent)
 
 settingsStore.$subscribe((_mutation, state) => {
   applyThemeAttr(state.theme)
+  applyAccentAttr(state.accent)
   syncStatusBar(state.theme)
 })
 

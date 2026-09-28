@@ -118,7 +118,7 @@ VITE_DEV_API_TARGET=http://127.0.0.1:5000 npm run dev
 | `npm run dev` 本地开发 | 如果后端不在 `http://localhost:5000`，设置 `VITE_DEV_API_TARGET`。 |
 | 自己部署静态 H5 | 发布 `dist/`，并在 Web 服务器上把 `/api/` 反代到 QuantDinger 后端。 |
 | Android / iOS 原生壳 | 填手机能访问到的后端地址，例如公网 `https://api.example.com`，或测试时的局域网 IP。 |
-| 想给原生安装包预设默认地址 | 构建时设置 `VITE_DEFAULT_SERVER_URL=https://api.example.com`；未设置时官方安装包默认使用 `https://api.quantdinger.com`。 |
+| 想给原生安装包预设默认地址 | 构建时设置 `VITE_DEFAULT_SERVER_URL=https://api.example.com`；未设置时接口请求保持同源。 |
 
 APK / IPA 里的默认后端地址是在打包时写进去的。如果你要分发自己的安装包，请在构建命令或自己的 `.env.local` 中配置服务器地址；不要把私有地址提交到仓库的生产环境文件。
 

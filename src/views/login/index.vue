@@ -1343,10 +1343,10 @@ export default {
   max-width: 420px;
   margin: 0 auto;
   padding: 26px 18px 20px;
-  border-radius: 30px;
+  border-radius: 16px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-pop);
+  box-shadow: none;
 }
 
 .login-toolbar {
@@ -1402,7 +1402,7 @@ export default {
   height: 76px;
   border-radius: 50%;
   object-fit: cover;
-  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.18));
+  filter: none;
 }
 
 .subtitle {
@@ -1469,7 +1469,7 @@ export default {
 .method-pill.active {
   background: var(--accent);
   color: var(--text-on-accent);
-  box-shadow: 0 8px 18px var(--accent-soft);
+  box-shadow: none;
 }
 
 .method-pill:active {
