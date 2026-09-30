@@ -52,7 +52,7 @@ export default {
     current() { return this.settingsStore.locale },
     themeOptions() {
       return [
-        { value: 'light', label: this.$t('appearance.light'), icon: 'sun-o' },
+        { value: 'light', label: this.$t('appearance.light'), icon: 'bulb-o' },
         { value: 'dark', label: this.$t('appearance.dark'), icon: 'closed-eye' }
       ]
     },

@@ -62,7 +62,8 @@
       <div class="section-head">
         <span class="section-title">{{ $t('profile.credits_log') }}</span>
       </div>
-      <div v-if="log.length" class="log-list">
+      <div v-if="logLoading && !log.length" class="log-loading"><van-loading size="22" /></div>
+      <div v-else-if="log.length" class="log-list" :class="{ 'is-loading': logLoading }">
         <div v-for="item in log" :key="item.id" class="log-row">
           <div class="col">
             <span class="name">{{ actionLabel(item.action) }}</span>
@@ -81,6 +82,17 @@
         </div>
       </div>
       <van-empty v-else :description="$t('profile.credits_log_empty')" />
+      <van-pagination
+        v-if="logTotal > logPageSize"
+        v-model="logPage"
+        class="log-pagination"
+        :total-items="logTotal"
+        :items-per-page="logPageSize"
+        :show-page-size="3"
+        :disabled="logLoading"
+        force-ellipses
+        @change="loadCreditsLog"
+      />
     </div>
 
     <van-popup
@@ -301,6 +313,11 @@ export default {
       plans: {},
       paymentMethods: [],
       log: [],
+      logPage: 1,
+      logPageSize: 10,
+      logTotal: 0,
+      logTotalPages: 0,
+      logLoading: false,
       loading: false,
       plansLoadError: false,
 
@@ -496,12 +513,13 @@ export default {
     },
     async load() {
       this.loading = true
+      this.logLoading = true
       this.plansLoadError = false
       try {
         const [profileRes, plansRes, logRes] = await Promise.allSettled([
           userApi.getProfile(),
           billingApi.getPlans(),
-          userApi.getMyCreditsLog({ page: 1, page_size: 30 })
+          userApi.getMyCreditsLog({ page: 1, page_size: this.logPageSize })
         ])
         if (profileRes.status === 'fulfilled' && profileRes.value?.data?.billing) {
           this.billing = { ...this.billing, ...profileRes.value.data.billing }
@@ -515,13 +533,37 @@ export default {
           this.plansLoadError = true
         }
         if (logRes.status === 'fulfilled' && logRes.value?.data) {
-          this.log = logRes.value.data.items || logRes.value.data.list || []
+          this.applyCreditsLog(logRes.value.data)
+        } else {
+          this.log = []
+          this.logPage = 1
+          this.logTotal = 0
+          this.logTotalPages = 0
         }
       } catch (err) {
         this.plansLoadError = true
         console.error('Load credits data failed:', err)
       } finally {
         this.loading = false
+        this.logLoading = false
+      }
+    },
+    applyCreditsLog(data = {}) {
+      this.log = data.items || data.list || []
+      this.logPage = Number(data.page || 1)
+      this.logTotal = Number(data.total || 0)
+      this.logTotalPages = Number(data.total_pages || 0)
+    },
+    async loadCreditsLog(page = 1) {
+      if (this.logLoading) return
+      this.logLoading = true
+      try {
+        const res = await userApi.getMyCreditsLog({ page, page_size: this.logPageSize })
+        this.applyCreditsLog(res.data || {})
+      } catch (err) {
+        console.error('Load credits log failed:', err)
+      } finally {
+        this.logLoading = false
       }
     },
     /**
@@ -922,6 +964,11 @@ export default {
   border: 1px solid var(--border);
   padding: 4px 14px;
 }
+.log-list.is-loading { opacity: .55; pointer-events: none; }
+.log-loading { min-height: 132px; display: grid; place-items: center; }
+.log-pagination { margin-top: 12px; }
+.log-pagination :deep(.van-pagination__item) { min-width: 36px; height: 36px; color: var(--text-2); background: var(--bg-elevated); border-color: var(--border); }
+.log-pagination :deep(.van-pagination__item--active) { color: var(--text-on-accent); background: var(--accent); }
 .log-row {
   display: flex;
   align-items: center;

@@ -72,6 +72,8 @@ const rows = {
   more: ['原始数据','原始資料','Raw data','元データ','원본 데이터'],
   moreReferrals: ['加载更多','載入更多','Load more','さらに読み込む','더 보기'],
   paid: ['{count} 积分','{count} 積分','{count} credits','{count} ポイント','{count} 포인트'],
+  showEmail: ['显示邮箱','顯示信箱','Show email','メールを表示','이메일 표시'],
+  hideEmail: ['隐藏邮箱','隱藏信箱','Hide email','メールを非表示','이메일 숨기기'],
   long: ['多仓','多倉','Long','買い','롱'],
   short: ['空仓','空倉','Short','売り','숏']
 }

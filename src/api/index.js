@@ -268,6 +268,14 @@ const normalizeTrade = (raw = {}) => ({
 const localizedApiMessage = (message, fallbackKey = 'api_errors.request_failed') => {
   const value = String(message || '').trim()
   if (value) {
+    const referralRewardErrors = {
+      invalid_withdrawal_address: 'referral_rewards.invalidAddress',
+      withdrawal_below_minimum: 'referral_rewards.invalidAmount',
+      insufficient_reward_balance: 'referral_rewards.invalidAmount',
+      unsupported_withdrawal_channel: 'referral_rewards.noCurrency',
+      referral_program_disabled: 'referral_rewards.loadFailed'
+    }
+    if (referralRewardErrors[value]) return t(referralRewardErrors[value])
     if (/^(no data found[.!]?|No K-line data)$/i.test(value)) return t('api_errors.no_data')
     if (/^[a-zA-Z_]\w*(?:\.\w+)+$/.test(value)) {
       const translated = t(value)
@@ -1067,6 +1075,23 @@ export const globalMarketApi = {
 }
 
 export const billingApi = {
+  getReferralRewards: async (params = {}) => {
+    const res = await http.get('/api/billing/referral-rewards', { params })
+    return {
+      ...res,
+      data: {
+        enabled: Boolean(res.data?.enabled),
+        account: res.data?.account || {},
+        ledger: ensureArray(res.data?.ledger),
+        ledger_total: Number(res.data?.ledger_total || 0),
+        withdrawals: ensureArray(res.data?.withdrawals),
+        channels: ensureArray(res.data?.channels),
+        minimum_withdrawal: Number(res.data?.minimum_withdrawal || 0),
+        rates: ensureArray(res.data?.rates).map(Number).filter(Number.isFinite)
+      }
+    }
+  },
+  createReferralWithdrawal: (payload) => http.post('/api/billing/referral-rewards/withdrawals', payload),
   /**
    * v3.0.6+ — list enabled USDT chains so the chain picker can render
    * before the order is created. Chains without a configured receiving
