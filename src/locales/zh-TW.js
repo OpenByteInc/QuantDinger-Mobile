@@ -1046,6 +1046,7 @@ export default {
     pay_load_failed: '方案載入失敗，請檢查網路後重試',
     pay_no_plans: '暫無可購買方案',
     pay_choose_plan: '選擇此方案',
+    plan_strategy_limit: '最多可運行 {count} 個策略',
     plan_monthly_name: '月度會員',
     plan_monthly_desc: '30 天 VIP 權益',
     plan_yearly_name: '年度會員',

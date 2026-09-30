@@ -1044,6 +1044,7 @@ export default {
     pay_load_failed: '요금제를 불러오지 못했습니다. 네트워크를 확인한 후 다시 시도해 주세요.',
     pay_no_plans: '현재 구매 가능한 요금제가 없습니다.',
     pay_choose_plan: '이 요금제 선택',
+    plan_strategy_limit: '최대 {count}개 전략 실행',
     plan_monthly_name: '월간 멤버십',
     plan_monthly_desc: '30일 VIP 이용권',
     plan_yearly_name: '연간 멤버십',

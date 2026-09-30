@@ -48,7 +48,10 @@
           </div>
           <div v-if="plan.credits" class="plan-credits">+{{ plan.credits }} {{ $t('profile.credits_unit') }}</div>
           <div v-if="plan.vip_days" class="plan-vip">VIP {{ plan.vip_days }} {{ vipDaysUnit }}</div>
-          <div v-if="plan.description" class="plan-desc">{{ plan.description }}</div>
+          <div v-if="plan.description || plan.strategy_limit" class="plan-desc">
+            <div v-if="plan.description">{{ plan.description }}</div>
+            <div v-if="plan.strategy_limit">{{ $t('profile.plan_strategy_limit', { count: plan.strategy_limit }) }}</div>
+          </div>
           <span class="plan-action">
             {{ tr('profile.pay_choose_plan', '选择此套餐') }}
             <van-icon name="arrow" />
@@ -375,6 +378,7 @@ export default {
           credits: value?.credits_once || value?.credits_monthly || value?.credits,
           vip_days: value?.duration_days || value?.vip_days,
           description: this.planDescription(key, value),
+          strategy_limit: this.strategyLimit(value),
           popular: !!(value?.is_popular || value?.popular),
           raw: value
         }))
@@ -510,6 +514,10 @@ export default {
     },
     planDescription(key, value) {
       return this.tr(`profile.plan_${key}_desc`, value?.description || value?.subtitle || '')
+    },
+    strategyLimit(value) {
+      const limit = Number(value?.strategy_limit)
+      return Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : null
     },
     async load() {
       this.loading = true

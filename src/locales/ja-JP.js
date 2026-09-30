@@ -1044,6 +1044,7 @@ export default {
     pay_load_failed: 'プランを読み込めませんでした。通信環境を確認して再試行してください。',
     pay_no_plans: '現在購入できるプランはありません。',
     pay_choose_plan: 'このプランを選択',
+    plan_strategy_limit: '最大 {count} 件の戦略を実行',
     plan_monthly_name: '月額会員',
     plan_monthly_desc: '30 日間の VIP 利用権',
     plan_yearly_name: '年額会員',

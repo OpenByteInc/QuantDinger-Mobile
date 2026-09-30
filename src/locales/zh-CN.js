@@ -1120,6 +1120,7 @@ export default {
     pay_load_failed: '套餐加载失败，请检查网络后重试',
     pay_no_plans: '暂无可购买套餐',
     pay_choose_plan: '选择此套餐',
+    plan_strategy_limit: '最多运行 {count} 个策略',
     plan_monthly_name: '包月会员',
     plan_monthly_desc: '30 天 VIP 权益',
     plan_yearly_name: '包年会员',

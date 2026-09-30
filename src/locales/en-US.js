@@ -1122,6 +1122,7 @@ export default {
     pay_load_failed: 'Could not load plans. Check your connection and try again.',
     pay_no_plans: 'No plans are currently available.',
     pay_choose_plan: 'Choose this plan',
+    plan_strategy_limit: 'Run up to {count} strategies',
     plan_monthly_name: 'Monthly',
     plan_monthly_desc: '30 days of VIP access',
     plan_yearly_name: 'Yearly',
