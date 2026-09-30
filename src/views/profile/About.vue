@@ -240,7 +240,7 @@ export default {
 }
 
 .dialog-body {
-  margin: 12px 16px 16px;
+  margin: 10px 0 0;
   font-size: 13px;
   line-height: 1.55;
   color: var(--text-2);

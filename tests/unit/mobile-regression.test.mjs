@@ -35,6 +35,16 @@ test('spot sell sends an exact base quantity and validates against base holdings
  assert.equal(validateOrder(result,{available:0.002,price:65000,balanceReady:true}),'')
  assert.equal(validateOrder(result,{available:0.0005,price:65000,balanceReady:true}),'audit.insufficientBalance')
 })
+test('spot buy can send an exact base quantity',()=>{
+ const result=order({marketType:'spot',side:'buy',form:{...form,amount:'',buy_input_mode:'quantity',buy_quantity:'0.001',tp_price:'',sl_price:''}})
+ assert.equal(result.quantity,0.001);assert.equal(result.amount,0)
+ assert.equal(validateOrder(result,{available:0.002,price:65000,balanceReady:true}),'')
+})
+test('spot sell can send a quote amount',()=>{
+ const result=order({marketType:'spot',side:'sell',form:{...form,sell_input_mode:'amount',sell_amount:'50',tp_price:'',sl_price:''}})
+ assert.equal(result.quantity,undefined);assert.equal(result.amount,50)
+ assert.equal(validateOrder(result,{available:100,price:65000,balanceReady:true}),'')
+})
 test('invalid amount, price, leverage and disconnected balances prevent order submission',()=>{
  for(const amount of ['','0','-1','Infinity','NaN'])assert.ok(validateOrder(order({form:{...form,amount}}),context))
  for(const leverage of ['0','126','1.5','Infinity'])assert.ok(validateOrder(order({form:{...form,leverage}}),context))
@@ -131,6 +141,14 @@ test('spot sell percentage uses the base asset holdings rather than available US
  assert.equal(panel.availableForSide('buy'),500)
  assert.equal(panel.maxNotional('buy'),500)
  panel.setAmountByPercent(50,'buy');assert.equal(Number(panel.form.amount),250)
+})
+
+test('spot quantity and amount modes calculate side-specific capacity',()=>{
+ const panel=loadPanel({});panel.marketType='spot';panel.quickTradeStore.balance={available:650};panel.quickTradeStore.positions=[{symbol:'BTC/USDT',quantity:0.01}]
+ panel.form.buy_input_mode='quantity';panel.form.sell_input_mode='amount';panel.form.buy_quantity='';panel.form.sell_amount=''
+ assert.equal(panel.availableForSide('buy'),0.01);assert.equal(panel.availableForSide('sell'),650)
+ panel.setAmountByPercent(50,'buy');panel.setAmountByPercent(50,'sell')
+ assert.equal(Number(panel.form.buy_quantity),0.005);assert.equal(Number(panel.form.sell_amount),325)
 })
 
 test('perpetual buy and sell capacity is displayed as balance times leverage',()=>{

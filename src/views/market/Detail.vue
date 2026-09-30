@@ -130,6 +130,35 @@
           {{ $t('market.detail_reviews') }}
           <span class="reviews-total">({{ comments.total || 0 }})</span>
         </div>
+        <div v-if="canReview" class="review-composer">
+          <div class="review-composer-head">
+            <div>
+              <strong>{{ $t('market.review_yours') }}</strong>
+              <span>{{ $t(myComment ? 'market.review_edit_hint' : 'market.review_new_hint') }}</span>
+            </div>
+            <span v-if="myComment" class="review-edit-badge">{{ $t('market.review_editing') }}</span>
+          </div>
+          <div class="review-rating-row">
+            <span>{{ $t('market.review_score') }}</span>
+            <van-rate v-model="reviewRating" :size="22" :gap="5" />
+          </div>
+          <van-field
+            v-model="reviewContent"
+            type="textarea"
+            rows="3"
+            autosize
+            maxlength="500"
+            show-word-limit
+            :placeholder="$t('market.review_placeholder')"
+          />
+          <van-button
+            type="primary"
+            round
+            block
+            :loading="reviewSubmitting"
+            @click="submitReview"
+          >{{ $t(myComment ? 'market.review_update' : 'market.review_submit') }}</van-button>
+        </div>
         <van-loading v-if="commentsLoading && !comments.items.length" size="18" class="comments-loading" />
         <div v-else-if="!comments.items.length" class="comments-empty">
           {{ $t('market.reviews_empty') }}
@@ -137,7 +166,7 @@
         <template v-else>
           <div v-for="c in comments.items" :key="c.id" class="comment">
             <div class="comment-head">
-              <span class="author">{{ c.nickname || c.username || c.user_id || '--' }}</span>
+              <span class="author">{{ c.user?.nickname || c.user?.username || c.nickname || c.username || c.user_id || '--' }}</span>
               <van-rate :model-value="Number(c.rating || 0)" readonly size="12" />
             </div>
             <p class="content">{{ c.content }}</p>
@@ -240,6 +269,11 @@ export default {
       indicator: null,
       comments: { items: [], total: 0, page: 1, page_size: 10 },
       commentsLoading: false,
+      myComment: null,
+      reviewRating: 5,
+      reviewContent: '',
+      reviewLoading: false,
+      reviewSubmitting: false,
       performance: null,
       showAdaptation: false,
       adaptationTarget: '',
@@ -254,6 +288,9 @@ export default {
     },
     isPurchased() {
       return !!(this.indicator?.is_purchased || this.indicator?.owned)
+    },
+    canReview() {
+      return this.isPurchased && !this.indicator?.is_own
     },
     isVipFree() {
       return !!this.indicator?.vip_free
@@ -415,7 +452,12 @@ export default {
       } finally {
         this.loading = false
       }
-      if (this.indicator) this.loadComments(1)
+      if (this.indicator) {
+        await Promise.all([
+          this.loadComments(1),
+          this.canReview ? this.loadMyComment() : Promise.resolve()
+        ])
+      }
     },
     async loadComments(page = 1) {
       this.commentsLoading = true
@@ -446,6 +488,49 @@ export default {
       if (this.commentsLoading) return
       if (this.comments.items.length >= (this.comments.total || 0)) return
       this.loadComments((this.comments.page || 1) + 1)
+    },
+    async loadMyComment() {
+      if (!this.canReview || this.reviewLoading) return
+      this.reviewLoading = true
+      try {
+        const res = await marketApi.getMyComment(this.indicatorId)
+        this.myComment = res?.data || null
+        this.reviewRating = Number(this.myComment?.rating || 5)
+        this.reviewContent = this.myComment?.content || ''
+      } catch {
+        this.myComment = null
+        this.reviewRating = 5
+        this.reviewContent = ''
+      } finally {
+        this.reviewLoading = false
+      }
+    },
+    async submitReview() {
+      if (!this.canReview || this.reviewSubmitting) return
+      const rating = Math.min(5, Math.max(1, Number(this.reviewRating || 5)))
+      const payload = { rating, content: String(this.reviewContent || '').trim() }
+      this.reviewSubmitting = true
+      try {
+        if (this.myComment?.id) {
+          await marketApi.updateComment(this.indicatorId, this.myComment.id, payload)
+        } else {
+          await marketApi.addComment(this.indicatorId, payload)
+        }
+        showToast({
+          message: this.$t(this.myComment ? 'market.review_updated' : 'market.review_success'),
+          type: 'success'
+        })
+        await Promise.all([this.loadMyComment(), this.loadComments(1)])
+        const detail = await marketApi.getIndicator(this.indicatorId)
+        if (detail?.data) this.indicator = detail.data
+      } catch (err) {
+        showToast({
+          message: err?.response?.data?.msg || this.$t('market.review_failed'),
+          type: 'fail'
+        })
+      } finally {
+        this.reviewSubmitting = false
+      }
     },
     formatDate(val) {
       if (!val) return ''
@@ -892,6 +977,50 @@ export default {
   color: var(--text-3);
   font-size: 12px;
 }
+.review-composer {
+  margin: 12px 0 4px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+}
+.review-composer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.review-composer-head strong,
+.review-composer-head span { display: block; }
+.review-composer-head strong { color: var(--text); font-size: 14px; }
+.review-composer-head > div > span { margin-top: 4px; color: var(--text-3); font-size: 11px; line-height: 1.45; }
+.review-edit-badge {
+  flex: none;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--accent) !important;
+  background: var(--accent-soft);
+  font-size: 10px !important;
+  font-weight: 700;
+}
+.review-rating-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.review-rating-row > span { color: var(--text-2); font-size: 12px; font-weight: 600; }
+.review-composer :deep(.van-cell) {
+  margin-bottom: 12px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--hairline);
+}
+.review-composer :deep(.van-field__word-limit) { color: var(--text-3); }
+.review-composer :deep(.van-button) { height: 42px; }
 .comments-loading { padding: 12px 0; text-align: center; }
 .comments-empty {
   padding: 18px 0;

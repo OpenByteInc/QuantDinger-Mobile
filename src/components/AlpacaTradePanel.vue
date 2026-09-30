@@ -24,14 +24,16 @@
       <div v-if="activeTab==='order'" class="stock-ticket">
         <div class="segments"><button v-for="side in ['buy','sell']" :key="side" :class="{active:form.side===side}" :disabled="busy" @click="form.side=side">{{ t(side==='buy'?'audit.buySpot':'audit.sellSpot') }}</button></div>
         <div class="segments secondary"><button v-for="type in ['market','limit']" :key="type" :disabled="busy" :class="{active:form.type===type}" @click="form.type=type">{{ t(type==='market'?'chart_trade.order_market':'chart_trade.order_limit') }}</button></div>
-        <van-field v-model="form.quantity" label-align="top" :disabled="busy" type="number" :label="t('account_ui.quantity')"><template #extra>{{ t('account_ui.shares') }}</template></van-field>
+        <div class="segments secondary input-mode"><button v-for="mode in ['quantity','amount']" :key="mode" :disabled="busy" :class="{active:form.inputMode===mode}" @click="form.inputMode=mode">{{ t(mode==='quantity'?'chart_trade.by_quantity':'chart_trade.by_amount') }}</button></div>
+        <van-field v-if="form.inputMode==='quantity'" v-model="form.quantity" label-align="top" :disabled="busy" type="number" :label="t('account_ui.quantity')"><template #extra>{{ t('account_ui.shares') }}</template></van-field>
+        <van-field v-else v-model="form.notional" label-align="top" :disabled="busy" type="number" :label="t('chart_trade.amount')"><template #extra>USD</template></van-field>
         <van-field v-if="form.type==='limit'" v-model="form.price" label-align="top" :disabled="busy" type="number" :label="t('chart_trade.order_limit')"><template #extra>USD</template></van-field>
         <van-checkbox v-if="form.type==='limit'" v-model="form.extendedHours" :disabled="busy" icon-size="17px">{{ t('account_ui.extendedHours') }}</van-checkbox>
         <p class="estimate">{{ t('account_ui.estimated') }} <b>{{ number(estimated) }} USD</b></p>
-        <van-button block type="primary" :loading="busy" :disabled="!ready || loading || !form.quantity" @click="submit">{{ t('account_ui.preview') }}</van-button>
+        <van-button block type="primary" :loading="busy" :disabled="!ready || loading || !orderInput" @click="submit">{{ t('account_ui.preview') }}</van-button>
       </div>
       <div v-else-if="activeTab==='positions'" class="stock-rows"><article v-for="item in symbolPositions" :key="item.symbol"><div><b>{{ item.symbol }}</b><span>{{ number(item.quantity,6) }} {{ t('account_ui.shares') }}</span></div><div><small>{{ t('audit.unrealized') }}</small><strong :class="Number(item.unrealized_pnl)<0?'down':'up'">{{ number(item.unrealized_pnl) }} USD</strong></div><button :disabled="busy || loading || Number(item.quantity)<=0" @click="prepareSell(item)">{{ t('audit.sellSpot') }}</button></article><van-empty v-if="!symbolPositions.length && !loading" :description="t('chart_trade.no_positions')"/></div>
-      <div v-else class="stock-rows"><article v-for="item in visibleOrders" :key="item.id"><div><b>{{ item.symbol }} · {{ t(item.side==='buy'?'audit.buySpot':'audit.sellSpot') }}</b><span>{{ number(item.quantity,6) }} {{ t('account_ui.shares') }}</span></div><div><small>{{ orderStatus(item.status) }} · {{ orderPriceLabel(item) }}</small><span>{{ orderPrice(item) }}</span></div><button v-if="activeTab==='orders'" :disabled="busy || loading || item.status==='pending_cancel'" @click="cancel(item)">{{ t('audit.cancelOrder') }}</button></article><van-empty v-if="!visibleOrders.length && !loading" :description="t('chart_trade.no_history')"/></div>
+      <div v-else class="stock-rows"><article v-for="item in visibleOrders" :key="item.id"><div><b>{{ item.symbol }} · {{ t(item.side==='buy'?'audit.buySpot':'audit.sellSpot') }}</b><span v-if="Number(item.quantity)>0">{{ number(item.quantity,6) }} {{ t('account_ui.shares') }}</span><span v-else>{{ number(item.notional) }} USD</span></div><div><small>{{ orderStatus(item.status) }} · {{ orderPriceLabel(item) }}</small><span>{{ orderPrice(item) }}</span></div><button v-if="activeTab==='orders'" :disabled="busy || loading || item.status==='pending_cancel'" @click="cancel(item)">{{ t('audit.cancelOrder') }}</button></article><van-empty v-if="!visibleOrders.length && !loading" :description="t('chart_trade.no_history')"/></div>
     </template>
     <van-popup v-model:show="reviewOpen" round teleport="body" class="order-review-popup" :close-on-click-overlay="false">
       <section v-if="review" class="order-review" role="dialog" aria-modal="true" :aria-label="t('account_ui.preview')">
@@ -39,7 +41,8 @@
         <div class="review-heading"><span :class="review.side">{{ t(review.side==='buy'?'audit.buySpot':'audit.sellSpot') }}</span><div><strong>{{ review.symbol }}</strong><small>{{ review.account }} · {{ review.environment }}</small></div></div>
         <dl>
           <div><dt>{{ t('chart_trade.order') }}</dt><dd>{{ t(review.orderType==='limit'?'chart_trade.order_limit':'chart_trade.order_market') }}</dd></div>
-          <div><dt>{{ t('account_ui.quantity') }}</dt><dd>{{ number(review.quantity,6) }} {{ t('account_ui.shares') }}</dd></div>
+          <div v-if="review.quantity"><dt>{{ t('account_ui.quantity') }}</dt><dd>{{ number(review.quantity,6) }} {{ t('account_ui.shares') }}</dd></div>
+          <div v-else><dt>{{ t('chart_trade.amount') }}</dt><dd>{{ number(review.notional) }} USD</dd></div>
           <div><dt>{{ t('chart_trade.price') }}</dt><dd>{{ review.orderType==='limit'?`${number(review.price)} USD`:t('chart_trade.order_market') }}</dd></div>
           <div><dt>{{ t('account_ui.estimated') }}</dt><dd>{{ number(review.estimated) }} USD</dd></div>
           <div v-if="review.extendedHours"><dt>{{ t('account_ui.extendedHours') }}</dt><dd><van-icon name="success"/></dd></div>
@@ -67,14 +70,15 @@ const accountMenuOpen=ref(false),accountSelectEl=ref(null)
 const reviewOpen=ref(false),review=ref(null)
 let reviewResolver
 function resolveReview(confirmed){reviewOpen.value=false;const resolve=reviewResolver;reviewResolver=null;resolve?.(confirmed)}
-function openReview(payload){review.value={...payload,account:selected.value?.name,environment:environment(selected.value),estimated:payload.quantity*(payload.price||props.chartPrice)};reviewOpen.value=true;return new Promise(resolve=>{reviewResolver=resolve})}
-const form=reactive({side:'buy',type:'market',quantity:'',price:'',extendedHours:false})
+function openReview(payload){review.value={...payload,account:selected.value?.name,environment:environment(selected.value),estimated:payload.notional||payload.quantity*(payload.price||props.chartPrice)};reviewOpen.value=true;return new Promise(resolve=>{reviewResolver=resolve})}
+const form=reactive({side:'buy',type:'market',inputMode:'quantity',quantity:'',notional:'',price:'',extendedHours:false})
 const tabs=[{id:'order',label:'chart_trade.order'},{id:'positions',label:'chart_trade.positions'},{id:'orders',label:'audit.orders'},{id:'history',label:'chart_trade.history'}]
 const context=computed(()=>`${selectedId.value}:${props.symbol}`)
 const selected=computed(()=>accounts.value.find(x=>String(x.id)===selectedId.value))
 const symbolPositions=computed(()=>positions.value.filter(p=>p.symbol===props.symbol))
 const visibleOrders=computed(()=>(activeTab.value==='orders'?openOrders.value:orders.value).filter(o=>o.symbol===props.symbol))
-const estimated=computed(()=>Number(form.quantity)>0?Number(form.quantity)*Number(form.type==='limit'?form.price:props.chartPrice):null)
+const orderInput=computed(()=>form.inputMode==='amount'?form.notional:form.quantity)
+const estimated=computed(()=>form.inputMode==='amount'?(Number(form.notional)>0?Number(form.notional):null):(Number(form.quantity)>0?Number(form.quantity)*Number(form.type==='limit'?form.price:props.chartPrice):null))
 const ACCOUNT_STORAGE_KEY='quantdinger.alpaca.credential_id'
 let sequence=0,accountSequence=0,timer,active=false
 function number(value,digits=2){return value==null||value===''||!Number.isFinite(Number(value))?'—':Number(value).toLocaleString(undefined,{maximumFractionDigits:digits})}
@@ -100,12 +104,12 @@ async function submit(){
   const key=context.value,payload=buildAlpacaOrder({credentialId:selectedId.value,symbol:props.symbol,side:form.side,form,referencePrice:props.chartPrice})
   const invalid=validateAlpacaOrder(payload,{account:account.value,positions:positions.value,openOrders:openOrders.value,price:props.chartPrice,ready:ready.value})
   if(invalid){showToast(t(invalid));return}busy.value=true
-  try{if(!await openReview(payload))return;if(key!==context.value||!active){showToast(t('audit.accountChanged'));return}await alpacaApi.placeOrder(payload);showToast(t('account_ui.submitted'));form.quantity='';activeTab.value='orders';await refresh()}
+  try{if(!await openReview(payload))return;if(key!==context.value||!active){showToast(t('audit.accountChanged'));return}await alpacaApi.placeOrder(payload);showToast(t('account_ui.submitted'));form.quantity='';form.notional='';activeTab.value='orders';await refresh()}
   catch(e){if(e?.message)error.value=e.localizedMessage||e.message}finally{busy.value=false}
 }
-function prepareSell(item){form.side='sell';form.quantity=String(item.quantity);form.type='market';activeTab.value='order'}
+function prepareSell(item){form.side='sell';form.inputMode='quantity';form.quantity=String(item.quantity);form.notional='';form.type='market';activeTab.value='order'}
 async function cancel(item){if(busy.value)return;const key=context.value,id=Number(selectedId.value);busy.value=true;try{await showConfirmDialog({title:t('audit.cancelOrder'),message:`${t('audit.confirmCancel')}\n${item.symbol} · ${item.id}`});if(key!==context.value||!active)return;await alpacaApi.cancelOrder(item.id,{credential_id:id});await refresh()}catch(e){if(e?.message)error.value=e.localizedMessage||e.message}finally{busy.value=false}}
-watch(context,()=>{resolveReview(false);form.quantity='';form.price='';form.extendedHours=false;refresh()})
+watch(context,()=>{resolveReview(false);form.quantity='';form.notional='';form.price='';form.extendedHours=false;refresh()})
 async function loadAccounts(){const token=++accountSequence;try{const res=await credentialsApi.list();if(token!==accountSequence)return;accounts.value=(res.data||[]).filter(x=>String(x.exchange_id||'').toLowerCase()==='alpaca');const candidates=[route.query.credential_id,localStorage.getItem(ACCOUNT_STORAGE_KEY),selectedId.value].map(value=>String(value||'')).filter(Boolean);const next=candidates.find(value=>accounts.value.some(x=>String(x.id)===value))||String(accounts.value[0]?.id||'');if(selectedId.value===next)await refresh();else selectedId.value=next}catch(e){if(token===accountSequence){ready.value=false;account.value=null;error.value=e.localizedMessage||e.message}}}
 watch(()=>route.query.credential_id,id=>{if(id&&accounts.value.some(x=>String(x.id)===String(id)))selectedId.value=String(id)})
 watch(selectedId,id=>{if(id)localStorage.setItem(ACCOUNT_STORAGE_KEY,id)})

@@ -45,12 +45,14 @@
         </div>
         <div class="direct-orders">
           <div v-for="side in ['buy','sell']" :key="side" class="direct-order">
+            <div v-if="marketType==='spot'" :class="['side-input-mode',side]">
+              <button v-for="mode in ['quantity','amount']" :key="mode" type="button" :class="{active:spotInputMode(side)===mode}" :disabled="submitting" @click="setSpotInputMode(side,mode)">{{ $t(mode==='quantity'?'chart_trade.by_quantity':'chart_trade.by_amount') }}</button>
+            </div>
             <label v-if="marketType==='spot'" class="ticket-field side-amount">
-              <span>{{ $t(side==='buy'?'chart_trade.buy_amount':'chart_trade.sell_quantity') }}</span>
-              <div v-if="side==='buy'"><input v-model="form.amount" :disabled="submitting" inputmode="decimal" type="number" min="0"/><b>{{ quoteAsset }}</b></div>
-              <div v-else><input v-model="form.sell_quantity" :disabled="submitting" inputmode="decimal" type="number" min="0"/><b>{{ baseAsset }}</b></div>
+              <span>{{ $t(spotInputLabel(side)) }}</span>
+              <div><input :value="spotInputValue(side)" :disabled="submitting" inputmode="decimal" type="number" min="0" @input="setSpotInputValue(side,$event.target.value)"/><b>{{ spotInputUnit(side) }}</b></div>
             </label>
-            <div class="side-balance"><span>{{ $t(side==='buy'?'chart_trade.can_buy':'chart_trade.can_sell') }}</span><strong v-if="balanceReady&&marketType==='spot'&&side==='sell'">{{ formatQuantity(sellQuantity) }} <small>{{ baseAsset }}</small></strong><strong v-else>{{ balanceReady ? formatNumber(maxNotional(side)) : '—' }} <small>{{ quoteAsset }}</small></strong></div>
+            <div class="side-balance"><span>{{ $t(side==='buy'?'chart_trade.can_buy':'chart_trade.can_sell') }}</span><strong v-if="balanceReady&&marketType==='spot'">{{ spotInputMode(side)==='quantity' ? formatQuantity(availableForSide(side)) : formatNumber(availableForSide(side)) }} <small>{{ spotInputUnit(side) }}</small></strong><strong v-else>{{ balanceReady ? formatNumber(maxNotional(side)) : '—' }} <small>{{ quoteAsset }}</small></strong></div>
             <div v-if="marketType==='spot'" class="amount-presets"><button v-for="pct in [25,50,75,100]" :key="pct" :disabled="submitting || !balanceReady || availableForSide(side)<=0" @click="setAmountByPercent(pct,side)">{{ pct }}%</button></div>
             <div class="submit-row single"><button :class="side" :disabled="!canSubmitSide(side)" @click="confirmOrder(side)">{{ $t(side==='buy'?(marketType==='swap'?'chart_trade.buy_long':'chart_trade.buy'):(marketType==='swap'?'chart_trade.sell_short':'chart_trade.sell')) }}<small v-if="marketType==='swap'">{{ form.leverage }}x</small></button></div>
           </div>
@@ -163,7 +165,11 @@ export default {
       pollTimer: null,
       form: {
         amount: '',
+        buy_quantity: '',
+        sell_amount: '',
         sell_quantity: '',
+        buy_input_mode: 'amount',
+        sell_input_mode: 'quantity',
         price: '',
         leverage: '5',
         order_type: 'market',
@@ -222,9 +228,9 @@ export default {
   watch: {
     riskEnabled(value) { if(!value){this.form.tp_price='';this.form.sl_price=''} },
     '$route.query.credential_id'() { if(this.$route.path==='/indicators/chart') this.applyRequestedAccount() },
-    selectedCredentialId() { const scope=this.selectedCredential?.market_scope;if(['spot','swap'].includes(scope))this.quickTradeStore.setMarketType(scope);this.form.amount='';this.form.sell_quantity='';this.form.price='';this.form.tp_price='';this.form.sl_price='';this.refreshTradeData(); this.emitContext() },
+    selectedCredentialId() { const scope=this.selectedCredential?.market_scope;if(['spot','swap'].includes(scope))this.quickTradeStore.setMarketType(scope);this.clearSpotInputs();this.form.price='';this.form.tp_price='';this.form.sl_price='';this.refreshTradeData(); this.emitContext() },
     marketType() { this.refreshTradeData(); this.emitContext() },
-    symbol() { this.form.sell_quantity='';this.form.price='';this.form.tp_price='';this.form.sl_price='';this.refreshTradeData() },
+    symbol() { this.clearSpotInputs();this.form.price='';this.form.tp_price='';this.form.sl_price='';this.refreshTradeData() },
     product: {deep:true,handler(){const required=String(this.product?.market_type||'').toLowerCase();if(['spot','swap'].includes(required)&&required!==this.marketType)this.quickTradeStore.setMarketType(required);if(!this.selectedCredential&&this.credentials.length)this.quickTradeStore.setSelectedCredential(this.credentials[0].id);this.refreshTradeData()}},
     chartPrice(value) {
       if (Number(value) > 0 && !Number(this.form.price)) this.form.price = String(value)
@@ -264,19 +270,28 @@ export default {
       this.emitContext()
     },
     availableForSide(side) {
-      if(this.marketType!=='spot'||side==='buy')return this.activeBalanceAvailable
-      return this.sellQuantity
+      if(this.marketType!=='spot')return this.activeBalanceAvailable
+      const price=Math.max(0,Number(this.form.order_type==='limit'?this.form.price:this.livePrice)||0)
+      if(this.spotInputMode(side)==='quantity')return side==='buy'?(price>0?this.activeBalanceAvailable/price:0):this.sellQuantity
+      return side==='buy'?this.activeBalanceAvailable:this.sellQuantity*price
     },
     maxNotional(side) {
-      const available=this.availableForSide(side)
-      if(this.marketType==='spot'&&side==='sell')return available*Math.max(0,Number(this.form.order_type==='limit'?this.form.price:this.livePrice)||0)
-      return this.marketType==='swap'?available*Math.max(1,Number(this.form.leverage)||1):available
+      if(this.marketType==='spot')return side==='sell'?this.sellQuantity*Math.max(0,Number(this.form.order_type==='limit'?this.form.price:this.livePrice)||0):this.activeBalanceAvailable
+      return this.activeBalanceAvailable*Math.max(1,Number(this.form.leverage)||1)
     },
     canSubmitSide(side) {
       if (!this.isCrypto) return false
-      const requested=this.marketType==='spot'&&side==='sell'?Number(this.form.sell_quantity):Number(this.form.amount)
+      const requested=this.marketType==='spot'?Number(this.spotInputValue(side)):Number(this.form.amount)
       return Boolean(this.balanceReady&&!this.submitting&&this.selectedCredential&&requested>0&&requested<=this.availableForSide(side)&&(this.form.order_type!=='limit'||Number(this.form.price)>0)&&(this.marketType!=='swap'||(Number(this.form.leverage)>=1&&Number(this.form.leverage)<=125)))
     },
+    spotInputMode(side) { return (side==='buy'?this.form.buy_input_mode:this.form.sell_input_mode)||(side==='buy'?'amount':'quantity') },
+    spotInputField(side) { return this.spotInputMode(side)==='quantity'?`${side}_quantity`:(side==='buy'?'amount':'sell_amount') },
+    spotInputValue(side) { return this.form[this.spotInputField(side)] },
+    spotInputUnit(side) { return this.spotInputMode(side)==='quantity'?this.baseAsset:this.quoteAsset },
+    spotInputLabel(side) { return `chart_trade.${side}_${this.spotInputMode(side)}` },
+    setSpotInputMode(side,mode) { if(!this.submitting&&['quantity','amount'].includes(mode))this.form[`${side}_input_mode`]=mode },
+    setSpotInputValue(side,value) { this.form[this.spotInputField(side)]=value },
+    clearSpotInputs() { this.form.amount='';this.form.buy_quantity='';this.form.sell_amount='';this.form.sell_quantity='' },
     openCredentialPicker() {
       if (!this.credentialActions.length) { this.$router.push('/profile/credentials/new'); return }
       this.credentialPickerOpen = true
@@ -333,7 +348,7 @@ export default {
         if(key!==this.contextKey){showToast(this.$t('audit.accountChanged'));return}
         await quickTradeApi.placeOrder(payload)
         showToast({message:this.$t('chart_trade.order_success'),type:'success'})
-        this.form.amount='';this.form.sell_quantity='';await this.refreshTradeData();this.activeTab='positions'
+        this.clearSpotInputs();await this.refreshTradeData();this.activeTab='positions'
       } catch(error) { if(error!=='cancel'&&error!=='close'&&error?.message)this.orderError=error.localizedMessage||error.message }
       finally {this.submitting=false}
     },
@@ -352,7 +367,7 @@ export default {
     },
     setAmountByPercent(pct,side='buy') {
       const value=this.availableForSide(side)*pct/100
-      if(this.marketType==='spot'&&side==='sell')this.form.sell_quantity=String(Math.floor(value*1e8)/1e8)
+      if(this.marketType==='spot')this.form[this.spotInputField(side)]=String(this.spotInputMode(side)==='quantity'?Math.floor(value*1e8)/1e8:Math.floor(value*100)/100)
       else this.form.amount=String(Math.floor(value*100)/100)
     },
     openOrderReview(review) {
@@ -509,6 +524,7 @@ button:disabled { opacity: .38; }
 .compact-select-trigger{width:100%;min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 11px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--v2-text);font-size:12px}.compact-select-trigger[aria-expanded=true]{border-color:var(--v2-brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--v2-brand) 13%,transparent)}.compact-select-trigger .van-icon{color:var(--v2-muted);font-size:13px}.compact-select-menu{position:absolute;z-index:35;top:calc(100% + 6px);right:0;min-width:132px;padding:5px;border:1px solid var(--v2-line);border-radius:10px;background:var(--v2-surface);box-shadow:0 12px 30px color-mix(in srgb,#000 30%,transparent)}.compact-select-menu button{width:100%;min-height:40px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:var(--v2-text);font-size:12px;text-align:left}.compact-select-menu button.active{background:color-mix(in srgb,var(--v2-brand) 13%,var(--v2-surface-2));color:var(--v2-text)}.compact-select-menu .van-icon{color:var(--v2-brand);font-size:14px}
 .compact-leverage{padding:0 8px;width:64px}.compact-leverage input{min-width:0;width:100%;border:0;background:none;color:var(--v2-text);font-size:13px}.compact-leverage b{font-size:11px;color:var(--v2-muted)}
 .direct-orders{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}.direct-order{display:grid;align-content:end;gap:8px;min-width:0}.direct-order .submit-row small{margin-left:7px;font-size:12px;font-weight:600}.side-balance{display:flex;flex-direction:column;gap:3px;min-width:0;color:var(--v2-muted);font-size:11px}.side-balance strong{overflow:hidden;color:var(--v2-text);font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}
+.side-input-mode{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:3px;border:1px solid var(--v2-line);border-radius:7px;background:var(--v2-surface-2)}.side-input-mode button{min-width:0;min-height:30px;padding:0 4px;border:0;border-radius:5px;background:transparent;color:var(--v2-muted);font-size:11px}.side-input-mode.buy button.active{background:color-mix(in srgb,var(--v2-green) 18%,var(--v2-surface));color:var(--v2-green)}.side-input-mode.sell button.active{background:color-mix(in srgb,var(--v2-red) 18%,var(--v2-surface));color:var(--v2-red)}
 .order-kind{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px;padding:3px;border:1px solid var(--v2-line);border-radius:8px;background:var(--v2-surface-2)}.order-kind button{min-height:38px;border:0;border-radius:6px;background:transparent;color:var(--v2-muted);font-size:13px;font-weight:700}.order-kind button.active{background:var(--v2-surface);color:var(--v2-text);box-shadow:0 1px 4px color-mix(in srgb,var(--v2-text) 9%,transparent)}
 .order-type-select{display:flex;align-items:center;padding:0 12px;background:var(--v2-surface-2);border:1px solid var(--v2-line);border-radius:7px}.order-type-select select{width:100%;appearance:none;min-height:42px;background:none;color:var(--v2-text);border:0;font-size:13px}
 .market-price-row,.ticket-balance{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--v2-muted);padding:12px 0}

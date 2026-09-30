@@ -358,6 +358,74 @@ html[data-theme='light'] {
   border-color: var(--hairline) !important;
 }
 
+:where(.van-overlay) {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+:where(.van-dialog) {
+  width: min(86vw, 360px) !important;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 20px !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.34);
+}
+
+:where(.van-dialog__header) {
+  padding: 22px 22px 8px !important;
+  color: var(--text) !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  line-height: 1.35 !important;
+  text-align: left !important;
+}
+
+:where(.van-dialog__content) {
+  padding: 0 22px 20px;
+}
+
+:where(.van-dialog__message) {
+  max-height: min(46vh, 320px) !important;
+  padding: 8px 0 0 !important;
+  color: var(--text-2) !important;
+  font-size: 14px !important;
+  line-height: 1.65 !important;
+  text-align: left !important;
+  white-space: pre-line;
+}
+
+:where(.van-dialog__footer) {
+  display: flex !important;
+  gap: 10px;
+  padding: 0 16px 16px !important;
+  background: transparent !important;
+}
+
+:where(.van-dialog__footer::after, .van-dialog__cancel::after, .van-dialog__confirm::after) {
+  display: none !important;
+}
+
+.van-dialog .van-dialog__cancel,
+.van-dialog .van-dialog__confirm {
+  min-width: 0;
+  height: 44px !important;
+  border-radius: 12px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+}
+
+.van-dialog .van-dialog__cancel {
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--border-strong) !important;
+  color: var(--text-2) !important;
+}
+
+.van-dialog .van-dialog__confirm {
+  background: var(--accent) !important;
+  border: 1px solid var(--accent) !important;
+  color: var(--text-on-accent) !important;
+}
+
 :where(.van-field__label, .van-field__control, .van-cell__title, .van-cell__value, input, textarea, select) {
   color: var(--text) !important;
 }

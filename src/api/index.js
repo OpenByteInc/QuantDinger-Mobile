@@ -763,6 +763,15 @@ export const marketApi = {
       }
     }
   },
+  getMyComment: async (id) => {
+    const res = await http.get(`/api/community/indicators/${id}/my-comment`)
+    return {
+      ...res,
+      data: res.data || null
+    }
+  },
+  addComment: (id, payload = {}) => http.post(`/api/community/indicators/${id}/comments`, payload),
+  updateComment: (id, commentId, payload = {}) => http.put(`/api/community/indicators/${id}/comments/${commentId}`, payload),
   getIndicatorPerformance: async (id) => {
     const res = await http.get(`/api/community/indicators/${id}/performance`)
     return {

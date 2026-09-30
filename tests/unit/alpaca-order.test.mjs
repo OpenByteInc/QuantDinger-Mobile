@@ -23,3 +23,11 @@ test('stock sells require holdings and cannot overlap pending sell orders',()=>{
   assert.equal(validateAlpacaOrder(sell,{...context,openOrders:[{symbol:'AAPL',side:'sell'}]}),'account_ui.sellAvailable')
   assert.equal(validateAlpacaOrder(sell,{...context,positions:[]}),'account_ui.sellAvailable')
 })
+test('Alpaca buy and sell support USD notional orders',()=>{
+  const buy=build({form:{inputMode:'amount',notional:'250',type:'market',price:'',extendedHours:false}})
+  assert.equal(buy.quantity,undefined);assert.equal(buy.notional,250)
+  assert.equal(validateAlpacaOrder(buy,context),'')
+  const sell=buildAlpacaOrder({credentialId:7,symbol:'AAPL',side:'sell',form:{inputMode:'amount',notional:'422',type:'market',price:'',extendedHours:false},referencePrice:211})
+  assert.equal(validateAlpacaOrder(sell,context),'')
+  assert.equal(validateAlpacaOrder({...sell,notional:844},context),'account_ui.sellAvailable')
+})
