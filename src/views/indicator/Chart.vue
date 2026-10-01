@@ -72,7 +72,15 @@ watch(()=>[form.market,form.symbol,form.exchangeId,form.marketType],async ([mark
 },{immediate:true})
 const isUSStock=computed(()=>form.market.toLowerCase()==='usstock')
 const marketChart=ref(null)
-const streamContext=computed(()=>JSON.stringify([form.market,form.symbol,form.timeframe,form.exchangeId,form.marketType]))
+const selectedInstrumentId=computed(()=>{
+ const product=selectedProduct.value
+ if(form.market.toLowerCase()!=='crypto'||!product)return ''
+ if(product.exchange_id&&String(product.exchange_id).toLowerCase()!==form.exchangeId.toLowerCase())return ''
+ if(product.market_type&&String(product.market_type).toLowerCase()!==form.marketType.toLowerCase())return ''
+ if(product.symbol&&String(product.symbol).toUpperCase()!==form.symbol.toUpperCase())return ''
+ return String(product.instrument_id||'').trim()
+})
+const streamContext=computed(()=>JSON.stringify([form.market,form.symbol,form.timeframe,form.exchangeId,form.marketType,selectedInstrumentId.value]))
 let stream=null,streamGeneration=0,lastTick=0,lastPreview=0,pendingBar=null,pageActive=false
 const chartData=ref(null),loading=ref(false),chartRefreshing=ref(false),error=ref(''),indicators=ref([]),parameters=ref([]),updated=ref(0),indicatorSheetOpen=ref(false),indicatorQuery=ref(''),symbolPickerOpen=ref(false),paramsOpen=ref(false),expanded=ref(false),mainIndicator=ref('EMA'),lowerIndicator=ref('')
 const sourceOpen=ref(false);const sourceActions=computed(()=>['binance','gate','okx','bybit','bitget','htx'].flatMap(id=>['spot','swap'].map(type=>({name:EXCHANGE_BRANDS[id]?.name+' · '+t(type==='swap'?'chart_trade.swap':'chart_trade.spot'),exchangeId:id,marketType:type}))));function selectSource(item){sourceOpen.value=false;form.exchangeId=item.exchangeId;form.marketType=item.marketType;loadChart()}
@@ -92,8 +100,8 @@ async function loadChart(silent=false){
  if(!silent){loading.value=true;chartData.value=null}error.value=''
  try{
   let data
-  if(form.indicatorId){const params=Object.fromEntries(parameters.value.map(p=>[p.name,p.type==='bool'?Boolean(form.params[p.name]):isNumeric(p)?Number(form.params[p.name]):form.params[p.name]]));data=(await indicatorApi.previewChart({indicator_id:form.indicatorId,market:form.market,symbol:form.symbol,timeframe:form.timeframe,exchange_id:form.market.toLowerCase()==='crypto'?form.exchangeId:undefined,market_type:form.market.toLowerCase()==='crypto'?form.marketType:'spot',params,limit:360})).data}
-  else data={candles:(await klineApi.getKline({market:form.market,symbol:form.symbol,timeframe:form.timeframe,exchangeId:form.market.toLowerCase()==='crypto'?form.exchangeId:undefined,marketType:form.market.toLowerCase()==='crypto'?form.marketType:'spot',limit:360})).data}
+  if(form.indicatorId){const params=Object.fromEntries(parameters.value.map(p=>[p.name,p.type==='bool'?Boolean(form.params[p.name]):isNumeric(p)?Number(form.params[p.name]):form.params[p.name]]));data=(await indicatorApi.previewChart({indicator_id:form.indicatorId,market:form.market,symbol:form.symbol,timeframe:form.timeframe,exchange_id:form.market.toLowerCase()==='crypto'?form.exchangeId:undefined,market_type:form.market.toLowerCase()==='crypto'?form.marketType:'spot',instrument_id:selectedInstrumentId.value||undefined,params,limit:360})).data}
+  else data={candles:(await klineApi.getKline({market:form.market,symbol:form.symbol,timeframe:form.timeframe,exchangeId:form.market.toLowerCase()==='crypto'?form.exchangeId:undefined,marketType:form.market.toLowerCase()==='crypto'?form.marketType:'spot',instrumentId:selectedInstrumentId.value||undefined,limit:360})).data}
   if(current!==request||context!==streamContext.value)return
   data.candles=toCandles(data.candles||[])
   if(pendingBar&&lastTick>=started)mergeStreamBar(data.candles,pendingBar,form.timeframe)
@@ -107,7 +115,7 @@ async function selectIndicator(item){
  try{const data=(await indicatorApi.getParams(form.indicatorId)).data||[];if(current!==paramsRequest)return;parameters.value=data;for(const p of data)form.params[p.name]=p.default??'';await loadChart()}catch(e){if(current===paramsRequest)error.value=e?.localizedMessage||e?.message||t('audit.loadFailed')}
  finally{if(current===paramsRequest)loading.value=false}
 }
-function selectSymbol(item){form.market=item.market||'Crypto';form.symbol=item.symbol;if(form.market.toLowerCase()==='crypto'){form.exchangeId=item.exchange_id||form.exchangeId;form.marketType=item.market_type||form.marketType;selectedProduct.value={exchange_id:form.exchangeId,market_type:form.marketType,instrument_id:item.instrument_id||'',settle_currency:item.settle_currency||'',product_type:item.product_type||'',api_family:item.api_family||'',underlying_market:item.underlying_market||'',underlying_symbol:item.underlying_symbol||'',product_meta:item.product_meta||null}}else selectedProduct.value=null;loadChart()}
+function selectSymbol(item){form.market=item.market||'Crypto';form.symbol=item.symbol;if(form.market.toLowerCase()==='crypto'){form.exchangeId=item.exchange_id||form.exchangeId;form.marketType=item.market_type||form.marketType;selectedProduct.value={symbol:form.symbol,exchange_id:form.exchangeId,market_type:form.marketType,instrument_id:item.instrument_id||'',settle_currency:item.settle_currency||'',product_type:item.product_type||'',api_family:item.api_family||'',underlying_market:item.underlying_market||'',underlying_symbol:item.underlying_symbol||'',product_meta:item.product_meta||null}}else selectedProduct.value=null;loadChart()}
 function onTradeContextChange(context){if(!context.exchangeId)return;if(context.exchangeId===form.exchangeId&&context.marketType===form.marketType)return;form.exchangeId=context.exchangeId;form.marketType=context.marketType;loadChart()}
 function openAi(){router.push({path:'/ai',query:{symbol:form.symbol,market:form.market,timeframe:form.timeframe}})}
 async function bootstrap(){try{indicators.value=(await indicatorApi.getList()).data||[];const id=Number(route.query.indicator_id||route.query.local_copy_id||0);const preferred=indicators.value.find(x=>Number(x.id)===id)||indicators.value[0];if(preferred)await selectIndicator({indicatorId:Number(preferred.id)});else await loadChart()}catch(e){error.value=e?.localizedMessage||e?.message||t('audit.loadFailed')}}
@@ -117,7 +125,7 @@ function startStream(){
  if(!pageActive||document.hidden||form.market.toLowerCase()!=='crypto')return
  const generation=streamGeneration
  stream=new ExchangeKlineWs()
- stream.connect(form.symbol,form.timeframe,{
+ const connecting=stream.connect(form.symbol,form.timeframe,{
   onTick(bar){
    if(generation!==streamGeneration||!pageActive||document.hidden)return
    pendingBar=bar
@@ -129,9 +137,11 @@ function startStream(){
    lastTick=Date.now();updated.value=lastTick
    marketChart.value?.updateBar(bar)
   },
-  onError(){if(generation===streamGeneration){lastTick=0;loadChart(true)}},
-  onReconnecting(){if(generation===streamGeneration)lastTick=0}
- },form.exchangeId,form.marketType)
+   onError(){if(generation===streamGeneration){lastTick=0;loadChart(true)}},
+   onReconnecting(){if(generation===streamGeneration)lastTick=0},
+   onReconnected(){if(generation===streamGeneration)loadChart(true)}
+  },form.exchangeId,{marketType:form.marketType,instrumentId:selectedInstrumentId.value})
+ if(!connecting)stream=null
 }
 function resizeChartAfterActivation(){nextTick(()=>{marketChart.value?.resize();requestAnimationFrame(()=>marketChart.value?.resize());clearTimeout(layoutTimer);layoutTimer=setTimeout(()=>marketChart.value?.resize(),180)})}
 function stop(){pageActive=false;clearInterval(timer);timer=null;clearTimeout(layoutTimer);layoutTimer=null;stopStream();request++;loading.value=false;chartRefreshing.value=false}
@@ -146,6 +156,7 @@ function start(){
 function visibilityChanged(){if(!pageActive)return;if(document.hidden)stopStream();else startStream()}
 onMounted(()=>{bootstrap();document.addEventListener('visibilitychange',visibilityChanged)});onActivated(start);onDeactivated(stop);onBeforeUnmount(()=>{stop();paramsRequest++;document.removeEventListener('visibilitychange',visibilityChanged)})
 watch(streamContext,startStream,{flush:'sync'})
+watch(selectedInstrumentId,(value,previous)=>{if(pageActive&&value&&value!==previous)loadChart(true)})
 watch(()=>route.query,query=>{if(route.path!=='/indicators/chart')return;let changed=false;for(const key of ['symbol','market','timeframe'])if(query[key]&&query[key]!==form[key]){form[key]=String(query[key]);changed=true}const id=Number(query.indicator_id||query.local_copy_id||0);if(id&&id!==form.indicatorId)selectIndicator({indicatorId:id});else if(changed)loadChart()})
 watch(indicatorSheetOpen,value=>{if(!value)indicatorQuery.value=''})
 </script>

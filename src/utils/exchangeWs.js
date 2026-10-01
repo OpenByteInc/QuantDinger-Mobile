@@ -1,38 +1,102 @@
 /**
  * Exchange WebSocket K-line stream client.
  *
- * Supports multiple exchanges: Binance, OKX, Bitget, Bybit, and Gate.
- * Uses same-venue REST polling when a stream is unavailable.
+ * Supports venue-scoped spot and perpetual streams for the configured exchange.
+ * A failed stream falls back to REST for the same venue; prices never cross venues.
  */
 
 // ── Exchange WebSocket configs ─────────────────────────────
 
-export function parseGateSpotBar (data) {
-  if (data.channel !== 'spot.candlesticks' || data.event !== 'update') return null
-  const c = data.result
+const TIMEFRAME_MS = {
+  '1m': 60 * 1000,
+  '3m': 3 * 60 * 1000,
+  '5m': 5 * 60 * 1000,
+  '15m': 15 * 60 * 1000,
+  '30m': 30 * 60 * 1000,
+  '1H': 60 * 60 * 1000,
+  '4H': 4 * 60 * 60 * 1000,
+  '1D': 24 * 60 * 60 * 1000,
+  '1W': 7 * 24 * 60 * 60 * 1000
+}
+
+function normalizedMarketType (value) {
+  const raw = String(value || 'spot').trim().toLowerCase()
+  return ['swap', 'future', 'futures', 'perp', 'perpetual', 'linear'].includes(raw) ? 'swap' : 'spot'
+}
+
+function closedByTime (timestamp, timeframe) {
+  const duration = TIMEFRAME_MS[String(timeframe || '')]
+  const start = Number(timestamp)
+  return Boolean(duration && Number.isFinite(start) && Date.now() >= start + duration)
+}
+
+function normalizedSymbol (value) {
+  return String(value || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
+}
+
+function spotPair (value) {
+  const raw = String(value || '').replace(/:/g, '/').split('/').filter(Boolean)
+  if (raw.length >= 2) return `${raw[0].toUpperCase()}_${raw[1].toUpperCase()}`
+  const compact = normalizedSymbol(value)
+  for (const quote of ['USDT', 'USDC', 'USD', 'BTC', 'ETH']) {
+    if (compact.endsWith(quote) && compact.length > quote.length) {
+      return `${compact.slice(0, -quote.length)}_${quote}`
+    }
+  }
+  return compact
+}
+
+function okxInstrumentId (symbol, marketType, instrumentId) {
+  const supplied = String(instrumentId || '').trim().toUpperCase()
+  if (supplied) return supplied
+  const pair = spotPair(symbol).replace('_', '-')
+  return normalizedMarketType(marketType) === 'swap' && !pair.endsWith('-SWAP') ? `${pair}-SWAP` : pair
+}
+
+function gateInstrumentId (symbol, instrumentId) {
+  return String(instrumentId || '').trim().toUpperCase() || spotPair(symbol)
+}
+
+function htxInstrumentId (symbol, marketType, instrumentId) {
+  const supplied = String(instrumentId || '').trim()
+  if (supplied) {
+    return normalizedMarketType(marketType) === 'swap'
+      ? supplied.toUpperCase().replace(/_/g, '-')
+      : normalizedSymbol(supplied).toLowerCase()
+  }
+  const pair = spotPair(symbol)
+  return normalizedMarketType(marketType) === 'swap' ? pair.replace('_', '-') : pair.replace('_', '').toLowerCase()
+}
+
+export function parseGateSpotBar (data, context = {}) {
+  if (!['spot.candlesticks', 'futures.candlesticks'].includes(data.channel) || data.event !== 'update') return null
+  const c = Array.isArray(data.result) ? data.result[0] : data.result
   if (!c) return null
-  const baseVolume = parseFloat(c.a)
+  const swap = normalizedMarketType(context.marketType) === 'swap' || data.channel === 'futures.candlesticks'
+  const baseVolume = parseFloat(swap ? c.v : c.a)
+  const timestamp = parseInt(c.t) * 1000
   return {
-    timestamp: parseInt(c.t) * 1000,
+    timestamp,
     open: parseFloat(c.o),
     high: parseFloat(c.h),
     low: parseFloat(c.l),
     close: parseFloat(c.c),
-    // Gate's `v` is quote-currency turnover (for example USDT), while
-    // `a` is the base-currency amount expected by the chart's OHLCV data.
+    // Spot `a` is base volume; futures `v` is the exchange contract volume.
     volume: Number.isFinite(baseVolume) ? baseVolume : 0,
-    isClosed: c.w === true
+    isClosed: c.w === true || closedByTime(timestamp, context.timeframe)
   }
 }
 
 const EXCHANGE_WS = {
   binance: {
-    base: 'wss://stream.binance.com:9443/ws',
-    buildUrl (symbol, interval) {
-      const s = symbol.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
-      return `${this.base}/${s}@kline_${interval}`
+    buildUrl (symbol, interval, context) {
+      const s = normalizedSymbol(context.instrumentId || symbol).toLowerCase()
+      const base = normalizedMarketType(context.marketType) === 'swap'
+        ? 'wss://fstream.binance.com/ws'
+        : 'wss://stream.binance.com:9443/ws'
+      return `${base}/${s}@kline_${interval}`
     },
-    parseBar (data) {
+    parseBar (data, context) {
       if (data.e !== 'kline' || !data.k) return null
       const k = data.k
       return {
@@ -44,14 +108,15 @@ const EXCHANGE_WS = {
         volume: parseFloat(k.v),
         isClosed: !!k.x
       }
-    }
+    },
+    pingInterval: 0
   },
 
   okx: {
     base: 'wss://ws.okx.com:8443/ws/v5/business',
     buildUrl () { return this.base },
-    subscribe (ws, symbol, interval) {
-      const instId = _toOkxInstId(symbol) + (this.instrumentSuffix || '')
+    subscribe (ws, symbol, interval, context) {
+      const instId = okxInstrumentId(symbol, context.marketType, context.instrumentId)
       ws.send(JSON.stringify({
         op: 'subscribe',
         args: [{ channel: 'candle' + interval, instId }]
@@ -69,25 +134,28 @@ const EXCHANGE_WS = {
         low: parseFloat(c[3]),
         close: parseFloat(c[4]),
         volume: parseFloat(c[5]),
-        isClosed: c[8] === '1'
+        isClosed: String(c[8] || '') === '1'
       }
     },
-    ping (ws) {
-      try { ws.send('ping') } catch (_) {}
-    }
+    ping (ws) { try { ws.send('ping') } catch (_) {} },
+    pingInterval: 25000
   },
 
   bitget: {
     base: 'wss://ws.bitget.com/v2/ws/public',
     buildUrl () { return this.base },
-    subscribe (ws, symbol, interval) {
-      const instId = _toBitgetInstId(symbol)
+    subscribe (ws, symbol, interval, context) {
+      const instId = normalizedSymbol(context.instrumentId || symbol)
       ws.send(JSON.stringify({
         op: 'subscribe',
-        args: [{ instType: 'SPOT', channel: 'candle' + interval, instId }]
+        args: [{
+          instType: normalizedMarketType(context.marketType) === 'swap' ? 'USDT-FUTURES' : 'SPOT',
+          channel: 'candle' + interval,
+          instId
+        }]
       }))
     },
-    parseBar (data) {
+    parseBar (data, context) {
       if (!data.data || !Array.isArray(data.data) || data.data.length === 0) return null
       if (!data.arg || !String(data.arg.channel || '').startsWith('candle')) return null
       const c = data.data[0]
@@ -99,19 +167,19 @@ const EXCHANGE_WS = {
         low: parseFloat(c[3]),
         close: parseFloat(c[4]),
         volume: parseFloat(c[5]),
-        isClosed: true
+        isClosed: closedByTime(parseInt(c[0]), context.timeframe)
       }
     },
-    ping (ws) {
-      try { ws.send('ping') } catch (_) {}
-    }
+    ping (ws) { try { ws.send('ping') } catch (_) {} },
+    pingInterval: 25000
   },
 
   bybit: {
-    base: 'wss://stream.bybit.com/v5/public/spot',
-    buildUrl () { return this.base },
-    subscribe (ws, symbol, interval) {
-      const s = symbol.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
+    buildUrl (_symbol, _interval, context) {
+      return `wss://stream.bybit.com/v5/public/${normalizedMarketType(context.marketType) === 'swap' ? 'linear' : 'spot'}`
+    },
+    subscribe (ws, symbol, interval, context) {
+      const s = normalizedSymbol(context.instrumentId || symbol)
       ws.send(JSON.stringify({
         op: 'subscribe',
         args: [`kline.${interval}.${s}`]
@@ -132,62 +200,84 @@ const EXCHANGE_WS = {
         isClosed: !!c.confirm
       }
     },
-    ping (ws) {
-      try { ws.send(JSON.stringify({ op: 'ping' })) } catch (_) {}
-    }
+    ping (ws) { try { ws.send(JSON.stringify({ op: 'ping' })) } catch (_) {} },
+    pingInterval: 20000
   },
 
   gate: {
-    base: 'wss://api.gateio.ws/ws/v4/',
-    buildUrl () { return this.base },
-    subscribe (ws, symbol, interval) {
-      const s = symbol.replace('/', '_').toUpperCase()
+    buildUrl (_symbol, _interval, context) {
+      return normalizedMarketType(context.marketType) === 'swap'
+        ? 'wss://fx-ws.gateio.ws/v4/ws/usdt'
+        : 'wss://api.gateio.ws/ws/v4/'
+    },
+    subscribe (ws, symbol, interval, context) {
+      const swap = normalizedMarketType(context.marketType) === 'swap'
+      const s = gateInstrumentId(symbol, context.instrumentId)
       ws.send(JSON.stringify({
         time: Math.floor(Date.now() / 1000),
-        channel: 'spot.candlesticks',
+        channel: swap ? 'futures.candlesticks' : 'spot.candlesticks',
         event: 'subscribe',
         payload: [interval, s]
       }))
     },
-    parseBar (data) {
-      return parseGateSpotBar(data)
+    parseBar (data, context) {
+      return parseGateSpotBar(data, context)
     },
-    ping (ws) {
+    ping (ws, context) {
       try {
         ws.send(JSON.stringify({
           time: Math.floor(Date.now() / 1000),
-          channel: 'spot.ping'
+          channel: normalizedMarketType(context.marketType) === 'swap' ? 'futures.ping' : 'spot.ping'
         }))
       } catch (_) {}
-    }
+    },
+    pingInterval: 20000
+  },
+
+  htx: {
+    buildUrl (_symbol, _interval, context) {
+      return normalizedMarketType(context.marketType) === 'swap'
+        ? 'wss://api.hbdm.com/linear-swap-ws'
+        : 'wss://api.huobi.pro/ws'
+    },
+    subscribe (ws, symbol, interval, context) {
+      const instrument = htxInstrumentId(symbol, context.marketType, context.instrumentId)
+      ws.send(JSON.stringify({
+        sub: `market.${instrument}.kline.${interval}`,
+        id: `qd-${Date.now()}`
+      }))
+    },
+    parseBar (data, context) {
+      const channel = String(data.ch || '')
+      const c = data.tick
+      if (!channel.includes('.kline.') || !c) return null
+      const timestamp = parseInt(c.id) * 1000
+      return {
+        timestamp,
+        open: parseFloat(c.open),
+        high: parseFloat(c.high),
+        low: parseFloat(c.low),
+        close: parseFloat(c.close),
+        volume: parseFloat(c.amount || 0),
+        isClosed: closedByTime(timestamp, context.timeframe)
+      }
+    },
+    pingInterval: 0
   }
 }
 
 // ── Timeframe mapping per exchange ──────────────────────────
 
-const BINANCE_TF = { '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w', '1M': '1M' }
-const OKX_TF = { '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1H': '1H', '4H': '4H', '1D': '1D', '1W': '1W', '1M': '1M' }
-const BITGET_TF = { '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w', '1M': '1M' }
-const BYBIT_TF = { '1m': '1', '5m': '5', '15m': '15', '30m': '30', '1H': '60', '4H': '240', '1D': 'D', '1W': 'W', '1M': 'M' }
-const GATE_TF = { '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '7d', '1M': '30d' }
+const BINANCE_TF = { '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m', '30m': '30m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w' }
+const OKX_TF = { '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m', '30m': '30m', '1H': '1H', '4H': '4H', '1D': '1D', '1W': '1W' }
+const BITGET_TF = { '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1H': '1H', '4H': '4H', '1D': '1D', '1W': '1W' }
+const BYBIT_TF = { '1m': '1', '3m': '3', '5m': '5', '15m': '15', '30m': '30', '1H': '60', '4H': '240', '1D': 'D', '1W': 'W' }
+const GATE_TF = { '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '7d' }
+const HTX_TF = { '1m': '1min', '5m': '5min', '15m': '15min', '30m': '30min', '1H': '60min', '4H': '4hour', '1D': '1day', '1W': '1week' }
 
-function getInterval (exchange, timeframe) {
-  const map = { binance: BINANCE_TF, okx: OKX_TF, bitget: BITGET_TF, bybit: BYBIT_TF, gate: GATE_TF }
-  return (map[exchange] || BINANCE_TF)[timeframe] || '1h'
-}
-
-// ── Symbol formatters ───────────────────────────────────────
-
-function _toOkxInstId (symbol) {
-  const parts = symbol.split('/')
-  if (parts.length === 2) return `${parts[0].toUpperCase()}-${parts[1].toUpperCase()}`
-  return symbol.replace(/[^a-zA-Z0-9]/g, '-').toUpperCase()
-}
-
-function _toBitgetInstId (symbol) {
-  const parts = symbol.split('/')
-  if (parts.length === 2) return `${parts[0].toUpperCase()}${parts[1].toUpperCase()}`
-  return symbol.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
+export function getExchangeInterval (exchange, timeframe) {
+  const map = { binance: BINANCE_TF, okx: OKX_TF, bitget: BITGET_TF, bybit: BYBIT_TF, gate: GATE_TF, htx: HTX_TF }
+  return (map[exchange] || {})[timeframe] || null
 }
 
 // ── Resolve exchange alias ──────────────────────────────────
@@ -201,7 +291,9 @@ function resolveExchangeId (id) {
     bitget: 'bitget',
     bybit: 'bybit',
     gate: 'gate',
-    gateio: 'gate'
+    gateio: 'gate',
+    htx: 'htx',
+    huobi: 'htx'
   }
   return aliases[lower] || ''
 }
@@ -226,6 +318,8 @@ export default class ExchangeKlineWs {
     this._closed = false
     this._symbol = ''
     this._timeframe = ''
+    this._marketType = 'spot'
+    this._instrumentId = ''
     this._everConnected = false
     this._fallbackUsed = false
     this._connectTimeout = null
@@ -240,13 +334,15 @@ export default class ExchangeKlineWs {
    * @param {Object} callbacks
    * @param {string} [exchangeId] preferred exchange from settings
    */
-  connect (symbol, timeframe, callbacks, exchangeId, marketType = 'spot') {
+  connect (symbol, timeframe, callbacks, exchangeId, options = {}) {
     this.disconnect()
     this._closed = false
     this._everConnected = false
     this._fallbackUsed = false
     this._symbol = symbol
     this._timeframe = timeframe
+    this._marketType = normalizedMarketType(options.marketType)
+    this._instrumentId = String(options.instrumentId || '').trim()
     this._onTick = callbacks.onTick
     this._onNewBar = callbacks.onNewBar
     this._onError = callbacks.onError || null
@@ -255,14 +351,15 @@ export default class ExchangeKlineWs {
     this._reconnectAttempts = 0
 
     this._exchangeId = resolveExchangeId(exchangeId)
-    this._exchangeConf = resolveStreamConfig(this._exchangeId, marketType)
-    if (!this._exchangeConf) {
+    this._exchangeConf = EXCHANGE_WS[this._exchangeId]
+    if (!this._exchangeConf || !getExchangeInterval(this._exchangeId, this._timeframe)) {
       this._closed = true
       if (this._onError) this._onError()
-      return
+      return false
     }
     this._buildUrl()
     this._open()
+    return !this._closed
   }
 
   disconnect () {
@@ -290,8 +387,17 @@ export default class ExchangeKlineWs {
   // ── internal ──────────────────────────────
 
   _buildUrl () {
-    const interval = getInterval(this._exchangeId, this._timeframe)
-    this._url = this._exchangeConf.buildUrl(this._symbol, interval)
+    const interval = getExchangeInterval(this._exchangeId, this._timeframe)
+    this._url = this._exchangeConf.buildUrl(this._symbol, interval, this._context())
+  }
+
+  _context () {
+    return {
+      exchangeId: this._exchangeId,
+      marketType: this._marketType,
+      instrumentId: this._instrumentId,
+      timeframe: this._timeframe
+    }
   }
 
   _open () {
@@ -299,6 +405,7 @@ export default class ExchangeKlineWs {
     const myGen = ++this._openGen
     try {
       this._ws = new WebSocket(this._url)
+      this._ws.binaryType = 'arraybuffer'
     } catch (e) {
       console.warn(`[ExchangeWs] ${this._exchangeId} WebSocket constructor failed:`, e.message)
       this._tryFallback()
@@ -330,15 +437,16 @@ export default class ExchangeKlineWs {
       this._startPing()
 
       if (this._exchangeConf.subscribe) {
-        const interval = getInterval(this._exchangeId, this._timeframe)
+        const interval = getExchangeInterval(this._exchangeId, this._timeframe)
         try {
-          this._exchangeConf.subscribe(this._ws, this._symbol, interval)
+          this._exchangeConf.subscribe(this._ws, this._symbol, interval, this._context())
         } catch (e) {
           console.warn(`[ExchangeWs] ${this._exchangeId} subscribe error:`, e)
         }
       }
 
-      // Fall back if the subscription opens without receiving candle data.
+      // If no data arrives within 12s after open, the connection or subscription
+      // likely failed silently, so the caller must continue same-venue REST polling.
       if (!this._fallbackUsed) {
         this._dataTimeout = setTimeout(() => {
           if (myGen !== this._openGen) return
@@ -359,7 +467,7 @@ export default class ExchangeKlineWs {
 
     this._ws.onmessage = (evt) => {
       if (myGen !== this._openGen) return
-      this._handleMessage(evt)
+      this._handleMessage(evt, myGen)
     }
 
     this._ws.onerror = () => {}
@@ -371,8 +479,6 @@ export default class ExchangeKlineWs {
         this._connectTimeout = null
       }
       this._clearPing()
-      clearTimeout(this._dataTimeout)
-      this._dataTimeout = null
       if (!this._closed) {
         if (!this._everConnected && !this._fallbackUsed) {
           this._tryFallback()
@@ -387,26 +493,57 @@ export default class ExchangeKlineWs {
   }
 
   _tryFallback () {
-    this.disconnect()
     this._fallbackUsed = true
     this._closed = true
     if (this._onError) this._onError()
   }
 
-  _handleMessage (evt) {
-    if (typeof evt.data === 'string' && (evt.data === 'pong' || evt.data === '')) return
+  async _decodeMessage (raw) {
+    if (typeof raw === 'string') return raw
+    let bytes = null
+    if (raw instanceof ArrayBuffer) bytes = new Uint8Array(raw)
+    else if (typeof Blob !== 'undefined' && raw instanceof Blob) bytes = new Uint8Array(await raw.arrayBuffer())
+    if (!bytes) return ''
 
-    let data
+    const isGzip = bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b
+    if (isGzip && typeof DecompressionStream !== 'undefined') {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))
+      return new Response(stream).text()
+    }
+    return new TextDecoder().decode(bytes)
+  }
+
+  async _handleMessage (evt, generation = this._openGen) {
+    let raw
     try {
-      data = JSON.parse(evt.data)
+      raw = await this._decodeMessage(evt.data)
     } catch (_) {
       return
     }
+    if (generation !== this._openGen || this._closed) return
+    if (raw === 'pong' || raw === '') return
 
-    if (!data || data.event === 'subscribe' || data.op === 'subscribe' || data.event === 'pong' || data.ret_msg === 'pong') return
+    let data
+    try { data = JSON.parse(raw) } catch (_) { return }
 
-    const parsed = this._exchangeConf.parseBar(data)
-    if (!parsed || !['timestamp', 'open', 'high', 'low', 'close', 'volume'].every(key => Number.isFinite(parsed[key])) || parsed.volume < 0) return
+    if (data.ping !== undefined) {
+      try { this._ws.send(JSON.stringify({ pong: data.ping })) } catch (_) {}
+      return
+    }
+    if (data.op === 'ping') {
+      try { this._ws.send(JSON.stringify({ op: 'pong', ts: data.ts })) } catch (_) {}
+      return
+    }
+
+    if (data.event === 'subscribe' || data.op === 'subscribe' || data.event === 'pong' || data.ret_msg === 'pong') return
+
+    let parsed
+    try {
+      parsed = this._exchangeConf.parseBar(data, this._context())
+    } catch (_) {
+      return
+    }
+    if (!parsed) return
 
     if (!this._gotData) {
       this._gotData = true
@@ -450,11 +587,13 @@ export default class ExchangeKlineWs {
 
   _startPing () {
     this._clearPing()
+    const interval = Number(this._exchangeConf.pingInterval || 0)
+    if (!interval || typeof this._exchangeConf.ping !== 'function') return
     this._pingTimer = setInterval(() => {
       if (this._ws && this._ws.readyState === WebSocket.OPEN) {
-        this._exchangeConf.ping?.(this._ws)
+        this._exchangeConf.ping(this._ws, this._context())
       }
-    }, 20000)
+    }, interval)
   }
 
   _clearPing () {
@@ -482,30 +621,3 @@ export default class ExchangeKlineWs {
 }
 
 export { resolveExchangeId, EXCHANGE_WS }
-
-
-export function resolveStreamConfig(exchange, marketType = 'spot') {
-  exchange = resolveExchangeId(exchange)
-  const config = EXCHANGE_WS[exchange]
-  if (marketType === 'spot') return config || null
-  if (marketType !== 'swap') return null
-  if (exchange === 'binance') return { ...config, base: 'wss://fstream.binance.com/ws' }
-  if (exchange === 'bybit') return { ...config, base: 'wss://stream.bybit.com/v5/public/linear' }
-  if (exchange === 'okx') return { ...config, instrumentSuffix: '-SWAP' }
-  if (exchange === 'gate') return {
-    ...config,
-    base: 'wss://fx-ws.gateio.ws/v4/ws/usdt',
-    subscribe(ws, symbol, interval) {
-      ws.send(JSON.stringify({time:Math.floor(Date.now()/1000),channel:'futures.candlesticks',event:'subscribe',payload:[interval,symbol.replace('/','_').toUpperCase()]}))
-    },
-    parseBar(data) {
-      if(data.channel!=='futures.candlesticks'||data.event!=='update'||!Array.isArray(data.result))return null
-      const c=data.result.reduce((latest,row)=>!latest||Number(row.t)>Number(latest.t)?row:latest,null)
-      if(!c)return null
-      // Match CCXT's REST OHLCV volume in contracts, not quote turnover.
-      return {timestamp:Number(c.t)*1000,open:Number(c.o),high:Number(c.h),low:Number(c.l),close:Number(c.c),volume:Number(c.v),isClosed:c.w===true}
-    },
-    ping(ws) { try{ws.send(JSON.stringify({time:Math.floor(Date.now()/1000),channel:'futures.ping'}))}catch(_){} }
-  }
-  return null
-}
