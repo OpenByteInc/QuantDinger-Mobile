@@ -362,7 +362,7 @@ http.interceptors.response.use(
       redirectToLoginIfNeeded(reqUrl)
     }
     const message = localizedApiMessage(apiErrorMessage(res))
-    showToast({ message, type: 'fail' })
+    if (!response.config?.suppressErrorToast) showToast({ message, type: 'fail' })
     const error = new Error(message)
     error.backendMessage = res?.msg || res?.message || ''
     return Promise.reject(error)
@@ -400,7 +400,7 @@ http.interceptors.response.use(
       message = t('api_errors.connection_failed')
     }
 
-    showToast({ message, type: 'fail' })
+    if (!error.config?.suppressErrorToast) showToast({ message, type: 'fail' })
     error.localizedMessage = message
     return Promise.reject(error)
   }
@@ -527,6 +527,10 @@ export const strategyApi = {
   stop: (id, closePositions = false) => http.post(`/api/strategies/${id}/stop`, {
     close_positions: Boolean(closePositions)
   }),
+  getCommandStatus: (id, commandId) => http.get(
+    `/api/strategies/${id}/commands/${commandId}`,
+    { suppressErrorToast: true }
+  ),
   getTrades: async (id, limit = 50) => {
     const res = await http.get('/api/strategies/trades', {
       params: { id, limit }

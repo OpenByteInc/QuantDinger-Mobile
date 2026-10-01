@@ -25,7 +25,17 @@ export default {
     "strategyRuntime.virtualFillCompleted": "信号已记入虚拟账户，并已发送通知。",
     "strategyRuntime.virtualFillNotificationFailed": "虚拟交易已入账，但通知发送失败。",
     "strategyRuntime.virtualLimitOrderOpened": "虚拟限价单已挂出，将在行情触达委托价后成交。",
-    "strategyRuntime.virtualLimitOrderOpenedNotificationFailed": "虚拟限价单已挂出，但通知发送失败。"
+    "strategyRuntime.virtualLimitOrderOpenedNotificationFailed": "虚拟限价单已挂出，但通知发送失败。",
+    "strategyV2.stopQueued": "暂停指令已提交，正在等待执行进程确认。",
+    "strategyV2.stopAndCloseQueued": "暂停并平仓指令已提交，正在等待执行进程确认。",
+    "strategyV2.paused": "策略已暂停。",
+    "strategyV2.stoppedNoPositions": "策略已暂停；当前没有持仓，无需平仓。",
+    "strategyV2.stoppedAndCloseQueued": "策略已暂停，平仓订单已提交。",
+    "strategyV2.stoppedAndVirtualCloseCompleted": "策略已暂停，全部虚拟持仓已完成结算。",
+    "strategyV2.stopClosePartialFailure": "策略已暂停，但部分持仓未能提交平仓，请人工核查。",
+    "strategyV2.stopFailed": "暂停策略失败，请检查运行状态后重试。",
+    "strategyV2.commandNotFound": "未找到该策略对应的运行指令。",
+    "strategyV2.commandStatusUnavailable": "暂时无法确认暂停指令的最终状态，请刷新后核查。"
   },
   "zh-TW": {
     "strategyRuntime.fillContractMetadataUnavailable": "合約規格暫不可用，成交入帳將重試，不會猜測成交數量。",
@@ -53,7 +63,17 @@ export default {
     "strategyRuntime.virtualFillCompleted": "訊號已記入虛擬帳戶，並已傳送通知。",
     "strategyRuntime.virtualFillNotificationFailed": "虛擬交易已入帳，但通知傳送失敗。",
     "strategyRuntime.virtualLimitOrderOpened": "虛擬限價單已掛出，將在行情觸及委託價後成交。",
-    "strategyRuntime.virtualLimitOrderOpenedNotificationFailed": "虛擬限價單已掛出，但通知傳送失敗。"
+    "strategyRuntime.virtualLimitOrderOpenedNotificationFailed": "虛擬限價單已掛出，但通知傳送失敗。",
+    "strategyV2.stopQueued": "暫停指令已提交，正在等待執行程序確認。",
+    "strategyV2.stopAndCloseQueued": "暫停並平倉指令已提交，正在等待執行程序確認。",
+    "strategyV2.paused": "策略已暫停。",
+    "strategyV2.stoppedNoPositions": "策略已暫停；目前沒有持倉，無需平倉。",
+    "strategyV2.stoppedAndCloseQueued": "策略已暫停，平倉訂單已提交。",
+    "strategyV2.stoppedAndVirtualCloseCompleted": "策略已暫停，全部虛擬持倉已完成結算。",
+    "strategyV2.stopClosePartialFailure": "策略已暫停，但部分持倉未能提交平倉，請人工核查。",
+    "strategyV2.stopFailed": "暫停策略失敗，請檢查運行狀態後重試。",
+    "strategyV2.commandNotFound": "找不到該策略對應的運行指令。",
+    "strategyV2.commandStatusUnavailable": "暫時無法確認暫停指令的最終狀態，請重新整理後核查。"
   },
   "en-US": {
     "strategyRuntime.fillContractMetadataUnavailable": "Contract specifications are unavailable. Fill accounting will retry without guessing the quantity.",
@@ -81,7 +101,17 @@ export default {
     "strategyRuntime.virtualFillCompleted": "The signal was recorded in the virtual account and its notification was sent.",
     "strategyRuntime.virtualFillNotificationFailed": "The virtual trade was recorded, but the notification could not be delivered.",
     "strategyRuntime.virtualLimitOrderOpened": "The virtual limit order is open and will fill only after the market reaches its price.",
-    "strategyRuntime.virtualLimitOrderOpenedNotificationFailed": "The virtual limit order is open, but its notification could not be delivered."
+    "strategyRuntime.virtualLimitOrderOpenedNotificationFailed": "The virtual limit order is open, but its notification could not be delivered.",
+    "strategyV2.stopQueued": "The pause command was submitted and is awaiting worker confirmation.",
+    "strategyV2.stopAndCloseQueued": "The pause-and-close command was submitted and is awaiting worker confirmation.",
+    "strategyV2.paused": "Strategy paused.",
+    "strategyV2.stoppedNoPositions": "Strategy paused; there were no positions to close.",
+    "strategyV2.stoppedAndCloseQueued": "Strategy paused and close orders were submitted.",
+    "strategyV2.stoppedAndVirtualCloseCompleted": "Strategy paused and all virtual positions were settled.",
+    "strategyV2.stopClosePartialFailure": "The strategy paused, but some positions could not be queued for closing. Manual review is required.",
+    "strategyV2.stopFailed": "The strategy could not be paused. Check its runtime state and try again.",
+    "strategyV2.commandNotFound": "The lifecycle command was not found for this strategy.",
+    "strategyV2.commandStatusUnavailable": "The final pause status could not be confirmed. Refresh and verify the strategy state."
   },
   "ja-JP": {
     "strategyRuntime.fillContractMetadataUnavailable": "Contract specifications are unavailable. Fill accounting will retry without guessing the quantity.",
@@ -109,7 +139,17 @@ export default {
     "strategyRuntime.virtualFillCompleted": "The signal was recorded in the virtual account and its notification was sent.",
     "strategyRuntime.virtualFillNotificationFailed": "The virtual trade was recorded, but the notification could not be delivered.",
     "strategyRuntime.virtualLimitOrderOpened": "The virtual limit order is open and will fill only after the market reaches its price.",
-    "strategyRuntime.virtualLimitOrderOpenedNotificationFailed": "The virtual limit order is open, but its notification could not be delivered."
+    "strategyRuntime.virtualLimitOrderOpenedNotificationFailed": "The virtual limit order is open, but its notification could not be delivered.",
+    "strategyV2.stopQueued": "一時停止コマンドを送信し、実行ワーカーの確認を待っています。",
+    "strategyV2.stopAndCloseQueued": "停止・決済コマンドを送信し、実行ワーカーの確認を待っています。",
+    "strategyV2.paused": "ストラテジーを一時停止しました。",
+    "strategyV2.stoppedNoPositions": "ストラテジーを一時停止しました。決済するポジションはありません。",
+    "strategyV2.stoppedAndCloseQueued": "ストラテジーを一時停止し、決済注文を送信しました。",
+    "strategyV2.stoppedAndVirtualCloseCompleted": "ストラテジーを一時停止し、すべての仮想ポジションを精算しました。",
+    "strategyV2.stopClosePartialFailure": "ストラテジーは停止しましたが、一部の決済注文を送信できませんでした。手動確認が必要です。",
+    "strategyV2.stopFailed": "ストラテジーを一時停止できませんでした。実行状態を確認して再試行してください。",
+    "strategyV2.commandNotFound": "このストラテジーの実行コマンドが見つかりません。",
+    "strategyV2.commandStatusUnavailable": "一時停止の最終状態を確認できません。更新して状態を確認してください。"
   },
   "ko-KR": {
     "strategyRuntime.fillContractMetadataUnavailable": "Contract specifications are unavailable. Fill accounting will retry without guessing the quantity.",
@@ -137,6 +177,16 @@ export default {
     "strategyRuntime.virtualFillCompleted": "The signal was recorded in the virtual account and its notification was sent.",
     "strategyRuntime.virtualFillNotificationFailed": "The virtual trade was recorded, but the notification could not be delivered.",
     "strategyRuntime.virtualLimitOrderOpened": "The virtual limit order is open and will fill only after the market reaches its price.",
-    "strategyRuntime.virtualLimitOrderOpenedNotificationFailed": "The virtual limit order is open, but its notification could not be delivered."
+    "strategyRuntime.virtualLimitOrderOpenedNotificationFailed": "The virtual limit order is open, but its notification could not be delivered.",
+    "strategyV2.stopQueued": "일시 중지 명령이 제출되어 실행 워커의 확인을 기다리고 있습니다.",
+    "strategyV2.stopAndCloseQueued": "중지 및 청산 명령이 제출되어 실행 워커의 확인을 기다리고 있습니다.",
+    "strategyV2.paused": "전략이 일시 중지되었습니다.",
+    "strategyV2.stoppedNoPositions": "전략이 일시 중지되었습니다. 청산할 포지션이 없습니다.",
+    "strategyV2.stoppedAndCloseQueued": "전략이 일시 중지되었고 청산 주문이 제출되었습니다.",
+    "strategyV2.stoppedAndVirtualCloseCompleted": "전략이 일시 중지되었고 모든 가상 포지션이 정산되었습니다.",
+    "strategyV2.stopClosePartialFailure": "전략은 중지되었지만 일부 청산 주문을 제출하지 못했습니다. 수동 확인이 필요합니다.",
+    "strategyV2.stopFailed": "전략을 일시 중지하지 못했습니다. 실행 상태를 확인한 후 다시 시도하세요.",
+    "strategyV2.commandNotFound": "이 전략의 실행 명령을 찾을 수 없습니다.",
+    "strategyV2.commandStatusUnavailable": "일시 중지의 최종 상태를 확인할 수 없습니다. 새로고침 후 상태를 확인하세요."
   }
 }

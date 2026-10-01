@@ -84,12 +84,14 @@
 <script>
 import { showConfirmDialog, showToast } from 'vant'
 import { strategyApi } from '@/api'
+import { waitForStrategyCommand } from '@/utils/strategyCommandPolling'
+import { strategyStopFeedback } from '@/utils/strategyStopFeedback'
 
 const EXIT_TYPES = ['close_long', 'close_short', 'reduce_long', 'reduce_short', 'sell', 'close']
 
 export default {
   name: 'StrategyDetail',
-  data() { return { strategy: null, positions: [], trades: [], tradePage: 1, logs: [], logFilter: 'all', logPage: 1, pageSize: 10, equityCurve: [], performance: {}, costSummary: {}, aiDecisions: [], gridOrders: [], gridOrderSummary: {}, ownership: { items: [], status: 'ok', advanced_coexistence_available: false }, review: null, reviewHistory: [], selectedReviewId: null, activeTab: 'overview', loading: false, detailFailed: false, exposureReady: false, actionLoading: false, ownershipLoading: false, gridOrdersLoading: false, ownershipRepairKey: '', reviewLoading: false, reviewHistoryLoaded: false, showReviewHistory: false, showOwnershipRepair: false } },
+  data() { return { strategy: null, positions: [], trades: [], tradePage: 1, logs: [], logFilter: 'all', logPage: 1, pageSize: 10, equityCurve: [], performance: {}, costSummary: {}, aiDecisions: [], gridOrders: [], gridOrderSummary: {}, ownership: { items: [], status: 'ok', advanced_coexistence_available: false }, review: null, reviewHistory: [], selectedReviewId: null, activeTab: 'overview', loading: false, detailFailed: false, exposureReady: false, actionLoading: false, ownershipLoading: false, gridOrdersLoading: false, ownershipRepairKey: '', reviewLoading: false, reviewHistoryLoaded: false, showReviewHistory: false, showOwnershipRepair: false, stopCommandTrackers: new Set(), componentActive: true } },
   computed: {
     strategyId() { return Number(this.$route.params.id) },
     runtimeHealth() { return this.strategy?.runtime_health && typeof this.strategy.runtime_health === 'object' ? this.strategy.runtime_health : {} },
@@ -140,7 +142,8 @@ export default {
     reviewMetricItems() { const m = this.reviewMetrics; return [{ key: 'net', label: this.$t('live_detail.cumulativeNetPnl'), value: this.signedMoney(m.window_net_pnl ?? m.total_net_pnl), tone: this.pnlClass(m.window_net_pnl ?? m.total_net_pnl) }, { key: 'return', label: this.$t('live_detail.totalReturn'), value: this.signedPercent(m.performance_total_return_pct ?? m.total_return_pct), tone: this.pnlClass(m.performance_total_return_pct ?? m.total_return_pct) }, { key: 'win', label: this.$t('live_detail.winRate'), value: this.percent(m.win_rate), tone: '', hint: `${m.winning_trades || 0}/${m.closed_trades_with_pnl || 0}` }, { key: 'factor', label: this.$t('live_detail.profitFactor'), value: this.number(m.profit_factor, 2), tone: '' }, { key: 'drawdown', label: this.$t('live_detail.maxDrawdown'), value: this.percent(m.performance_max_drawdown_pct ?? m.max_drawdown_pct), tone: 'warning-value' }, { key: 'fees', label: this.$t('live_detail.totalFees'), value: this.money(m.total_commission), tone: '' }, { key: 'open', label: this.$t('live_detail.openPositions'), value: String(m.open_position_count || 0), tone: '', hint: this.signedMoney(m.unrealized_pnl) }] }
   },
   watch: { activeTab(value) { if (value === 'review' && !this.reviewHistoryLoaded) this.loadReviewHistory() }, logFilter() { this.logPage = 1 } },
-  mounted() { this.load() },
+  mounted() { this.componentActive = true; this.load() },
+  beforeUnmount() { this.componentActive = false; this.stopCommandTrackers.clear() },
   methods: {
     async load() { if (this.loading) return; this.loading = true; this.exposureReady = false; this.detailFailed = false; try { const [detail, positions, ledger, logs, performance, curve, decisions] = await Promise.allSettled([strategyApi.getDetail(this.strategyId), strategyApi.getPositions(this.strategyId), strategyApi.getTradeLedger(this.strategyId), strategyApi.getLogs(this.strategyId, 1000), strategyApi.getPerformance(this.strategyId), strategyApi.getEquityCurve(this.strategyId), strategyApi.getAiDecisions(this.strategyId)]); this.exposureReady = detail.status === 'fulfilled' && positions.status === 'fulfilled'; this.detailFailed = [detail, positions, ledger, logs, performance, curve].some(result => result.status === 'rejected'); if (detail.status === 'fulfilled') this.strategy = detail.value.data; this.positions = positions.status === 'fulfilled' ? positions.value.data || [] : []; const ledgerData = ledger.status === 'fulfilled' ? ledger.value.data || {} : {}; this.trades = ledgerData.items || []; this.tradePage = Math.min(this.tradePage, Math.max(1, Math.ceil(this.trades.length / this.pageSize))); this.costSummary = ledgerData.cost_summary || {}; this.logs = logs.status === 'fulfilled' ? logs.value.data || [] : []; this.logPage = Math.min(this.logPage, Math.max(1, Math.ceil(this.filteredLogs.length / this.pageSize))); this.performance = performance.status === 'fulfilled' ? performance.value.data || {} : {}; this.equityCurve = curve.status === 'fulfilled' ? curve.value.data || [] : []; this.aiDecisions = decisions.status === 'fulfilled' ? decisions.value.data || [] : []; if (this.isLiveStrategy) await this.loadOwnership(false); else this.ownership = { items: [], status: 'ok', advanced_coexistence_available: false }; if (this.isGridStrategy) await this.loadGridOrders(false); else { this.gridOrders = []; this.gridOrderSummary = {} } } finally { this.loading = false } },
     async loadOwnership(showFailure = true) { this.ownershipLoading = true; try { const response = await strategyApi.getPositionOwnership(this.strategyId); this.ownership = response?.data || { items: [], status: 'ok', advanced_coexistence_available: false } } catch { if (showFailure) showToast({ message: this.$t('trading.position_ownership_load_failed'), type: 'fail' }) } finally { this.ownershipLoading = false } },
@@ -159,8 +162,45 @@ export default {
     rawLogText(item) { return typeof item === 'string' ? item : String(item?.message || item?.content || item?.event_type || '') }, normalizeLogLevel(item) { const level = String(typeof item === 'string' ? 'info' : item?.level || item?.severity || 'info').trim().toLowerCase(); return level === 'warn' ? 'warning' : level }, logLevelText(item) { const level = this.normalizeLogLevel(item); const key = `live_detail.log${level.replace(/^./, letter => letter.toUpperCase())}`; return this.$te(key) ? this.$t(key) : level }, logSummary(item) { const raw = this.rawLogText(item); if (this.$te(raw)) return this.$t(raw, item?.params || item?.message_params || {}); const text = raw.toLowerCase(); if (/(position ownership drift|position_drift_detected|account and strategy positions differ)/.test(text)) return this.$t('trading.position_ownership_drift_event'); if (/(open_long|enter_long|buy signal)/.test(text)) return this.$t('trading.event_open_long'); if (/(open_short|enter_short|sell signal)/.test(text)) return this.$t('trading.event_open_short'); if (/(close_long|exit_long)/.test(text)) return this.$t('trading.event_close_long'); if (/(close_short|exit_short)/.test(text)) return this.$t('trading.event_close_short'); if (/(pending_order|order pending)/.test(text)) return this.$t('trading.event_order_pending'); if (/(error|failed|exception)/.test(text)) return this.$t('trading.event_run_error'); return raw || this.$t('trading.no_recent_event') },
     edit() { this.$router.push({ path: '/trading/create', query: { edit: this.strategyId } }) },
     async start() { if (!this.exposureReady) return; if (this.hasOpenExposure) { try { await showConfirmDialog({ title: this.$t('trading.restart_with_position_title'), message: this.$t('trading.restart_with_position_msg', { count: this.positions.length }) }) } catch { return } } this.actionLoading = true; try { await strategyApi.start(this.strategyId); showToast({ message: this.$t('trading.start_success'), type: 'success' }); await this.load() } finally { this.actionLoading = false } },
-    async confirmStop(closePositions) { try { await showConfirmDialog({ title: this.$t(closePositions ? 'trading.confirm_stop_close_title' : 'trading.confirm_stop_title'), message: this.$t(closePositions ? 'trading.confirm_stop_close_msg' : 'trading.confirm_stop_msg') }) } catch { return } this.actionLoading = true; try { await strategyApi.stop(this.strategyId, closePositions); showToast({ message: this.$t(closePositions ? 'trading.stop_close_success' : 'trading.stop_success'), type: 'success' }); await this.load() } finally { this.actionLoading = false } },
-    async confirmCloseRetained() { try { await showConfirmDialog({ title: this.$t('live_detail.closeRetainedTitle'), message: this.$t('live_detail.closeRetainedMessage') }) } catch { return } this.actionLoading = true; try { await strategyApi.stop(this.strategyId, true); showToast({ message: this.$t('live_detail.closeRetainedQueued'), type: 'success' }); await this.load() } finally { this.actionLoading = false } },
+    async confirmStop(closePositions) { try { await showConfirmDialog({ title: this.$t(closePositions ? 'trading.confirm_stop_close_title' : 'trading.confirm_stop_title'), message: this.$t(closePositions ? 'trading.confirm_stop_close_msg' : 'trading.confirm_stop_msg') }) } catch { return } this.actionLoading = true; try { await this.submitStop(closePositions) } finally { this.actionLoading = false } },
+    async confirmCloseRetained() { try { await showConfirmDialog({ title: this.$t('live_detail.closeRetainedTitle'), message: this.$t('live_detail.closeRetainedMessage') }) } catch { return } this.actionLoading = true; try { await this.submitStop(true) } finally { this.actionLoading = false } },
+    async submitStop(closePositions) {
+      const response = await strategyApi.stop(this.strategyId, closePositions)
+      const feedback = strategyStopFeedback(response, key => this.$t(key), closePositions)
+      showToast({ message: feedback.message, type: feedback.type })
+      const commandId = Number(response?.data?.command_id)
+      if (response?.data?.status === 'stopping' && commandId > 0) {
+        this.trackStopCommand(this.strategyId, commandId, closePositions)
+        return
+      }
+      await this.load()
+    },
+    async trackStopCommand(strategyId, commandId, closePositions) {
+      const trackerKey = `${strategyId}:${commandId}`
+      if (this.stopCommandTrackers.has(trackerKey)) return
+      this.stopCommandTrackers.add(trackerKey)
+      try {
+        let response = null
+        try {
+          response = await waitForStrategyCommand(
+            () => strategyApi.getCommandStatus(strategyId, commandId),
+            { shouldContinue: () => this.componentActive }
+          )
+        } catch (error) {
+          response = error?.response?.data || null
+        }
+        if (!this.componentActive) return
+        if (response) {
+          const feedback = strategyStopFeedback(response, key => this.$t(key), closePositions)
+          showToast({ message: feedback.message, type: feedback.type })
+        } else {
+          showToast({ message: this.$t('strategyV2.commandStatusUnavailable'), type: 'fail' })
+        }
+        await this.load()
+      } finally {
+        this.stopCommandTrackers.delete(trackerKey)
+      }
+    },
     async remove() { if (!this.exposureReady || this.hasOpenExposure) { if (this.hasOpenExposure) showToast({ message: this.$t('trading.delete_blocked_exposure'), type: 'fail' }); return } try { await showConfirmDialog({ title: this.$t('trading.confirm_delete_title'), message: this.$t('trading.confirm_delete_msg') }) } catch { return } await strategyApi.delete(this.strategyId); showToast({ message: this.$t('trading.delete_success'), type: 'success' }); this.$router.replace('/trading') }
   }
 }
