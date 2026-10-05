@@ -881,7 +881,7 @@ export default {
     execution_live_hint: '호환되는 연결 계정으로 실제 주문을 제출합니다.', execution_signal_hint: '주문 없이 신호와 알림만 생성합니다.',
     live_disclaimer_title: '실거래 위험 확인', live_disclaimer_content: '선택한 계정으로 실제 주문이 제출되며 실제 손실이 발생할 수 있습니다.',
     live_disclaimer_agree: '실거래 위험을 이해하고 동의합니다.', live_disclaimer_required: '먼저 실거래 위험을 확인하세요.',
-    leverage_title: '전략 레버리지', leverage_auto_hint: '이 전략은 최대 {value}배까지 허용합니다. 실제 한도는 선택한 계정과 계약에 따라 달라집니다.', direction_one_way: '단방향 포지션',
+    leverage_title: '전략 레버리지', leverage_auto_hint: '이 전략은 최대 {value}배까지 허용합니다. 실제 한도는 선택한 계정과 계약에 따라 달라집니다.', direction_one_way: '단일 포지션 롱/숏 전환',
     ai_filter_title: 'AI 의사결정 필터', ai_filter_hint: '주문 전 각 전략 신호를 AI가 다시 검토합니다.',
     ai_filter_unsupported: '이 자동화 전략은 주문을 직접 관리하므로 AI 필터를 지원하지 않습니다.',
   },

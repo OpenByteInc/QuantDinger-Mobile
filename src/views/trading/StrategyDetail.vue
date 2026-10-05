@@ -86,6 +86,7 @@ import { showConfirmDialog, showToast } from 'vant'
 import { strategyApi } from '@/api'
 import { waitForStrategyCommand } from '@/utils/strategyCommandPolling'
 import { strategyStopFeedback } from '@/utils/strategyStopFeedback'
+import { translateStrategyRuntimeMessage } from '@/utils/strategyLogs'
 
 const EXIT_TYPES = ['close_long', 'close_short', 'reduce_long', 'reduce_short', 'sell', 'close']
 
@@ -159,7 +160,28 @@ export default {
     positionLeverage(item) { const value = this.finite(item?.leverage); return value != null && value > 0 ? value : this.leverage }, positionCost(item) { return Math.abs((this.finite(item?.entry_price) || 0) * (this.finite(item?.quantity) || 0)) }, positionValue(item) { return Math.abs((this.finite(item?.current_price) || 0) * (this.finite(item?.quantity) || 0)) }, positionRoi(item) { const direct = this.finite(item?.profit_pct_on_margin ?? item?.roi ?? item?.unrealized_pnl_percentage); if (direct != null) return direct; const margin = this.positionCost(item) / this.positionLeverage(item); return margin ? Number(item?.unrealized_pnl || 0) / margin * 100 : 0 },
     sideText(value) { const side = String(value || '').toLowerCase(); if (side === 'long' || side === 'buy') return this.$t('trading.side_long'); if (side === 'short' || side === 'sell') return this.$t('trading.side_short'); return value || '-' }, isExitTrade(item) { const type = String(item?.type || item?.side || '').toLowerCase(); return EXIT_TYPES.some(value => type === value || type.startsWith(`${value}_`)) }, tradePnl(item) { return this.finite(item?.net_pnl ?? item?.pnl ?? item?.profit ?? item?.realized_pnl) ?? 0 }, tradeFee(item) { return this.finite(item?.total_commission ?? item?.commission_quote ?? item?.commission) ?? 0 }, exchangePnl(item) { const value = item?.exchange_pnl; return this.finite(value && typeof value === 'object' ? value.amount : value) },
     tradeTypeText(item) { const type = String(item?.type || item?.side || ''); const key = `trading.trade_${type.toLowerCase()}`; const translated = this.$t(key); return translated === key ? type || '-' : translated }, tradeActionLabel(action) { const key = `trading.trade_${String(action || '').toLowerCase()}`; const translated = this.$t(key); return translated === key ? action || '-' : translated }, decisionTone(item) { return item?.decision === 'reject' || item?.allowed === false ? 'reject' : item?.decision === 'pass' ? 'pass' : 'skipped' }, decisionText(item) { return this.$t(`live_detail.decision${this.decisionTone(item).replace(/^./, value => value.toUpperCase())}`) },
-    rawLogText(item) { return typeof item === 'string' ? item : String(item?.message || item?.content || item?.event_type || '') }, normalizeLogLevel(item) { const level = String(typeof item === 'string' ? 'info' : item?.level || item?.severity || 'info').trim().toLowerCase(); return level === 'warn' ? 'warning' : level }, logLevelText(item) { const level = this.normalizeLogLevel(item); const key = `live_detail.log${level.replace(/^./, letter => letter.toUpperCase())}`; return this.$te(key) ? this.$t(key) : level }, logSummary(item) { const raw = this.rawLogText(item); if (this.$te(raw)) return this.$t(raw, item?.params || item?.message_params || {}); const text = raw.toLowerCase(); if (/(position ownership drift|position_drift_detected|account and strategy positions differ)/.test(text)) return this.$t('trading.position_ownership_drift_event'); if (/(open_long|enter_long|buy signal)/.test(text)) return this.$t('trading.event_open_long'); if (/(open_short|enter_short|sell signal)/.test(text)) return this.$t('trading.event_open_short'); if (/(close_long|exit_long)/.test(text)) return this.$t('trading.event_close_long'); if (/(close_short|exit_short)/.test(text)) return this.$t('trading.event_close_short'); if (/(pending_order|order pending)/.test(text)) return this.$t('trading.event_order_pending'); if (/(error|failed|exception)/.test(text)) return this.$t('trading.event_run_error'); return raw || this.$t('trading.no_recent_event') },
+    rawLogText(item) { return typeof item === 'string' ? item : String(item?.message || item?.content || item?.event_type || '') },
+    normalizeLogLevel(item) { const level = String(typeof item === 'string' ? 'info' : item?.level || item?.severity || 'info').trim().toLowerCase(); return level === 'warn' ? 'warning' : level },
+    logLevelText(item) { const level = this.normalizeLogLevel(item); const key = `live_detail.log${level.replace(/^./, letter => letter.toUpperCase())}`; return this.$te(key) ? this.$t(key) : level },
+    logSummary(item) {
+      const raw = this.rawLogText(item)
+      const localized = translateStrategyRuntimeMessage(
+        raw,
+        (key, params) => this.$t(key, params),
+        item?.exchange_error
+      )
+      if (localized !== raw) return localized
+      if (this.$te(raw)) return this.$t(raw, item?.params || item?.message_params || {})
+      const text = raw.toLowerCase()
+      if (/(position ownership drift|position_drift_detected|account and strategy positions differ)/.test(text)) return this.$t('trading.position_ownership_drift_event')
+      if (/(open_long|enter_long|buy signal)/.test(text)) return this.$t('trading.event_open_long')
+      if (/(open_short|enter_short|sell signal)/.test(text)) return this.$t('trading.event_open_short')
+      if (/(close_long|exit_long)/.test(text)) return this.$t('trading.event_close_long')
+      if (/(close_short|exit_short)/.test(text)) return this.$t('trading.event_close_short')
+      if (/(pending_order|order pending)/.test(text)) return this.$t('trading.event_order_pending')
+      if (/(error|failed|exception)/.test(text)) return this.$t('trading.event_run_error')
+      return raw || this.$t('trading.no_recent_event')
+    },
     edit() { this.$router.push({ path: '/trading/create', query: { edit: this.strategyId } }) },
     async start() { if (!this.exposureReady) return; if (this.hasOpenExposure) { try { await showConfirmDialog({ title: this.$t('trading.restart_with_position_title'), message: this.$t('trading.restart_with_position_msg', { count: this.positions.length }) }) } catch { return } } this.actionLoading = true; try { await strategyApi.start(this.strategyId); showToast({ message: this.$t('trading.start_success'), type: 'success' }); await this.load() } finally { this.actionLoading = false } },
     async confirmStop(closePositions) { try { await showConfirmDialog({ title: this.$t(closePositions ? 'trading.confirm_stop_close_title' : 'trading.confirm_stop_title'), message: this.$t(closePositions ? 'trading.confirm_stop_close_msg' : 'trading.confirm_stop_msg') }) } catch { return } this.actionLoading = true; try { await this.submitStop(closePositions) } finally { this.actionLoading = false } },

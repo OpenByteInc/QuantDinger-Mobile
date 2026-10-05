@@ -883,7 +883,7 @@ export default {
     execution_signal_hint: '只產生訊號和通知，不向交易所提交訂單。',
     live_disclaimer_title: '實盤風險確認', live_disclaimer_content: '該策略會透過所選帳戶提交真實訂單，並可能產生實際虧損。',
     live_disclaimer_agree: '我已了解並接受實盤交易風險。', live_disclaimer_required: '請先確認實盤交易風險。',
-    leverage_title: '策略槓桿', leverage_auto_hint: '策略允許最高 {value} 倍，實際上限以所選帳戶和合約為準。', direction_one_way: '單向持倉',
+    leverage_title: '策略槓桿', leverage_auto_hint: '策略允許最高 {value} 倍，實際上限以所選帳戶和合約為準。', direction_one_way: '單倉位多空切換',
     ai_filter_title: 'AI 決策過濾', ai_filter_hint: '每個策略訊號下單前先由 AI 再次審核。',
     ai_filter_unsupported: '該自動化策略會自行管理訂單，暫不支援 AI 決策過濾。',
   },

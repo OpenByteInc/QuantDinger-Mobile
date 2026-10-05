@@ -956,7 +956,7 @@ export default {
     live_disclaimer_agree: '我已了解并接受实盘交易风险。',
     live_disclaimer_required: '请先确认实盘交易风险。',
     leverage_title: '策略杠杆', leverage_auto_hint: '策略允许最高 {value} 倍，实际上限以所选账户和合约为准。',
-    direction_one_way: '单向持仓',
+    direction_one_way: '单仓位多空切换',
     ai_filter_title: 'AI 决策过滤',
     ai_filter_hint: '每个策略信号下单前先由 AI 再次审核。',
     ai_filter_unsupported: '该自动化策略会自行管理订单，暂不支持 AI 决策过滤。',

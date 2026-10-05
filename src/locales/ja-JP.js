@@ -881,7 +881,7 @@ export default {
     execution_live_hint: '互換性のある接続済み口座から実注文を送信します。', execution_signal_hint: '注文を送信せず、シグナルと通知のみ生成します。',
     live_disclaimer_title: 'ライブ取引リスクの確認', live_disclaimer_content: '選択した口座から実注文が送信され、実際の損失が発生する可能性があります。',
     live_disclaimer_agree: 'ライブ取引のリスクを理解し同意します。', live_disclaimer_required: 'ライブ取引のリスクを確認してください。',
-    leverage_title: 'ストラテジーレバレッジ', leverage_auto_hint: 'このストラテジーでは最大 {value} 倍まで設定できます。実際の上限は選択した口座と契約によって異なります。', direction_one_way: '片建てモード',
+    leverage_title: 'ストラテジーレバレッジ', leverage_auto_hint: 'このストラテジーでは最大 {value} 倍まで設定できます。実際の上限は選択した口座と契約によって異なります。', direction_one_way: '単一ポジションの売買切替',
     ai_filter_title: 'AI 判断フィルター', ai_filter_hint: '注文送信前に各シグナルを AI が再確認します。',
     ai_filter_unsupported: 'この自動ストラテジーは注文を直接管理するため、AI フィルターを利用できません。',
   },

@@ -958,7 +958,7 @@ export default {
     live_disclaimer_agree: 'I understand and accept the live trading risk.',
     live_disclaimer_required: 'Accept the live trading risk confirmation first.',
     leverage_title: 'Strategy Leverage', leverage_auto_hint: 'This strategy allows up to {value}x. The actual limit depends on the selected account and contract.',
-    direction_one_way: 'One-way position',
+    direction_one_way: 'Single-position long / short',
     ai_filter_title: 'AI Decision Filter',
     ai_filter_hint: 'Review each strategy signal before an order is submitted.',
     ai_filter_unsupported: 'This automated strategy manages orders directly and does not support AI filtering.'
