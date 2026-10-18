@@ -12,19 +12,22 @@ const plots=['MACD','KDJ','RSI','LWR','BBI','MTM'].flatMap((name,lane)=>['red','
 plots.push({name:'EMA20',overlay:true,type:'line',color:'#e5a100',data:candles.map((row,i)=>i<19?null:row.close-900)})
 let closed=false
 let trades=[{id:991,symbol:'BTC/USDT',credential_id:1,market_type:'swap',side:'buy',amount:100,price:70000,order_type:'limit',status:'submitted',created_at:'2026-09-26T12:00:00Z'}]
+let protectionOrders=[]
 axios.defaults.adapter=async config=>{
  const url=config.url;const payload=typeof config.data==='string'?JSON.parse(config.data):config.data;requests.value.push({method:config.method,url,params:config.params,payload})
  let data
  if(failure.value&&url.includes('/quick-trade/'))throw new Error('Fixture connection unavailable')
  if(url==='/api/credentials/list')data={items:[{id:1,name:'Gate test account',exchange_id:'gate',market_scope:'both',environment:'sandbox'},{id:2,name:'Binance spot test',exchange_id:'binance',market_scope:'spot',environment:'sandbox'}]}
+ else if(url==='/api/market/symbols/search')data=[{market:'Crypto',symbol:'BTC/USDT',exchange_id:'gate',market_type:'swap',instrument_id:'BTC_USDT',product_type:'crypto'}]
  else if(url==='/api/indicator/getIndicators')data={indicators:[{id:1,name:'Six-Factor Momentum Resonance'}]}
  else if(url==='/api/indicator/getIndicatorParams')data={params:[{name:'period',type:'int',default:20,min:2,max:100}]}
- else if(url==='/api/indicator/chart-preview')data={candles,plots,layers:[{type:'level',price:65000,color:'#3898ed'}],signals:[{name:'DEFEND',type:'buy',color:'#22c55e',data:candles.map((row,i)=>i%24===0?row.low:null)},{name:'6 RED',type:'sell',color:'#ef4444',data:candles.map((row,i)=>i%24===12?row.high:null)}],indicator:{name:'Six-Factor Momentum Resonance'}}
+ else if(url==='/api/indicator/chart-preview')data={candles,plots,layers:[{type:'zone',startIndex:18,endIndex:84,top:69000,bottom:66500,text:'Demand',color:'#13c2c2',extendRight:true,dashed:true},{type:'level',price:65000,color:'#3898ed',text:'Pivot',dashed:true,keepTextVisible:true,extendBars:40},{type:'label',index:70,price:76000,text:'Regime',side:'right',color:'#8b5cf6'}],signals:[{name:'DEFEND',type:'buy',color:'#22c55e',data:candles.map((row,i)=>i%24===0?row.low:null)},{name:'6 RED',type:'sell',color:'#ef4444',data:candles.map((row,i)=>i%24===12?row.high:null)}],indicator:{name:'Six-Factor Momentum Resonance'}}
  else if(url==='/api/quick-trade/balance')data={available:config.params.credential_id===1?482.71:150,total:844.38,currency:'USDT'}
  else if(url==='/api/quick-trade/position')data={positions:config.params.credential_id===2||closed?[]:[{symbol:'BTC/USDT',side:'long',size:0.0042,entry_price:86047,mark_price:84098,unrealized_pnl:-8.187,leverage:5}]}
  else if(url==='/api/quick-trade/history')data={trades:trades.filter(row=>row.credential_id===config.params.credential_id&&row.market_type===config.params.market_type&&row.symbol===config.params.symbol)}
- else if(url==='/api/quick-trade/ai-decisions')data=[]
- else if(url==='/api/quick-trade/event-radar')data={enabled:true,cost:5,billing_enabled:true,latest:null}
+ else if(url==='/api/quick-trade/position-history')data={supported:true,positions:closed?[{id:'closed-1',symbol:'BTC/USDT',side:'long',quantity:0.0042,entry_price:86047,exit_price:84098,fee:0.32,pnl:-8.51,closed_at:'2026-09-26T13:05:00Z'}]:[]}
+ else if(url==='/api/quick-trade/position-protection'&&config.method==='get')data={supported:true,orders:protectionOrders}
+ else if(url==='/api/quick-trade/position-protection'){if(payload.action==='cancel')protectionOrders=protectionOrders.filter(order=>order.id!==payload.order_id);else protectionOrders.push({id:String(protectionOrders.length+1),side:payload.position_side,kind:payload.kind,price:payload.price});data={supported:true,orders:protectionOrders}}
  else if(url==='/api/quick-trade/place-order'){trades.push({...payload,id:trades.length+992,status:'filled',created_at:'2026-09-26T13:00:00Z'});data={id:trades.at(-1).id}}
  else if(url==='/api/quick-trade/cancel-order'){trades=trades.map(row=>row.id===payload.trade_id?{...row,status:'canceled'}:row);data={}}
  else if(url==='/api/quick-trade/close-position'){closed=true;data={}}

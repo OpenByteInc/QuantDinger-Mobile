@@ -48,24 +48,38 @@ function spotPair (value) {
 
 function okxInstrumentId (symbol, marketType, instrumentId) {
   const supplied = String(instrumentId || '').trim().toUpperCase()
-  if (supplied) return supplied
-  const pair = spotPair(symbol).replace('_', '-')
+  if (supplied.includes('-')) return supplied
+  const pair = spotPair(supplied || symbol).replace('_', '-')
   return normalizedMarketType(marketType) === 'swap' && !pair.endsWith('-SWAP') ? `${pair}-SWAP` : pair
 }
 
 function gateInstrumentId (symbol, instrumentId) {
-  return String(instrumentId || '').trim().toUpperCase() || spotPair(symbol)
+  const supplied = String(instrumentId || '').trim().toUpperCase()
+  if (supplied.includes('_')) return supplied
+  return spotPair(supplied || symbol)
 }
 
 function htxInstrumentId (symbol, marketType, instrumentId) {
   const supplied = String(instrumentId || '').trim()
-  if (supplied) {
-    return normalizedMarketType(marketType) === 'swap'
-      ? supplied.toUpperCase().replace(/_/g, '-')
-      : normalizedSymbol(supplied).toLowerCase()
-  }
-  const pair = spotPair(symbol)
+  const pair = spotPair(supplied || symbol)
   return normalizedMarketType(marketType) === 'swap' ? pair.replace('_', '-') : pair.replace('_', '').toLowerCase()
+}
+
+function subscriptionControlState (data) {
+  const event = String(data.event || '').toLowerCase()
+  const op = String(data.op || '').toLowerCase()
+  const status = String(data.status || (data.result && data.result.status) || '').toLowerCase()
+  const errorCode = data.code ?? data.retCode ?? data.err_code ?? data['err-code']
+  const hasErrorCode = errorCode !== undefined && errorCode !== null && String(errorCode) !== ''
+  const isControl = event === 'subscribe' || event === 'error' || op === 'subscribe' ||
+    data.subbed !== undefined || status === 'error' || Boolean(data.error)
+  if (!isControl) return null
+
+  const normalizedCode = hasErrorCode ? String(errorCode) : ''
+  return {
+    failed: Boolean(data.error) || event === 'error' || status === 'fail' || status === 'error' ||
+      data.success === false || (hasErrorCode && !['0', '00000'].includes(normalizedCode))
+  }
 }
 
 export function parseGateSpotBar (data, context = {}) {
@@ -113,7 +127,7 @@ const EXCHANGE_WS = {
   },
 
   okx: {
-    base: 'wss://ws.okx.com:8443/ws/v5/business',
+    base: 'wss://ws.okx.com/ws/v5/business',
     buildUrl () { return this.base },
     subscribe (ws, symbol, interval, context) {
       const instId = okxInstrumentId(symbol, context.marketType, context.instrumentId)
@@ -495,6 +509,7 @@ export default class ExchangeKlineWs {
   _tryFallback () {
     this._fallbackUsed = true
     this._closed = true
+    this._clearTimers()
     if (this._onError) this._onError()
   }
 
@@ -535,7 +550,20 @@ export default class ExchangeKlineWs {
       return
     }
 
-    if (data.event === 'subscribe' || data.op === 'subscribe' || data.event === 'pong' || data.ret_msg === 'pong') return
+    const subscriptionControl = subscriptionControlState(data)
+    if (subscriptionControl) {
+      if (subscriptionControl.failed) {
+        console.warn(`[ExchangeWs] ${this._exchangeId} subscription rejected`)
+        if (this._ws) {
+          this._ws.onclose = null
+          try { this._ws.close() } catch (_) {}
+          this._ws = null
+        }
+        this._tryFallback()
+      }
+      return
+    }
+    if (data.event === 'pong' || data.ret_msg === 'pong') return
 
     let parsed
     try {

@@ -13,12 +13,12 @@ export function tradeProductFields(product) {
   if (!isCryptoProduct(product)) throw new Error('account_ui.unsupported')
   return {}
 }
-export function buildOrder({credentialId,symbol,marketType,form,side,aiDecisionFilter,product}) {
+export function buildOrder({credentialId,symbol,marketType,form,side,product}) {
   const defaultSpotMode=side==='sell'?'quantity':'amount'
   const spotMode=side==='buy'?(form.buy_input_mode||defaultSpotMode):(form.sell_input_mode||defaultSpotMode)
   const spotQuantity=marketType==='spot'&&spotMode==='quantity'?Number(side==='buy'?form.buy_quantity:form.sell_quantity):0
   const spotAmount=marketType==='spot'&&spotMode==='amount'?Number(side==='buy'?form.amount:form.sell_amount):0
-  const order={credential_id:credentialId,symbol,market_type:marketType,side,order_type:form.order_type,amount:marketType==='spot'?spotAmount:Number(form.amount),price:form.order_type==='limit'?Number(form.price):0,leverage:marketType==='swap'?Number(form.leverage):1,margin_mode:marketType==='swap'?form.margin_mode:undefined,tp_price:Number(form.tp_price||0),sl_price:Number(form.sl_price||0),source:'indicator',ai_decision_filter:Boolean(aiDecisionFilter)}
+  const order={credential_id:credentialId,symbol,market_type:marketType,side,order_type:form.order_type,amount:marketType==='spot'?spotAmount:Number(form.amount),price:form.order_type==='limit'?Number(form.price):0,leverage:marketType==='swap'?Number(form.leverage):1,margin_mode:marketType==='swap'?form.margin_mode:undefined,tp_price:Number(form.tp_price||0),sl_price:Number(form.sl_price||0),source:'indicator'}
   if(spotQuantity>0)order.quantity=spotQuantity
   return {...order,...tradeProductFields(product)}
 }

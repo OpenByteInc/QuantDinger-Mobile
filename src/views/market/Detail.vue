@@ -50,33 +50,28 @@
         <p class="desc">{{ indicator.description || '-' }}</p>
       </div>
 
-      <div v-if="isStrategyAsset && strategyContract" class="card contract-card">
+      <section v-if="isStrategyAsset && strategyContract" class="contract-section">
         <div class="contract-title-row">
           <div class="card-title">{{ $t('market.strategy_contract') }}</div>
-          <div class="contract-badges">
-            <span class="contract-badge"><van-icon name="shield-o" /> {{ $t('market.source_controlled') }}</span>
-            <span class="contract-badge binding">{{ bindingModeLabel }}</span>
-          </div>
+          <span v-if="bindingMode !== 'unknown'" class="contract-badge binding">{{ bindingModeLabel }}</span>
         </div>
-        <div class="contract-grid">
+        <div v-if="strategyContractItems.length" class="contract-grid">
           <div v-for="item in strategyContractItems" :key="item.key" class="contract-item">
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
           </div>
         </div>
-        <div class="contract-logic">
-          <div>
+        <div v-if="hasStrategyContractMetadata" class="contract-logic">
+          <div v-if="strategySignals.length">
             <span>{{ $t('market.contract_signals') }}</span>
             <div class="tag-row">
               <span v-for="name in strategySignals" :key="name" class="mini-tag">{{ name }}</span>
-              <span v-if="!strategySignals.length" class="empty-value">-</span>
             </div>
           </div>
-          <div>
+          <div v-if="(strategyContract.data_fields || []).length">
             <span>{{ $t('market.contract_data') }}</span>
             <div class="tag-row">
               <span v-for="name in strategyContract.data_fields || []" :key="name" class="mini-tag">{{ String(name).toUpperCase() }}</span>
-              <span v-if="!(strategyContract.data_fields || []).length" class="empty-value">-</span>
             </div>
           </div>
         </div>
@@ -88,7 +83,7 @@
             <span>{{ $t('market.parameter_range') }} <b>{{ formatParameterRange(parameter) }}</b></span>
           </div>
         </div>
-      </div>
+      </section>
 
       <div v-if="isStrategyAsset && performance" class="card performance-card">
         <div class="card-head">
@@ -336,6 +331,9 @@ export default {
     strategyParameters() {
       return Array.isArray(this.strategyContract?.parameters) ? this.strategyContract.parameters : []
     },
+    hasStrategyContractMetadata() {
+      return this.strategySignals.length > 0 || (this.strategyContract?.data_fields || []).length > 0
+    },
     strategyContractItems() {
       const contract = this.strategyContract || {}
       const instruments = Array.isArray(contract.instruments) ? contract.instruments : []
@@ -345,18 +343,18 @@ export default {
         contract.market_type,
         ...instruments.map((item) => item.market_type || item.market)
       ].filter(Boolean))]
-      const executionFrequency = contract.execution_frequency || contract.primary_frequency || '-'
+      const executionFrequency = contract.execution_frequency || contract.primary_frequency || ''
       const confirmationFrequencies = Array.isArray(contract.confirmation_frequencies)
-        ? contract.confirmation_frequencies
+        ? contract.confirmation_frequencies.filter(Boolean)
         : []
-      return [
-        { key: 'instruments', label: this.$t('market.contract_instruments'), value: instrumentNames.join(' · ') || contract.universe_reference || this.$t('market.dynamic_universe') },
-        { key: 'market', label: this.$t('market.contract_market_type'), value: marketTypes.map((value) => this.formatMarketType(value)).join(' · ') || '-' },
-        { key: 'execution_mode', label: this.$t('market.execution_mode'), value: this.executionModeLabel(contract.execution_mode) },
-        { key: 'execution_frequency', label: this.$t('market.execution_frequency'), value: executionFrequency },
-        { key: 'confirmation_frequencies', label: this.$t('market.confirmation_frequencies'), value: confirmationFrequencies.join(' · ') || this.$t('market.none') },
-        { key: 'warmup', label: this.$t('market.contract_warmup'), value: String(contract.warmup_bars || 0) }
-      ]
+      const cadence = [this.executionModeLabel(contract.execution_mode), executionFrequency].filter((value) => value && value !== '-').join(' · ')
+      const items = []
+      const instrumentValue = instrumentNames.join(' · ') || contract.universe_reference
+      if (instrumentValue) items.push({ key: 'instruments', label: this.$t('market.contract_instruments'), value: instrumentValue })
+      if (marketTypes.length) items.push({ key: 'market', label: this.$t('market.contract_market_type'), value: marketTypes.map((value) => this.formatMarketType(value)).join(' · ') })
+      if (cadence) items.push({ key: 'execution', label: this.$t('market.execution_frequency'), value: cadence })
+      if (confirmationFrequencies.length) items.push({ key: 'confirmation_frequencies', label: this.$t('market.confirmation_frequencies'), value: confirmationFrequencies.join(' · ') })
+      return items
     },
     headlineMetrics() {
       const source = this.performance || this.indicator || {}
@@ -830,12 +828,9 @@ export default {
   font-size: 10px;
 }
 .publisher-meta span { display: inline-flex; align-items: center; gap: 3px; }
-.contract-card {
-  background: var(--bg-elevated);
-}
+.contract-section { margin: 0 var(--page-gutter); padding: 18px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .contract-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .contract-title-row .card-title { margin-bottom: 0; }
-.contract-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
 .contract-badge {
   display: inline-flex;
   align-items: center;
@@ -848,13 +843,12 @@ export default {
   font-weight: 700;
 }
 .contract-badge.binding { color: var(--c-amber); background: var(--c-amber-soft); }
-.contract-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 13px; }
-.contract-item { min-width: 0; padding: 10px; border-radius: 12px; background: var(--surface-raised); border: 1px solid var(--hairline); }
+.contract-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; margin-top: 13px; }
+.contract-item { min-width: 0; }
 .contract-item span { display: block; color: var(--text-3); font-size: 10px; }
 .contract-item strong { display: block; margin-top: 4px; color: var(--text); font-size: 12px; overflow-wrap: anywhere; }
 .contract-logic { display: grid; gap: 11px; margin-top: 13px; }
 .contract-logic > div > span, .parameter-heading { display: block; margin-bottom: 7px; color: var(--text-3); font-size: 10px; font-weight: 700; }
-.empty-value { color: var(--text-3); }
 .parameter-list { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hairline); }
 .parameter-row { display: grid; grid-template-columns: minmax(0, 1.3fr) 1fr 1fr; gap: 8px; padding: 9px 0; border-top: 1px solid var(--hairline); }
 .parameter-row:first-of-type { border-top: 0; }

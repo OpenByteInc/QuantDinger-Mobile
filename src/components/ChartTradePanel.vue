@@ -38,7 +38,7 @@
         <div v-if="marketType==='swap'" class="amount-presets"><button v-for="pct in [25,50,75,100]" :key="pct" :disabled="submitting || !balanceReady || activeBalanceAvailable<=0" @click="setAmountByPercent(pct)">{{ pct }}%</button></div>
         <div class="ticket-balance"><span>{{ $t('chart_trade.available') }}</span><strong>{{ balanceReady ? formatNumber(activeBalanceAvailable) : '—' }} <small>{{ quoteAsset }}</small></strong></div>
         <p v-if="marketType==='swap'" class="notional-line">{{ $t('chart_trade.notional',{amount:formatNumber(estimatedNotional)}) }}</p>
-        <div class="ticket-options"><van-checkbox v-model="riskEnabled" :disabled="submitting" icon-size="17px">{{ $t('chart_trade.risk_orders') }}</van-checkbox><label>{{ $t('audit.aiFilter') }}<van-switch v-model="aiDecisionFilter" :disabled="submitting" size="18"/></label></div>
+        <div class="ticket-options"><van-checkbox v-model="riskEnabled" :disabled="submitting" icon-size="17px">{{ $t('chart_trade.risk_orders') }}</van-checkbox></div>
         <div v-if="riskEnabled" class="risk-grid">
           <label class="ticket-field"><span>{{ $t('chart_trade.take_profit') }}</span><div><input v-model="form.tp_price" :disabled="submitting" type="number" min="0" inputmode="decimal"/><b>{{ quoteAsset }}</b></div></label>
           <label class="ticket-field"><span>{{ $t('chart_trade.stop_loss') }}</span><div><input v-model="form.sl_price" :disabled="submitting" type="number" min="0" inputmode="decimal"/><b>{{ quoteAsset }}</b></div></label>
@@ -66,31 +66,40 @@
           <div v-if="marketType==='swap'" class="dual-segment"><button :class="{active:closeScope==='full'}" @click="closeScope='full'">{{ $t('audit.all') }}</button><button :class="{active:closeScope==='system_tracked'}" @click="closeScope='system_tracked'">{{ $t('audit.tracked') }}</button></div><p v-if="closeScope==='system_tracked'">{{ $t('audit.trackedHint') }}</p>
           <article v-for="position in positions" :key="`${position.symbol}-${position.side}`" class="position-item">
             <div class="position-title">
-              <div><strong>{{ normalizeSymbol(position.symbol) }}</strong><span :class="positionPnl(position) >= 0 ? 'up' : 'down'">{{ formatSigned(positionPnl(position)) }} {{ quoteAsset }} <small>({{ formatSigned(positionPnlPercent(position)) }}%)</small></span></div>
-              <small>{{ sideText(position.side) }} · {{ Number(position.leverage || 1) }}x</small>
+              <div><strong>{{ normalizeSymbol(position.symbol) }}</strong><span v-if="marketType==='swap'" :class="positionPnl(position) >= 0 ? 'up' : 'down'">{{ formatSigned(positionPnl(position)) }} {{ quoteAsset }} <small>({{ formatSigned(positionPnlPercent(position)) }}%)</small></span></div>
+              <small>{{ marketType==='spot' ? $t('chart_trade.holding') : `${sideText(position.side)} · ${Number(position.leverage || 1)}x` }}</small>
             </div>
-            <div class="position-data">
+            <div v-if="marketType==='spot'" class="position-data spot-position-data">
+              <span>{{ $t('chart_trade.size') }} <b>{{ formatQuantity(positionSize(position)) }} {{ baseAsset }}</b></span>
+              <span>{{ $t('chart_trade.unit_price') }} <b>{{ formatPrice(positionMarkPrice(position) || livePrice) }} {{ quoteAsset }}</b></span>
+              <span>{{ $t('chart_trade.current_value') }} <b>{{ formatNumber(positionCurrentValue(position)) }} {{ quoteAsset }}</b></span>
+            </div>
+            <div v-else class="position-data">
               <span>{{ $t('chart_trade.size') }} <b>{{ formatQuantity(positionSize(position)) }}</b></span>
               <span>{{ $t('chart_trade.value') }} <b>{{ formatNumber(positionCost(position)) }} / {{ formatNumber(positionCurrentValue(position)) }} {{ quoteAsset }}</b></span>
               <span>{{ $t('chart_trade.entry') }} <b>{{ formatPrice(positionEntryPrice(position)) }}</b></span>
               <span>{{ $t('chart_trade.mark') }} <b>{{ formatPrice(positionMarkPrice(position)) }}</b></span>
             </div>
-            <button type="button" class="close-position" :disabled="submitting" @click="closePosition(position)">{{ $t(marketType==='spot'?'audit.sellSpot':'chart_trade.close_position') }}</button>
+            <div class="position-actions">
+              <button v-if="marketType==='swap'" type="button" class="protect-position" :disabled="submitting" @click="openProtection(position)">{{ $t('chart_trade.manage_protection') }}</button>
+              <button type="button" class="close-position" :disabled="submitting" @click="prepareClose(position)">{{ $t(marketType==='spot'?'audit.sellSpot':'chart_trade.close_position') }}</button>
+            </div>
           </article>
           <van-empty v-if="!positions.length" :description="$t('chart_trade.no_positions')" />
         </div>
 
-        <div v-else-if="activeTab==='decisions'" class="decision-list">
-          <article v-for="row in decisions" :key="row.decision_uid || row.id" class="decision-card" :class="decisionTone(row)">
-            <header><div><span class="decision-status">{{ decisionOutcome(row) }}</span><strong>{{ normalizeSymbol(row.symbol) }}</strong></div><time>{{ formatTime(row.created_at) }}</time></header>
-            <div class="decision-summary"><strong>{{ decisionAction(row) }}</strong><span>{{ $t('chart_trade.ai_confidence') }} {{ formatConfidence(row.confidence) }}</span></div>
-            <div class="confidence-track"><i :style="{width: formatConfidence(row.confidence)}"></i></div>
-            <p v-if="decisionReason(row)">{{ decisionReason(row) }}</p>
-            <footer v-if="row.provider"><span>{{ row.provider }}<template v-if="row.model"> · {{ row.model }}</template></span></footer>
+        <div v-else-if="activeTab==='positionHistory'" class="trade-list position-history-list">
+          <article v-for="item in positionHistory" :key="item.id" class="history-item position-history-item">
+            <header><div><strong>{{ normalizeSymbol(item.symbol || normalizedSymbol) }}</strong><span :class="item.side==='long'?'up':'down'">{{ sideText(item.side) }}</span></div><time>{{ formatTime(item.closed_at) }}</time></header>
+            <div class="history-metrics">
+              <span><small>{{ $t('chart_trade.closed_quantity') }}</small><b>{{ formatQuantity(item.quantity) }} {{ baseAsset }}</b></span>
+              <span><small>{{ $t('chart_trade.entry_exit') }}</small><b>{{ formatPrice(item.entry_price) }} → {{ formatPrice(item.exit_price) }}</b></span>
+              <span><small>{{ $t('chart_trade.fee') }}</small><b>{{ formatNumber(item.fee) }} {{ quoteAsset }}</b></span>
+              <span><small>{{ $t('chart_trade.net_pnl') }}</small><b :class="Number(item.pnl)>=0?'up':'down'">{{ formatSigned(item.pnl) }} {{ quoteAsset }}</b></span>
+            </div>
           </article>
-          <van-empty v-if="!decisions.length" :description="$t('audit.noData')"/>
+          <van-empty v-if="!positionHistory.length" :description="$t(positionHistorySupported?'chart_trade.no_position_history':'chart_trade.position_history_unsupported')" />
         </div>
-        <EventRadar v-else-if="activeTab==='radar'" :symbol="normalizedSymbol" :market-type="marketType"/>
         <div v-else class="trade-list history-list">
           <article v-for="item in visibleHistory" :key="item.id || `${item.symbol}-${item.created_at}`" class="history-item">
             <header><div><strong>{{ normalizeSymbol(item.symbol) }}</strong><span :class="historyTone(item)">{{ historySideText(item) }}</span></div><div><small>{{ statusText(item.status) }}</small><time>{{ formatTime(item.created_at) }}</time></div></header>
@@ -98,6 +107,7 @@
               <span><small>{{ $t('chart_trade.fill_price') }}</small><b>{{ formatPrice(item.avg_fill_price || item.price) }}</b></span>
               <span><small>{{ $t('chart_trade.filled_quantity') }}</small><b>{{ formatQuantity(item.filled_amount || item.requested_base_qty) }} {{ baseAsset }}</b></span>
               <span><small>{{ $t('chart_trade.trade_value') }}</small><b>{{ formatNumber(item.amount || item.notional_usdt) }} {{ quoteAsset }}</b></span>
+              <span><small>{{ $t('chart_trade.fee') }}</small><b>{{ tradeFeeText(item) }}</b></span>
               <span v-if="showRealizedPnl(item)"><small>{{ $t('chart_trade.realized_pnl') }}</small><b :class="Number(item.realized_pnl)>=0?'up':'down'">{{ formatSigned(item.realized_pnl) }} {{ quoteAsset }}</b></span>
             </div>
             <p v-if="item.error_msg" class="history-error">{{ item.error_msg }}</p>
@@ -110,6 +120,32 @@
     <button v-else class="unavailable-row" @click="$router.push('/market')"><van-icon name="info-o"/><span>{{ $t('account_ui.unsupported') }}</span><van-icon name="arrow"/></button>
     <van-popup v-model:show="credentialPickerOpen" position="bottom" round teleport="body">
       <van-picker :columns="credentialActions" @cancel="credentialPickerOpen=false" @confirm="selectCredential"><template #option="option"><span class="credential-option"><ExchangeLogo :exchange="option.exchange" :size="24"/>{{ option.text }}</span></template></van-picker>
+    </van-popup>
+    <van-popup v-model:show="protectionOpen" position="bottom" round teleport="body" class="protection-popup">
+      <section class="protection-sheet">
+        <header><div><strong>{{ $t('chart_trade.manage_protection') }}</strong><small>{{ normalizedSymbol }} · {{ protectionPosition ? sideText(protectionPosition.side) : '' }}</small></div><button type="button" :aria-label="$t('common.close')" @click="protectionOpen=false"><van-icon name="cross"/></button></header>
+        <div v-if="protectionLoading" class="activity-loading"><van-loading size="22" vertical>{{ $t('common.loading') }}</van-loading></div>
+        <template v-else>
+          <div v-if="protectionOrders.length" class="protection-orders">
+            <article v-for="order in protectionOrders" :key="order.id"><span>{{ $t(order.kind==='tp'?'chart_trade.take_profit_short':'chart_trade.stop_loss_short') }}</span><strong>{{ formatPrice(order.price) }}</strong><button type="button" :disabled="submitting" @click="cancelProtection(order)">{{ $t('audit.cancelOrder') }}</button></article>
+          </div>
+          <p v-else-if="protectionSupported" class="protection-empty">{{ $t('chart_trade.no_protection_orders') }}</p>
+          <p v-else class="protection-empty">{{ $t('chart_trade.protection_unsupported') }}</p>
+          <div v-if="protectionSupported" class="protection-form">
+            <div class="order-kind"><button v-for="kind in ['tp','sl']" :key="kind" type="button" :class="{active:protectionKind===kind}" @click="protectionKind=kind">{{ $t(kind==='tp'?'chart_trade.take_profit_short':'chart_trade.stop_loss_short') }}</button></div>
+            <label class="ticket-field"><span>{{ $t('chart_trade.trigger_price') }}</span><div><input v-model="protectionPrice" inputmode="decimal" type="number" min="0"/><b>{{ quoteAsset }}</b></div></label>
+            <button type="button" class="save-protection" :disabled="submitting||!(Number(protectionPrice)>0)" @click="saveProtection">{{ $t('common.save') }}</button>
+          </div>
+        </template>
+      </section>
+    </van-popup>
+    <van-popup v-model:show="closeReviewOpen" position="bottom" round teleport="body" class="protection-popup">
+      <section class="protection-sheet close-sheet">
+        <header><div><strong>{{ $t(marketType==='spot'?'audit.sellSpot':'chart_trade.close_position') }}</strong><small>{{ normalizedSymbol }} · {{ closeReviewPosition ? sideText(closeReviewPosition.side) : '' }}</small></div><button type="button" :aria-label="$t('common.close')" @click="closeReviewOpen=false"><van-icon name="cross"/></button></header>
+        <div class="order-kind close-kind"><button v-for="type in ['market','limit']" :key="type" type="button" :class="{active:closeOrderType===type}" @click="closeOrderType=type">{{ $t(type==='market'?'chart_trade.order_market':'chart_trade.order_limit') }}</button></div>
+        <label v-if="closeOrderType==='limit'" class="ticket-field"><span>{{ $t('chart_trade.price') }}</span><div><input v-model="closePrice" inputmode="decimal" type="number" min="0"/><b>{{ quoteAsset }}</b></div></label>
+        <button type="button" class="submit-close" :disabled="submitting||(closeOrderType==='limit'&&!(Number(closePrice)>0))" @click="submitClosePosition">{{ $t('chart_trade.confirm_close') }}</button>
+      </section>
     </van-popup>
     <van-popup v-model:show="reviewOpen" round teleport="body" class="order-review-popup" :close-on-click-overlay="false">
       <section v-if="orderReview" class="order-review">
@@ -133,7 +169,6 @@
 <script>
 import ExchangeLogo from '@/components/ExchangeLogo.vue'
 import '@/styles/order-review.css'
-import EventRadar from '@/components/EventRadar.vue'
 import {buildOrder,validateOrder,tradeProductFields,isCryptoProduct,OPEN_ORDER_STATUSES} from '@/utils/tradeOrder'
 import { showConfirmDialog, showToast } from 'vant'
 import { credentialsApi, quickTradeApi } from '@/api'
@@ -143,7 +178,7 @@ const SUPPORTED_EXCHANGES = new Set(['binance', 'okx', 'bitget', 'bybit', 'gate'
 
 export default {
   name: 'ChartTradePanel',
-  components: { ExchangeLogo, EventRadar },
+  components: { ExchangeLogo },
   props: {
     market: { type: String, default: 'Crypto' },
     symbol: { type: String, default: 'BTC/USDT' },
@@ -153,8 +188,19 @@ export default {
   emits: ['context-change'],
   data() {
     return {
-      aiDecisionFilter:false, decisions:[], closeScope:'full', refreshing:false, dataError:'', orderError:'', balanceReady:false, requestId:0, contextKey:'',
+      positionHistory:[], positionHistorySupported:true, closeScope:'full', refreshing:false, dataError:'', orderError:'', balanceReady:false, requestId:0, contextKey:'',
       credentialPickerOpen: false,
+      protectionOpen: false,
+      protectionLoading: false,
+      protectionSupported: true,
+      protectionPosition: null,
+      protectionOrders: [],
+      protectionKind: 'tp',
+      protectionPrice: '',
+      closeReviewOpen: false,
+      closeReviewPosition: null,
+      closeOrderType: 'market',
+      closePrice: '',
       marginPickerOpen: false,
       reviewOpen: false,
       orderReview: null,
@@ -220,8 +266,7 @@ export default {
         { value: 'positions', label: this.$t('chart_trade.positions') },
         { value: 'orders', label: this.$t('audit.orders') },
         { value: 'history', label: this.$t('trading.tab_trades') },
-        { value: 'decisions', label: this.$t('audit.decisions') },
-        { value: 'radar', label: this.$t('audit.radar') }
+        ...(this.marketType==='swap'?[{ value: 'positionHistory', label: this.$t('chart_trade.position_history') }]:[])
       ]
     }
   },
@@ -229,7 +274,7 @@ export default {
     riskEnabled(value) { if(!value){this.form.tp_price='';this.form.sl_price=''} },
     '$route.query.credential_id'() { if(this.$route.path==='/indicators/chart') this.applyRequestedAccount() },
     selectedCredentialId() { const scope=this.selectedCredential?.market_scope;if(['spot','swap'].includes(scope))this.quickTradeStore.setMarketType(scope);this.clearSpotInputs();this.form.price='';this.form.tp_price='';this.form.sl_price='';this.refreshTradeData(); this.emitContext() },
-    marketType() { this.refreshTradeData(); this.emitContext() },
+    marketType(value) { if(value!=='swap'&&this.activeTab==='positionHistory')this.activeTab='positions';this.refreshTradeData();this.emitContext() },
     symbol() { this.clearSpotInputs();this.form.price='';this.form.tp_price='';this.form.sl_price='';this.refreshTradeData() },
     product: {deep:true,handler(){const required=String(this.product?.market_type||'').toLowerCase();if(['spot','swap'].includes(required)&&required!==this.marketType)this.quickTradeStore.setMarketType(required);if(!this.selectedCredential&&this.credentials.length)this.quickTradeStore.setSelectedCredential(this.credentials[0].id);this.refreshTradeData()}},
     chartPrice(value) {
@@ -318,16 +363,18 @@ export default {
       const contextChanged=key!==this.contextKey
       const version=++this.requestId;this.contextKey=key
       this.refreshing=true;this.dataError=''
-      if(contextChanged){this.orderError='';this.balanceReady=false;this.quickTradeStore.setBalance(null);this.quickTradeStore.setPositions([]);this.quickTradeStore.setHistory([]);this.decisions=[]}
+      if(contextChanged){this.orderError='';this.balanceReady=false;this.quickTradeStore.setBalance(null);this.quickTradeStore.setPositions([]);this.quickTradeStore.setHistory([]);this.positionHistory=[];this.positionHistorySupported=true}
       if(!this.selectedCredential||!this.isCrypto){this.refreshing=false;return}
       const product={...this.product,symbol:this.normalizedSymbol}
       const params={credential_id:this.selectedCredentialId,symbol:this.normalizedSymbol,market_type:this.marketType,limit:200}
-      const results=await Promise.allSettled([quickTradeApi.getBalance(this.selectedCredentialId,this.marketType,product),quickTradeApi.getHistory(params),quickTradeApi.getPosition({credentialId:this.selectedCredentialId,symbol:this.normalizedSymbol,marketType:this.marketType,product}),quickTradeApi.getAiDecisions(params)])
+      const requests=[quickTradeApi.getBalance(this.selectedCredentialId,this.marketType,product),quickTradeApi.getHistory(params),quickTradeApi.getPosition({credentialId:this.selectedCredentialId,symbol:this.normalizedSymbol,marketType:this.marketType,product})]
+      if(this.marketType==='swap')requests.push(quickTradeApi.getPositionHistory(params))
+      const results=await Promise.allSettled(requests)
       if(version!==this.requestId)return
       if(results[0].status==='fulfilled'){this.quickTradeStore.setBalance(results[0].value.data);this.balanceReady=true}
       if(results[1].status==='fulfilled')this.quickTradeStore.setHistory(results[1].value.data)
       if(results[2].status==='fulfilled')this.quickTradeStore.setPositions(results[2].value.data)
-      if(results[3].status==='fulfilled')this.decisions=Array.isArray(results[3].value.data)?results[3].value.data:[]
+      if(this.marketType==='swap'&&results[3]?.status==='fulfilled'){this.positionHistorySupported=results[3].value.data.supported;this.positionHistory=results[3].value.data.positions}
       if(results.some(x=>x.status==='rejected'))this.dataError=this.$t('audit.loadFailed')
       this.refreshing=false
     },
@@ -335,7 +382,7 @@ export default {
       if(this.submitting)return
       if(!this.isCrypto){showToast(this.$t('account_ui.unsupported'));return}
       this.orderError=''
-      const payload=buildOrder({credentialId:this.selectedCredentialId,symbol:this.normalizedSymbol,marketType:this.marketType,form:this.form,side,aiDecisionFilter:this.aiDecisionFilter,product:this.product})
+      const payload=buildOrder({credentialId:this.selectedCredentialId,symbol:this.normalizedSymbol,marketType:this.marketType,form:this.form,side,product:this.product})
       const available=this.availableForSide(side)
       const error=validateOrder(payload,{available,price:this.livePrice,balanceReady:this.balanceReady})
       if(error){showToast(this.$t(error));return}
@@ -352,18 +399,46 @@ export default {
       } catch(error) { if(error!=='cancel'&&error!=='close'&&error?.message)this.orderError=error.localizedMessage||error.message }
       finally {this.submitting=false}
     },
+    prepareClose(position) {
+      this.closeReviewPosition=position;this.closeOrderType='market';this.closePrice=String(this.livePrice||'');this.closeReviewOpen=true
+    },
+    async submitClosePosition() {
+      if(!this.closeReviewPosition)return
+      const success=await this.closePosition(this.closeReviewPosition)
+      if(success)this.closeReviewOpen=false
+    },
     async closePosition(position) {
       if(this.submitting)return
       const key=this.contextKey
-      const payload={credential_id:this.selectedCredentialId,symbol:this.normalizeSymbol(position.symbol||this.symbol),market_type:this.marketType,close_scope:this.marketType==='swap'?this.closeScope:'full',position_side:position.side,source:'indicator',...tradeProductFields(this.product)}
+      const payload={credential_id:this.selectedCredentialId,symbol:this.normalizeSymbol(position.symbol||this.symbol),market_type:this.marketType,close_scope:this.marketType==='swap'?this.closeScope:'full',position_side:this.positionSide(position.side),order_type:this.closeOrderType,price:this.closeOrderType==='limit'?Number(this.closePrice):0,source:'indicator',...tradeProductFields(this.product)}
       this.submitting=true
-      try{await showConfirmDialog({title:this.$t('chart_trade.close_confirm_title'),message:this.selectedCredentialLabel+'\n'+this.$t('chart_trade.close_confirm_message',{symbol:payload.symbol})+'\n'+this.sideText(position.side)+' · '+this.$t(payload.close_scope==='full'?'audit.all':'audit.tracked')});if(key!==this.contextKey){showToast(this.$t('audit.accountChanged'));return}await quickTradeApi.closePosition(payload);showToast(this.$t('chart_trade.close_success'));await this.refreshTradeData()}
-      catch(error){if(error?.message)this.dataError=error.message}finally{this.submitting=false}
+      try{await showConfirmDialog({title:this.$t('chart_trade.close_confirm_title'),message:this.selectedCredentialLabel+'\n'+this.$t('chart_trade.close_confirm_message',{symbol:payload.symbol})+'\n'+this.sideText(position.side)+' · '+this.$t(payload.close_scope==='full'?'audit.all':'audit.tracked')+' · '+this.$t(payload.order_type==='market'?'chart_trade.order_market':'chart_trade.order_limit')});if(key!==this.contextKey){showToast(this.$t('audit.accountChanged'));return false}await quickTradeApi.closePosition(payload);showToast(this.$t('chart_trade.close_success'));await this.refreshTradeData();return true}
+      catch(error){if(error?.message)this.dataError=error.message;return false}finally{this.submitting=false}
     },
     async cancelOrder(item) {
       if(this.submitting)return
       this.submitting=true
       try{await showConfirmDialog({title:this.$t('audit.cancelOrder'),message:this.$t('audit.confirmCancel')+'\n'+item.symbol+' · '+item.id});await quickTradeApi.cancelOrder(item.id);await this.refreshTradeData()}catch(error){if(error?.message)this.dataError=error.message}finally{this.submitting=false}
+    },
+    async openProtection(position) {
+      this.protectionPosition=position;this.protectionOpen=true;this.protectionPrice='';this.protectionKind='tp';this.protectionLoading=true
+      try{const res=await quickTradeApi.getPositionProtection({credential_id:this.selectedCredentialId,symbol:this.normalizeSymbol(position.symbol||this.symbol),market_type:this.marketType});this.protectionSupported=res.data.supported;this.protectionOrders=res.data.orders.filter(order=>!order.side||order.side===this.positionSide(position.side))}
+      catch(_){this.protectionSupported=false;this.protectionOrders=[]}
+      finally{this.protectionLoading=false}
+    },
+    async saveProtection() {
+      if(this.submitting||!this.protectionPosition||!(Number(this.protectionPrice)>0))return
+      this.submitting=true
+      try{await quickTradeApi.updatePositionProtection({credential_id:this.selectedCredentialId,symbol:this.normalizeSymbol(this.protectionPosition.symbol||this.symbol),position_side:this.positionSide(this.protectionPosition.side),action:'create',kind:this.protectionKind,price:Number(this.protectionPrice)});showToast({message:this.$t('chart_trade.protection_saved'),type:'success'});await this.openProtection(this.protectionPosition)}
+      catch(error){if(error?.message)this.dataError=error.message}
+      finally{this.submitting=false}
+    },
+    async cancelProtection(order) {
+      if(this.submitting||!this.protectionPosition)return
+      this.submitting=true
+      try{await quickTradeApi.updatePositionProtection({credential_id:this.selectedCredentialId,symbol:this.normalizeSymbol(this.protectionPosition.symbol||this.symbol),position_side:this.positionSide(this.protectionPosition.side),action:'cancel',kind:order.kind||'tp',order_id:String(order.id)});await this.openProtection(this.protectionPosition)}
+      catch(error){if(error?.message)this.dataError=error.message}
+      finally{this.submitting=false}
     },
     setAmountByPercent(pct,side='buy') {
       const value=this.availableForSide(side)*pct/100
@@ -386,6 +461,7 @@ export default {
       return symbol
     },
     sideText(value) { return this.$t(['buy', 'long'].includes(String(value).toLowerCase()) ? 'chart_trade.long' : 'chart_trade.short') },
+    positionSide(value) { return ['sell','short'].includes(String(value).toLowerCase())?'short':'long' },
     historySideText(item) {
       if(item?.is_close)return this.$t(String(item.close_side).toLowerCase()==='short'?'chart_trade.close_short':'chart_trade.close_long')
       if(item?.market_type==='spot')return this.$t(String(item.side).toLowerCase()==='buy'?'chart_trade.buy':'chart_trade.sell')
@@ -396,17 +472,13 @@ export default {
       return String(item?.side).toLowerCase()==='buy'?'up':'down'
     },
     showRealizedPnl(item) { return item?.market_type==='swap'&&Boolean(item?.is_close)&&item?.realized_pnl!==null&&item?.realized_pnl!==undefined },
-    decisionTone(row) { return this.decisionAllowed(row)?'allowed':'blocked' },
-    decisionAllowed(row) { return row?.allowed===true||Number(row?.allowed)===1||['allow','allowed','pass','approved'].includes(String(row?.decision||'').toLowerCase()) },
-    decisionOutcome(row) { return this.$t(this.decisionAllowed(row)?'chart_trade.ai_allowed':'chart_trade.ai_blocked') },
-    decisionAction(row) {
-      const action=String(row?.action||'').toLowerCase()
-      if(['buy','long'].includes(action))return this.$t('chart_trade.buy_long')
-      if(['sell','short'].includes(action))return this.$t('chart_trade.sell_short')
-      return this.$t('chart_trade.ai_hold')
+    tradeFeeText(item) {
+      const quote=Number(item?.commission_quote)
+      if(Number.isFinite(quote)&&quote>0)return `${this.formatNumber(quote)} ${this.quoteAsset}`
+      const fee=Number(item?.commission)
+      if(Number.isFinite(fee)&&fee>0)return `${this.formatQuantity(fee)}${item?.commission_ccy?` ${item.commission_ccy}`:''}`
+      return String(item?.fee_status||'').toLowerCase()==='actual_zero'?`0 ${this.quoteAsset}`:'—'
     },
-    decisionReason(row) { return String(row?.reason||row?.fallback_reason||'').trim() },
-    formatConfidence(value) { const number=Number(value);return `${Math.round((Number.isFinite(number)?Math.max(0,Math.min(1,number)):0)*100)}%` },
     statusText(value) {
       const status = String(value || 'submitted').toLowerCase()
       const known = ['filled', 'submitted', 'failed', 'canceled'].includes(status) ? status : null
@@ -507,9 +579,11 @@ button:disabled { opacity: .38; }
 .trade-list { display: grid; gap: 8px; }.position-item, .history-item { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); }
 .position-item { padding: 11px; }.position-title { display: flex; justify-content: space-between; margin-bottom: 10px; }.position-title > div { display: flex; gap: 8px; }.position-title small { color: var(--text-3); }.position-title span small{font-size:9px}.up { color: var(--up) !important; }.down { color: var(--down) !important; }
 .position-data { display: grid; grid-template-columns: .8fr 1.6fr 1fr 1fr; gap: 6px; color: var(--text-3); font-size: 10px; }.position-data span { display: flex; flex-direction: column; gap: 3px; min-width:0; }.position-data b { overflow:hidden;color: var(--text); font-size: 11px;text-overflow:ellipsis;white-space:nowrap; }
-.close-position { width: 100%; min-height: 32px; margin-top: 10px; border: 1px solid color-mix(in srgb, var(--down) 32%, var(--border)); border-radius: 6px; color: var(--down); background: var(--down-soft); font-size: 11px; font-weight: 800; }
+.spot-position-data{grid-template-columns:repeat(3,minmax(0,1fr))}
+.position-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}.position-actions .close-position:only-child{grid-column:1/-1}.close-position,.protect-position{width:100%;min-height:32px;border-radius:6px;font-size:11px;font-weight:800}.close-position{border:1px solid color-mix(in srgb,var(--down) 32%,var(--border));color:var(--down);background:var(--down-soft)}.protect-position{border:1px solid color-mix(in srgb,var(--accent) 34%,var(--border));color:var(--accent);background:var(--accent-soft)}
 .history-item { padding: 11px; }.history-item header { display:flex;align-items:flex-start;justify-content:space-between;gap:10px }.history-item header>div{display:flex;align-items:center;gap:7px}.history-item header>div:last-child{flex-direction:column;align-items:flex-end;gap:2px}.history-item header span{padding:2px 6px;border-radius:4px;background:var(--surface-deep);font-size:10px;font-weight:800}.history-item small,.history-item time { color: var(--text-3); font-size: 10px; }.history-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:11px;padding-top:10px;border-top:1px solid var(--hairline)}.history-metrics span{display:flex;min-width:0;flex-direction:column;gap:3px}.history-metrics b{overflow:hidden;color:var(--text);font-size:11px;font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}.history-error{margin:9px 0 0;color:var(--down);font-size:10px}.cancel-order{width:100%;min-height:30px;margin-top:9px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text-2)}
-.decision-list{display:grid;gap:8px}.decision-card{padding:12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-raised)}.decision-card header,.decision-card header>div,.decision-card footer,.decision-summary{display:flex;align-items:center}.decision-card header,.decision-card footer,.decision-summary{justify-content:space-between;gap:10px}.decision-card header>div{gap:7px}.decision-card time,.decision-card footer{color:var(--text-3);font-size:10px}.decision-status{padding:3px 7px;border-radius:999px;font-size:10px;font-weight:800}.decision-card.allowed .decision-status{color:var(--up);background:var(--up-soft)}.decision-card.blocked .decision-status{color:var(--down);background:var(--down-soft)}.decision-summary{margin-top:13px}.decision-summary strong{font-size:16px}.decision-summary span{color:var(--text-2);font-size:11px}.confidence-track{height:3px;margin-top:7px;overflow:hidden;border-radius:999px;background:var(--surface-deep)}.confidence-track i{display:block;height:100%;border-radius:inherit;background:var(--up)}.decision-card.blocked .confidence-track i{background:var(--down)}.decision-card p{margin:11px 0 0;color:var(--text-2);font-size:12px;line-height:1.55}.decision-card footer{margin-top:11px;padding-top:9px;border-top:1px solid var(--hairline)}
+.protection-popup{background:var(--bg-elevated)}.protection-sheet{padding:18px 18px calc(20px + var(--safe-area-bottom,0px));color:var(--text)}.protection-sheet>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.protection-sheet>header>div{display:flex;flex-direction:column;gap:4px}.protection-sheet>header strong{font-size:17px}.protection-sheet>header small{color:var(--text-3);font-size:11px}.protection-sheet>header button{border:0;background:transparent;color:var(--text-2);font-size:18px}.protection-orders{display:grid;gap:7px;margin-top:16px}.protection-orders article{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:10px 11px;border-radius:9px;background:var(--surface-raised)}.protection-orders span{color:var(--text-2);font-size:11px}.protection-orders strong{font-size:12px}.protection-orders button{border:0;background:transparent;color:var(--down);font-size:11px}.protection-empty{margin:18px 0;color:var(--text-3);font-size:12px;text-align:center}.protection-form{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}.protection-form .order-kind{grid-column:1/-1}.protection-form .ticket-field{margin:0}.save-protection{min-width:72px;border:0;border-radius:8px;background:var(--accent);color:var(--text-on-accent);font-size:12px;font-weight:750}.save-protection:disabled{opacity:.4}
+.close-kind{margin-top:18px}.submit-close{width:100%;min-height:44px;margin-top:12px;border:0;border-radius:8px;background:var(--down);color:#fff;font-size:13px;font-weight:800}.submit-close:disabled{opacity:.4}
 @media (min-width: 720px) { .trade-terminal { max-width: 720px; margin-left: auto; margin-right: auto; } }
 .segmented{display:flex;overflow-x:auto;gap:4px}.segmented button{flex:0 0 auto;padding:0 10px}.data-error{color:var(--down);font-size:12px}.ticket-account strong{white-space:normal}.position-title{gap:8px;flex-wrap:wrap}.position-title>div{flex-wrap:wrap}.trade-list>p{font-size:12px;color:var(--text-3)}
 </style>
@@ -530,7 +604,7 @@ button:disabled { opacity: .38; }
 .market-price-row,.ticket-balance{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--v2-muted);padding:12px 0}
 .market-price-row b,.ticket-balance strong{color:var(--v2-text);font-variant-numeric:tabular-nums}.market-price-row small,.ticket-balance small{font-size:10px}
 .ticket-balance strong{margin-left:auto}
-.ticket-options{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 16px;font-size:12px}.ticket-options label{display:flex;align-items:center;gap:8px;color:var(--v2-muted)}
+.ticket-options{display:flex;align-items:center;gap:12px;margin:10px 0 16px;font-size:12px}
 .ticket-notice{margin:10px 0 0;font-size:10px;line-height:1.6;color:var(--v2-muted)}
 .inline-activity .segmented{border:0;border-bottom:1px solid var(--v2-line);border-radius:0;background:none;margin-bottom:12px;padding:0}
 .inline-activity .segmented button{padding:0 9px;white-space:nowrap;font-weight:600}.inline-activity .segmented small{font-size:10px;margin-left:4px;color:var(--v2-muted)}

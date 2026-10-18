@@ -4,7 +4,7 @@ import {buildOrder, tradeProductFields, isSupportedMarketSymbol} from '../../src
 import {apiErrorMessage} from '../../src/utils/apiError.js'
 
 // Fields exposed by the deployed /openapi.json on 2026-09-28.
-const deployedFields = new Set(['credential_id','symbol','side','order_type','amount','price','leverage','market_type','tp_price','sl_price','source','margin_mode','marginMode','ai_decision_filter'])
+const deployedFields = new Set(['credential_id','symbol','side','order_type','amount','price','leverage','market_type','tp_price','sl_price','source','margin_mode','marginMode'])
 test('ordinary crypto catalog selections work with the deployed strict order contract', () => {
   for (const marketType of ['spot','swap']) for (const orderType of ['market','limit']) {
     const payload = buildOrder({credentialId:7,symbol:'ETH/USDT',marketType,side:'buy',product:{product_type:'crypto',api_family:'classic',instrument_id:'ETH_USDT'},form:{order_type:orderType,amount:10,price:2500,leverage:5,margin_mode:'cross'}})

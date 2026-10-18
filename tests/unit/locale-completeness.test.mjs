@@ -13,7 +13,6 @@ import audit from '../../src/locales/audit.js'
 import accountUi from '../../src/locales/account-ui.js'
 import profileDetail from '../../src/locales/profile-detail.js'
 import aiChat from '../../src/locales/ai-chat.js'
-import eventRadar from '../../src/locales/event-radar.js'
 import strategyRuntime from '../../src/locales/strategy-runtime.js'
 import liveDetail from '../../src/locales/live-detail.js'
 import referralRewards from '../../src/locales/referral-rewards.js'
@@ -30,7 +29,7 @@ const flatten = (value, prefix = '', target = {}) => {
 }
 
 const baseLocales = { 'zh-CN': zhCN, 'zh-TW': zhTW, 'en-US': enUS, 'ja-JP': jaJP, 'ko-KR': koKR }
-const modules = { appearance, professionalReport, v2, audit, accountUi, profileDetail, aiChat, eventRadar, strategyRuntime, liveDetail, referralRewards }
+const modules = { appearance, professionalReport, v2, audit, accountUi, profileDetail, aiChat, strategyRuntime, liveDetail, referralRewards }
 
 test('all base locales cover every English key', () => {
   const expected = Object.keys(flatten(enUS))

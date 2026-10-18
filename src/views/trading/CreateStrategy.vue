@@ -111,15 +111,6 @@
                 <van-switch v-model="params[parameter.name]" size="22" />
               </template>
             </van-cell>
-            <div v-else-if="parameterOptions(parameter).length" class="parameter-choice">
-              <strong>{{ parameterLabel(parameter) }}</strong>
-              <van-radio-group v-model="params[parameter.name]" direction="horizontal">
-                <van-radio v-for="option in parameterOptions(parameter)" :key="String(option.value)" :name="option.value">
-                  {{ parameterOptionLabel(parameter, option) }}
-                </van-radio>
-              </van-radio-group>
-              <small v-if="parameterDescription(parameter)">{{ parameterDescription(parameter) }}</small>
-            </div>
             <van-field
               v-else-if="isNumericParameter(parameter)"
               :model-value="parameterInputValue(parameter)"
@@ -130,7 +121,18 @@
               :max="parameterInputLimit(parameter, 'max')"
               :step="parameterInputStep(parameter)"
               @update:model-value="setNumericParameter(parameter, $event)"
-            />
+            >
+              <template v-if="isPercentParameter(parameter)" #right-icon>%</template>
+            </van-field>
+            <div v-else-if="parameterOptions(parameter).length" class="parameter-choice">
+              <strong>{{ parameterLabel(parameter) }}</strong>
+              <van-radio-group v-model="params[parameter.name]" direction="horizontal">
+                <van-radio v-for="option in parameterOptions(parameter)" :key="String(option.value)" :name="option.value">
+                  {{ parameterOptionLabel(parameter, option) }}
+                </van-radio>
+              </van-radio-group>
+              <small v-if="parameterDescription(parameter)">{{ parameterDescription(parameter) }}</small>
+            </div>
             <van-field
               v-else
               v-model="params[parameter.name]"
@@ -182,12 +184,59 @@
           </button>
         </div>
 
+        <div class="deployment-risk-config">
+          <div class="deployment-risk-head">
+            <div>
+              <strong>{{ $t('script_strategy.deployment_equity_risk_title') }}</strong>
+              <small>{{ $t('script_strategy.deployment_equity_risk_hint') }}</small>
+            </div>
+            <span>{{ $t('script_strategy.deployment_risk_action') }}</span>
+          </div>
+          <div :class="['deployment-risk-row', { active: form.equityStopLossEnabled }]">
+            <van-switch v-model="form.equityStopLossEnabled" size="20" />
+            <div class="deployment-risk-copy">
+              <strong>{{ $t('script_strategy.equity_stop_loss') }}</strong>
+              <small>{{ form.equityStopLossEnabled
+                ? $t('script_strategy.equity_trigger_value', { value: formattedStopEquity, currency: riskCurrencyLabel })
+                : $t('script_strategy.equity_stop_loss_hint') }}</small>
+            </div>
+            <van-field
+              :model-value="equityStopLossPercent"
+              type="number"
+              min="1"
+              max="100"
+              step="1"
+              :disabled="!form.equityStopLossEnabled"
+              input-align="right"
+              @update:model-value="setEquityRiskPercent('equityStopLossPct', $event)"
+            >
+              <template #right-icon>%</template>
+            </van-field>
+          </div>
+          <div :class="['deployment-risk-row', { active: form.equityTakeProfitEnabled }]">
+            <van-switch v-model="form.equityTakeProfitEnabled" size="20" />
+            <div class="deployment-risk-copy">
+              <strong>{{ $t('script_strategy.equity_take_profit') }}</strong>
+              <small>{{ form.equityTakeProfitEnabled
+                ? $t('script_strategy.equity_trigger_value', { value: formattedTakeProfitEquity, currency: riskCurrencyLabel })
+                : $t('script_strategy.equity_take_profit_hint') }}</small>
+            </div>
+            <van-field
+              :model-value="equityTakeProfitPercent"
+              type="number"
+              min="1"
+              max="1000"
+              step="1"
+              :disabled="!form.equityTakeProfitEnabled"
+              input-align="right"
+              @update:model-value="setEquityRiskPercent('equityTakeProfitPct', $event)"
+            >
+              <template #right-icon>%</template>
+            </van-field>
+          </div>
+        </div>
+
         <div v-if="form.executionMode === 'live'" class="live-config">
-          <label class="live-disclaimer" :class="{ accepted: form.disclaimer }">
-            <van-icon name="shield-o" />
-            <span><strong>{{ $t('script_strategy.live_disclaimer_title') }}</strong><small>{{ $t('script_strategy.live_disclaimer_content') }}</small></span>
-            <van-checkbox v-model="form.disclaimer" shape="square">{{ $t('script_strategy.live_disclaimer_agree') }}</van-checkbox>
-          </label>
           <van-cell
             :title="$t('bot_create.exchange_account')"
             :value="credentialLabel"
@@ -268,6 +317,12 @@
               {{ $t('script_strategy.notification_channel_required') }}
             </div>
           </div>
+
+        <label v-if="form.executionMode === 'live'" class="live-disclaimer" :class="{ accepted: form.disclaimer }">
+          <van-icon name="shield-o" />
+          <span><strong>{{ $t('script_strategy.live_disclaimer_title') }}</strong><small>{{ $t('script_strategy.live_disclaimer_content') }}</small></span>
+          <van-checkbox v-model="form.disclaimer" shape="square">{{ $t('script_strategy.live_disclaimer_agree') }}</van-checkbox>
+        </label>
       </div>
 
       <div class="submit-wrap">
@@ -357,6 +412,7 @@ import { useCredentialsStore } from '@/stores'
 import { ASSET_TYPES } from '@/utils/marketRoutes'
 
 const LIVE_CRYPTO_EXCHANGES = new Set(['binance', 'okx', 'bitget', 'bybit', 'gate', 'htx'])
+const PLATFORM_MAX_LEVERAGE = 100
 const DEFAULT_NOTIFICATION_CHANNELS = ['browser', 'email']
 const SUPPORTED_NOTIFICATION_CHANNELS = new Set(['browser', 'email', 'telegram', 'phone', 'discord', 'webhook'])
 const DIRECTION_MODES = new Set(['long_only', 'short_only', 'one_way', 'both', 'neutral'])
@@ -439,6 +495,10 @@ export default {
         credentialId: null,
         leverageEnabled: false,
         leverage: 1,
+        equityStopLossEnabled: true,
+        equityStopLossPct: 0.3,
+        equityTakeProfitEnabled: false,
+        equityTakeProfitPct: 0.5,
         directionMode: '',
         disclaimer: false,
         aiDecisionFilter: false
@@ -525,11 +585,23 @@ export default {
       ))
     },
     maxLeverage() {
-      return Math.max(1, Number(this.manifest?.maxLeverage || 1))
+      return this.supportsLeverage ? PLATFORM_MAX_LEVERAGE : 1
     },
     capitalCurrency() {
+      const universe = this.parseObject(this.manifest?.universe)
+      if (universe.reference) {
+        return {
+          USStock: 'USD',
+          HKStock: 'HKD',
+          CNStock: 'CNY',
+          ChinaStock: 'CNY',
+          AStock: 'CNY'
+        }[this.marketCategory] || ''
+      }
       const currencies = new Set(this.instruments.map(item => {
         if (item.market === 'USStock') return 'USD'
+        if (item.market === 'HKStock') return 'HKD'
+        if (['CNStock', 'ChinaStock', 'AStock'].includes(item.market)) return 'CNY'
         const symbol = String(item.symbol || '').toUpperCase()
         return symbol.includes('/') ? symbol.split('/').pop() : ''
       }).filter(Boolean))
@@ -548,6 +620,25 @@ export default {
         })
       }
       return this.$t('script_strategy.capital_currency_hint', { currency: this.capitalCurrency || '-' })
+    },
+    riskCurrencyLabel() {
+      return this.capitalCurrency || '-'
+    },
+    equityStopLossPercent() {
+      return Number(((Number(this.form.equityStopLossPct) || 0) * 100).toFixed(2))
+    },
+    equityTakeProfitPercent() {
+      return Number(((Number(this.form.equityTakeProfitPct) || 0) * 100).toFixed(2))
+    },
+    formattedStopEquity() {
+      const capital = Math.max(0, Number(this.form.initialCapital) || 0)
+      const ratio = Math.min(1, Math.max(0, Number(this.form.equityStopLossPct) || 0))
+      return (capital * (1 - ratio)).toLocaleString(undefined, { maximumFractionDigits: 2 })
+    },
+    formattedTakeProfitEquity() {
+      const capital = Math.max(0, Number(this.form.initialCapital) || 0)
+      const ratio = Math.max(0, Number(this.form.equityTakeProfitPct) || 0)
+      return (capital * (1 + ratio)).toLocaleString(undefined, { maximumFractionDigits: 2 })
     },
     requiresDirectionMode() {
       return this.marketCategory === 'Crypto' && this.instruments.length > 0 && this.instruments.every(item => (
@@ -702,6 +793,8 @@ export default {
       if (!this.sourceId || this.contractError || !this.form.name.trim()) return false
       const initialCapital = Number(this.form.initialCapital)
       if (!Number.isFinite(initialCapital) || initialCapital < 1 || initialCapital > 1000000000) return false
+      if (this.form.equityStopLossEnabled && !(Number(this.form.equityStopLossPct) > 0 && Number(this.form.equityStopLossPct) <= 1)) return false
+      if (this.form.equityTakeProfitEnabled && !(Number(this.form.equityTakeProfitPct) > 0 && Number(this.form.equityTakeProfitPct) <= 10)) return false
       if (!this.activeNotificationChannels.length) return false
       if (this.form.executionMode !== 'live') return true
       if (!this.form.disclaimer) return false
@@ -845,6 +938,21 @@ export default {
       this.form.credentialId = config.credential_id || exchange.credential_id || null
       this.form.leverageEnabled = Boolean(config.leverage_enabled)
       this.form.leverage = Number(config.leverage || deployment.leverage) || 1
+      const deploymentRisk = this.parseObject(config.deployment_risk)
+      const equityStopLossPct = Number(
+        deploymentRisk.equity_stop_loss_pct !== undefined
+          ? deploymentRisk.equity_stop_loss_pct
+          : config.equity_stop_loss_pct
+      ) || 0
+      const equityTakeProfitPct = Number(
+        deploymentRisk.equity_take_profit_pct !== undefined
+          ? deploymentRisk.equity_take_profit_pct
+          : config.equity_take_profit_pct
+      ) || 0
+      this.form.equityStopLossEnabled = equityStopLossPct > 0
+      this.form.equityStopLossPct = equityStopLossPct > 0 ? equityStopLossPct : 0.3
+      this.form.equityTakeProfitEnabled = equityTakeProfitPct > 0
+      this.form.equityTakeProfitPct = equityTakeProfitPct > 0 ? equityTakeProfitPct : 0.5
       this.form.directionMode = normalizeDirectionMode(config.direction_mode || config.position_side)
       this.form.disclaimer = deployment.execution_mode === 'live'
       this.form.aiDecisionFilter = Boolean(config.ai_decision_filter)
@@ -869,6 +977,7 @@ export default {
         this.manifest = manifestResponse?.data || {}
         if (!this.form.name) this.form.name = this.source?.name || ''
         this.applyParameterDefaults()
+        if (!this.isEditMode) this.applyDeploymentRiskDefaults()
         this.normalizeContractFields()
       } catch (error) {
         this.contractError = true
@@ -907,6 +1016,49 @@ export default {
       })
       this.params = { ...next, ...this.params }
     },
+    deploymentRiskDefaults() {
+      const metadata = this.parseObject(this.source?.metadata)
+      const direct = this.parseObject(metadata.equity_risk)
+      const executor = this.parseObject(metadata.executor_config)
+      const code = String(this.source?.code || '')
+      const readCodeValue = (name) => {
+        const match = code.match(new RegExp(`^\\s*${name}\\s*=\\s*([-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:e[-+]?\\d+)?)\\s*$`, 'im'))
+        return match ? Number(match[1]) : undefined
+      }
+      const firstDefined = (...values) => values.find(value => value !== undefined && Number.isFinite(Number(value)))
+      return {
+        stopLossPct: firstDefined(
+          direct.stop_loss_pct,
+          executor.equity_stop_loss_pct,
+          executor.equityStopLossPct,
+          readCodeValue('EQUITY_STOP_LOSS')
+        ),
+        takeProfitPct: firstDefined(
+          direct.take_profit_pct,
+          executor.equity_take_profit_pct,
+          executor.equityTakeProfitPct,
+          readCodeValue('EQUITY_TAKE_PROFIT')
+        )
+      }
+    },
+    applyDeploymentRiskDefaults() {
+      const defaults = this.deploymentRiskDefaults()
+      if (Number.isFinite(Number(defaults.stopLossPct))) {
+        const value = Number(defaults.stopLossPct)
+        this.form.equityStopLossEnabled = value > 0
+        if (value > 0) this.form.equityStopLossPct = value
+      }
+      if (Number.isFinite(Number(defaults.takeProfitPct))) {
+        const value = Number(defaults.takeProfitPct)
+        this.form.equityTakeProfitEnabled = value > 0
+        if (value > 0) this.form.equityTakeProfitPct = value
+      }
+    },
+    setEquityRiskPercent(field, value) {
+      const numeric = Number(value)
+      if (!Number.isFinite(numeric)) return
+      this.form[field] = numeric / 100
+    },
     normalizeContractFields() {
       if (!this.supportsLive) {
         this.form.executionMode = 'signal'
@@ -926,6 +1078,9 @@ export default {
     },
     isNumericParameter(parameter) {
       return ['integer', 'number', 'float', 'percent'].includes(String(parameter?.type || '').toLowerCase())
+    },
+    isPercentParameter(parameter) {
+      return String(parameter?.type || '').toLowerCase() === 'percent'
     },
     parameterInputValue(parameter) {
       const value = this.params[parameter?.name]
@@ -1038,6 +1193,8 @@ export default {
         leverage: this.form.executionMode === 'live' && this.form.leverageEnabled
           ? Math.min(this.maxLeverage, Number(this.form.leverage) || 1)
           : 1,
+        equityStopLossPct: this.form.equityStopLossEnabled ? Number(this.form.equityStopLossPct) : 0,
+        equityTakeProfitPct: this.form.equityTakeProfitEnabled ? Number(this.form.equityTakeProfitPct) : 0,
         params: this.params,
         directionMode: this.requiresDirectionMode ? this.effectiveDirectionMode : undefined,
         positionSide: this.requiresDirectionMode ? directionModePositionSide(this.effectiveDirectionMode) : undefined,
@@ -1071,6 +1228,14 @@ export default {
       const initialCapital = Number(this.form.initialCapital)
       if (!Number.isFinite(initialCapital) || initialCapital < 1 || initialCapital > 1000000000) {
         showToast({ message: this.$t('script_strategy.capital_required'), type: 'fail' })
+        return
+      }
+      if (this.form.equityStopLossEnabled && !(Number(this.form.equityStopLossPct) > 0 && Number(this.form.equityStopLossPct) <= 1)) {
+        showToast({ message: this.$t('script_strategy.equity_stop_loss_required'), type: 'fail' })
+        return
+      }
+      if (this.form.equityTakeProfitEnabled && !(Number(this.form.equityTakeProfitPct) > 0 && Number(this.form.equityTakeProfitPct) <= 10)) {
+        showToast({ message: this.$t('script_strategy.equity_take_profit_required'), type: 'fail' })
         return
       }
       if (this.form.executionMode === 'live' && this.requiresDirectionMode && !this.effectiveDirectionMode) {
@@ -1230,9 +1395,24 @@ export default {
 .execution-mode-grid button.active { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); background: var(--accent-soft); }
 .execution-mode-grid button.active > .van-icon:first-child { color: var(--accent); }
 .execution-mode-grid button.disabled { opacity: .42; }
+.deployment-risk-config { margin: 0 12px 12px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
+.deployment-risk-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid var(--border); }
+.deployment-risk-head > div { min-width: 0; }
+.deployment-risk-head strong,.deployment-risk-head small { display: block; }
+.deployment-risk-head strong { color: var(--text); font-size: 12px; }
+.deployment-risk-head small { margin-top: 4px; color: var(--text-3); font-size: 9px; line-height: 1.45; }
+.deployment-risk-head > span { flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; color: var(--accent); background: var(--accent-soft); font-size: 9px; font-weight: 800; }
+.deployment-risk-row { display: grid; grid-template-columns: auto minmax(0, 1fr) 88px; align-items: center; gap: 9px; margin-top: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 11px; background: var(--bg-elevated); }
+.deployment-risk-row.active { border-color: color-mix(in srgb, var(--up) 45%, var(--border)); background: color-mix(in srgb, var(--up) 6%, var(--bg-elevated)); }
+.deployment-risk-copy { min-width: 0; }
+.deployment-risk-copy strong,.deployment-risk-copy small { display: block; }
+.deployment-risk-copy strong { color: var(--text); font-size: 11px; }
+.deployment-risk-copy small { margin-top: 3px; color: var(--text-3); font-size: 8px; line-height: 1.35; }
+.deployment-risk-row :deep(.van-field) { padding: 7px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+.deployment-risk-row :deep(.van-field__right-icon) { margin-left: 4px; color: var(--text-3); font-size: 10px; }
 .live-config { margin: 0 12px 12px; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
 .live-config :deep(.van-cell) { padding-left: 12px; padding-right: 12px; }
-.live-disclaimer { display: grid; grid-template-columns: auto 1fr; gap: 9px; padding: 12px; border-bottom: 1px solid var(--border); color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, transparent); }
+.live-disclaimer { display: grid; grid-template-columns: auto 1fr; gap: 9px; margin: 0 12px 12px; padding: 12px; border: 1px solid color-mix(in srgb, var(--warn) 42%, var(--border)); border-radius: 14px; color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, transparent); }
 .live-disclaimer.accepted { color: var(--up); background: color-mix(in srgb, var(--up) 8%, transparent); }
 .live-disclaimer > .van-icon { margin-top: 2px; font-size: 18px; }
 .live-disclaimer > span { min-width: 0; display: flex; flex-direction: column; gap: 4px; }

@@ -65,10 +65,7 @@ export default defineConfig(({ mode }) => {
               '@capacitor/core',
               '@capacitor/app',
               '@capacitor/browser',
-              '@capacitor/haptics',
               '@capacitor/keyboard',
-              '@capacitor/preferences',
-              '@capacitor/push-notifications',
               '@capacitor/splash-screen',
               '@capacitor/status-bar'
             ]

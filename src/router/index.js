@@ -192,12 +192,12 @@ const routes = [
     meta: { titleKey: 'credentials.add_title' }
   },
   {
-    path: '/:pathMatch(.*)*',
-    redirect: '/market'
-  },
-  {
     path: '/assets',
     redirect: '/ai'
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/market'
   }
 ]
 

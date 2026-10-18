@@ -42,10 +42,11 @@ export default {
     notional: '想定元本 {amount} USDT', risk_orders: '利確 / 損切', optional: '任意', take_profit: '利確トリガー', stop_loss: '損切トリガー',
     live_warning: '実取引です。送信前に方向、金額、レバレッジ、利確・損切を確認してください。',
     complete_order: '口座を選択し、有効な注文内容を入力してください', confirm_title: '実注文を確認', confirm_quantity: '{account}\n{symbol} · {market}\n{side} · {type}\n数量：{quantity} {unit}\n価格：{price}\n実取引口座へ送信されます。', confirm_message: '{side} {symbol}\n{type} · {amount} USDT\n実取引口座へ送信されます。', confirm_submit: '注文する', order_success: '注文を送信しました',
-    size: '数量', value: 'コスト / 現在', entry: '建値', mark: 'マーク', close_position: '決済', close_confirm_title: '実決済を確認', close_confirm_message: '{symbol} の建玉を決済しますか？', close_success: '決済指示を送信しました',
+    size: '数量', value: 'コスト / 現在', entry: '建値', mark: 'マーク', holding: '保有', unit_price: '単価', current_value: '現在価値', close_position: '決済', close_confirm_title: '実決済を確認', close_confirm_message: '{symbol} の建玉を決済しますか？', close_success: '決済指示を送信しました',
     no_positions: '建玉はありません', no_history: '最近の注文はありません', long: 'ロング', short: 'ショート', close_long: 'ロング決済', close_short: 'ショート決済', status_filled: '約定', status_submitted: '送信済み', status_failed: '失敗', status_canceled: 'キャンセル',
     fill_price: '平均約定価格', filled_quantity: '約定数量', trade_value: '約定金額', realized_pnl: '実現損益', live_order: '実注文', live_warning_short: '確認すると実取引口座へ直ちに送信されます。内容を再確認してください。',
-    ai_allowed: '実行許可', ai_blocked: 'ブロック済み', ai_hold: '操作なし', ai_confidence: '信頼度',
+    fee: '取引手数料', position_history: '決済履歴', closed_quantity: '決済数量', entry_exit: '建値 / 決済', net_pnl: '純損益', no_position_history: '決済済みポジションはありません', position_history_unsupported: 'この取引所では決済履歴を利用できません',
+    manage_protection: '利確 / 損切', take_profit_short: '利確', stop_loss_short: '損切', trigger_price: 'トリガー価格', no_protection_orders: '利確・損切注文はありません', protection_unsupported: 'この取引所ではポジション保護を利用できません', protection_saved: '利確・損切を更新しました', confirm_close: '決済を確認',
     chart_risk_hint: 'チャートシグナルは判断補助です。実注文には確認が必要です。'
   },
   api_errors: {
@@ -865,6 +866,9 @@ export default {
     equity_take_profit: '総資産利確', equity_stop_loss: '総資産損切り', equity_trailing: 'トレーリング利確',
     equity_trailing_value: '利益 {activation} で開始、ピークから {callback} 下落で発動',
     equity_risk_hint: '投入資金を基準に、実現・含み損益と手数料を含めて計算します。発動時は決済してストラテジーを停止します。',
+    deployment_equity_risk_title: 'この運用の総資産リスク', deployment_equity_risk_hint: '初期資金を基準に損切りと利確を設定します。発動時は決済してストラテジーを停止します。', deployment_risk_action: '決済して停止',
+    equity_stop_loss_hint: '無効にすると総資産の損失では停止しません。', equity_take_profit_hint: '無効にすると総資産の利益では停止しません。',
+    equity_trigger_value: '資産が {value} {currency} に達すると発動予定', equity_stop_loss_required: '総資産損切りは 0% より大きく 100% 以下にしてください。', equity_take_profit_required: '総資産利確は 0% より大きく 1000% 以下にしてください。',
     trigger_exchange_resting: '取引所の指値注文で即時約定', trigger_exchange_resting_hint: '指値注文を取引所に置き、ローソク足の確定を待たずに約定します。',
     trigger_realtime_price: 'リアルタイム価格で追加注文', trigger_realtime_price_hint: '選択した足の確定を待たず、新鮮な価格で追加レベルを判定します。',
     trigger_schedule: 'カレンダー時間による定期実行', trigger_schedule_hint: 'チャート足とは独立して設定時刻に実行します。',

@@ -20,6 +20,8 @@ test('mobile strategy marketplace exposes execution and confirmation cadence', (
     assert.match(list + detail, new RegExp(field))
   }
   assert.match(list + detail, /marketplace_contract/)
+  assert.doesNotMatch(detail, /source_controlled/)
+  assert.match(detail, /hasStrategyContractMetadata/)
 })
 
 test('mobile strategy adaptation checks compatibility and preserves the backtest gate', () => {

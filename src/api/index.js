@@ -19,187 +19,6 @@ export const getBaseUrl = () => {
 
 const ensureArray = (value) => Array.isArray(value) ? value : []
 
-/** Global market calendar: API may return { list: [] } / { events: [] } etc. */
-const unwrapCalendarList = (data) => {
-  if (Array.isArray(data)) return data
-  if (!data || typeof data !== 'object') return []
-  const keys = ['items', 'list', 'events', 'calendar', 'records', 'rows', 'data']
-  for (const k of keys) {
-    const v = data[k]
-    if (Array.isArray(v)) return v
-  }
-  return []
-}
-
-const parseNumericMetric = (val) => {
-  if (val == null || val === '') return { text: '', num: null }
-  if (typeof val === 'number') {
-    return Number.isFinite(val) ? { text: String(val), num: val } : { text: '', num: null }
-  }
-  const text = String(val).trim()
-  if (!text) return { text: '', num: null }
-  const match = text.replace(/,/g, '').match(/-?\d+(\.\d+)?/)
-  const num = match ? Number(match[0]) : null
-  return { text, num: Number.isFinite(num) ? num : null }
-}
-
-// Gold-impact rules are evaluated from top to bottom.
-const GOLD_IMPACT_RULES = [
-  { kw: /unemploy|jobless|initial\s*claims|失业|申请失业/, higherIs: 'bullish' },
-  { kw: /cpi|inflation|ppi|pce|消费者物价|生产者物价|通胀|通膨/, higherIs: 'bullish' },
-  { kw: /nonfarm|payroll|non[- ]?farm|非农|就业/, higherIs: 'bearish' },
-  { kw: /gdp|国内生产总值/, higherIs: 'bearish' },
-  { kw: /retail\s*sales|零售销售/, higherIs: 'bearish' },
-  { kw: /pmi|ism|制造业|采购经理/, higherIs: 'bearish' },
-  { kw: /industrial\s*production|工业产出|工业生产/, higherIs: 'bearish' },
-  { kw: /durable\s*goods|耐用品/, higherIs: 'bearish' },
-  { kw: /consumer\s*confidence|消费者信心/, higherIs: 'bearish' },
-  { kw: /trade\s*balance|贸易差额|贸易逆差/, higherIs: 'bearish' },
-  { kw: /housing|home\s*sales|住房/, higherIs: 'bearish' },
-  { kw: /dollar\s*index|dxy|美元指数/, higherIs: 'bearish' },
-  { kw: /fed\s*funds|interest\s*rate|rate\s*decision|利率决议|基准利率|federal\s*funds/, higherIs: 'bearish' }
-]
-
-const decideGoldImpact = (titleRaw, surprise) => {
-  if (!surprise || surprise === 'inline') return null
-  const t = String(titleRaw || '').toLowerCase()
-  if (!t) return null
-  const rule = GOLD_IMPACT_RULES.find(r => r.kw.test(t))
-  if (!rule) return null
-  const opposite = rule.higherIs === 'bullish' ? 'bearish' : 'bullish'
-  return surprise === 'higher' ? rule.higherIs : opposite
-}
-
-const normalizeCalendarEvent = (ev) => {
-  if (!ev || typeof ev !== 'object') return null
-  const title =
-    ev.title ??
-    ev.event_title ??
-    ev.event_name ??
-    ev.name ??
-    ev.event ??
-    ev.subject ??
-    ev.indicator ??
-    ev.indicator_name ??
-    ev.description ??
-    ev.holiday_name ??
-    ''
-  const titleEn =
-    ev.title_en ??
-    ev.name_en ??
-    ev.event_name_en ??
-    ev.event_title_en ??
-    ev.indicator_en ??
-    ''
-  const titleZh =
-    ev.title_zh ??
-    ev.name_zh ??
-    ev.event_name_zh ??
-    ev.event_title_zh ??
-    ''
-  const time =
-    ev.time ??
-    ev.event_time ??
-    ev.datetime ??
-    ev.date_time ??
-    ev.date ??
-    ev.scheduled ??
-    '--'
-  const country =
-    ev.country ??
-    ev.region ??
-    ev.currency ??
-    ev.currency_code ??
-    ev.ccy ??
-    ''
-  const id = ev.id ?? ev.event_id ?? `${String(time)}-${String(title)}-${String(country)}`
-  const impact = String(ev.impact ?? ev.importance ?? ev.level ?? '').toLowerCase()
-
-  const actualMetric = parseNumericMetric(
-    ev.actual ?? ev.actual_value ?? ev.actualValue ?? ev.value ?? ev.result
-  )
-  const forecastMetric = parseNumericMetric(
-    ev.forecast ?? ev.forecast_value ?? ev.forecastValue ?? ev.expected ?? ev.consensus ?? ev.estimate
-  )
-  const previousMetric = parseNumericMetric(
-    ev.previous ?? ev.previous_value ?? ev.previousValue ?? ev.prior ?? ev.last
-  )
-
-  let surprise = null // 'higher' | 'lower' | 'inline'
-  if (actualMetric.num != null && forecastMetric.num != null) {
-    if (actualMetric.num > forecastMetric.num) surprise = 'higher'
-    else if (actualMetric.num < forecastMetric.num) surprise = 'lower'
-    else surprise = 'inline'
-  }
-
-  const goldImpact = decideGoldImpact(title, surprise) // 'bullish' | 'bearish' | null
-
-  return {
-    ...ev,
-    id,
-    time: String(time),
-    country: String(country),
-    title: String(title || '--'),
-    title_en: String(titleEn || ''),
-    title_zh: String(titleZh || ''),
-    impact,
-    actual: actualMetric.text,
-    forecast: forecastMetric.text,
-    previous: previousMetric.text,
-    actualNum: actualMetric.num,
-    forecastNum: forecastMetric.num,
-    previousNum: previousMetric.num,
-    surprise,
-    goldImpact
-  }
-}
-
-/** Fear & Greed: PC/alternative.me often returns { value, classification } not fear_greed. */
-const normalizeGlobalSentiment = (raw) => {
-  if (raw == null) return null
-  let d = raw
-  if (typeof raw === 'string') {
-    try {
-      d = JSON.parse(raw)
-    } catch {
-      return null
-    }
-  }
-  if (typeof d !== 'object') return null
-  if (d.data != null && typeof d.data === 'object' && !Array.isArray(d.data)) {
-    const nested = d.data
-    if (
-      nested.value != null ||
-      nested.fear_greed != null ||
-      nested.classification != null ||
-      (typeof nested.fear_greed === 'object' && nested.fear_greed !== null)
-    ) {
-      d = nested
-    }
-  }
-  const inner =
-    typeof d.fear_greed === 'object' && d.fear_greed !== null && !Array.isArray(d.fear_greed)
-      ? d.fear_greed
-      : d
-  const fromNumber = typeof d.fear_greed === 'number' ? d.fear_greed : NaN
-  const n = Number(
-    inner.value ??
-      inner.fear_greed ??
-      (Number.isFinite(fromNumber) ? fromNumber : NaN) ??
-      d.value ??
-      NaN
-  )
-  if (!Number.isFinite(n)) return null
-  return {
-    fear_greed: Math.round(Math.max(0, Math.min(100, n))),
-    classification: String(
-      inner.classification ?? d.classification ?? inner.label ?? ''
-    ).trim(),
-    source: String(inner.source ?? d.source ?? ''),
-    timestamp: inner.timestamp ?? d.timestamp
-  }
-}
-
 const unwrapItems = (data, key = 'items') => {
   if (Array.isArray(data)) return data
   if (Array.isArray(data?.[key])) return data[key]
@@ -479,33 +298,37 @@ export const quickTradeApi = {
   placeOrder: (payload) => http.post('/api/quick-trade/place-order', payload),
   closePosition: (payload) => http.post('/api/quick-trade/close-position', payload),
   cancelOrder: (tradeId) => http.post('/api/quick-trade/cancel-order', { trade_id: tradeId }),
-  getAiDecisions: (params) => http.get('/api/quick-trade/ai-decisions', { params }),
-  getEventRadar: (params) => http.get('/api/quick-trade/event-radar', { params }),
-  analyzeEventRadar: (payload) => http.post('/api/quick-trade/event-radar/analyze', payload, { timeout: 120000 }),
   getHistory: async (params = {}) => {
     const res = await http.get('/api/quick-trade/history', { params })
     return {
       ...res,
       data: unwrapItems(res.data, 'trades')
     }
-  }
+  },
+  getPositionHistory: async (params = {}) => {
+    const res = await http.get('/api/quick-trade/position-history', { params })
+    return {
+      ...res,
+      data: {
+        supported: res.data?.supported !== false,
+        positions: unwrapItems(res.data, 'positions')
+      }
+    }
+  },
+  getPositionProtection: async (params = {}) => {
+    const res = await http.get('/api/quick-trade/position-protection', { params })
+    return {
+      ...res,
+      data: {
+        supported: res.data?.supported !== false,
+        orders: unwrapItems(res.data, 'orders')
+      }
+    }
+  },
+  updatePositionProtection: (payload) => http.post('/api/quick-trade/position-protection', payload)
 }
 
 export const strategyApi = {
-  getTemplates: async (params = {}) => {
-    const res = await http.get('/api/templates', { params })
-    return {
-      ...res,
-      data: ensureArray(res.data)
-    }
-  },
-  getTemplate: async (key) => {
-    const res = await http.get(`/api/templates/${key}`)
-    return {
-      ...res,
-      data: res.data || null
-    }
-  },
   create: (payload) => http.post('/api/strategies', payload),
   update: (id, payload) => http.put(`/api/strategies/${id}`, payload),
   delete: (id) => http.delete(`/api/strategies/${id}`),
@@ -531,15 +354,6 @@ export const strategyApi = {
     `/api/strategies/${id}/commands/${commandId}`,
     { suppressErrorToast: true }
   ),
-  getTrades: async (id, limit = 50) => {
-    const res = await http.get('/api/strategies/trades', {
-      params: { id, limit }
-    })
-    return {
-      ...res,
-      data: unwrapItems(res.data, 'trades').map(normalizeTrade)
-    }
-  },
   getTradeLedger: async (id, limit = 100) => {
     const res = await http.get('/api/strategies/trades', {
       params: { id, limit }
@@ -631,7 +445,6 @@ export const strategyApi = {
       data: unwrapItems(res.data, 'logs')
     }
   },
-  testConnection: (data) => http.post('/api/strategies/exchange/test', data),
   getNotifications: async (params = {}) => {
     const res = await http.get('/api/strategies/notifications', { params })
     return {
@@ -647,19 +460,11 @@ export const strategyApi = {
     }
   },
   markNotificationRead: (id) => http.post('/api/strategies/notifications/read', { id }),
-  markAllNotificationsRead: () => http.post('/api/strategies/notifications/read-all'),
-  clearNotifications: () => http.delete('/api/strategies/notifications/clear')
+  markAllNotificationsRead: () => http.post('/api/strategies/notifications/read-all')
 }
 
 export const aiAnalysisApi = {
   analyze: (payload) => http.post('/api/fast-analysis/analyze', payload, { timeout: 300000 }),
-  getHistory: async (params = {}) => {
-    const res = await http.get('/api/fast-analysis/history', { params })
-    return {
-      ...res,
-      data: unwrapItems(res.data)
-    }
-  },
   getAllHistory: async (params = {}) => {
     const res = await http.get('/api/fast-analysis/history/all', { params })
     return {
@@ -672,22 +477,7 @@ export const aiAnalysisApi = {
       }
     }
   },
-  deleteHistory: (memoryId) => http.delete(`/api/fast-analysis/history/${memoryId}`),
-  getPerformance: async (params = {}) => {
-    const res = await http.get('/api/fast-analysis/performance', { params })
-    return {
-      ...res,
-      data: res.data || {}
-    }
-  },
-  submitFeedback: (payload) => http.post('/api/fast-analysis/feedback', payload),
-  getSimilarPatterns: async (params = {}) => {
-    const res = await http.get('/api/fast-analysis/similar-patterns', { params })
-    return {
-      ...res,
-      data: res.data || {}
-    }
-  }
+  deleteHistory: (memoryId) => http.delete(`/api/fast-analysis/history/${memoryId}`)
 }
 
 export const scriptSourceApi = {
@@ -863,8 +653,7 @@ export const klineApi = {
       ...res,
       data: res.data || null
     }
-  },
-  getTicker: (symbol, market = 'Crypto') => klineApi.getPrice({ market, symbol })
+  }
 }
 
 export const aiChatApi = {
@@ -1009,7 +798,6 @@ export const userApi = {
   getNotificationSettings: () => http.get('/api/users/notification-settings'),
   updateNotificationSettings: (data) => http.put('/api/users/notification-settings', data),
   testNotificationSettings: () => http.post('/api/users/notification-settings/test'),
-  changePassword: (data) => http.post('/api/users/change-password', data),
   getMfaStatus: () => http.get('/api/users/mfa/status'),
   startMfaSetup: () => http.post('/api/users/mfa/setup/start', {}),
   confirmMfaSetup: (data) => http.post('/api/users/mfa/setup/confirm', data),
@@ -1059,34 +847,6 @@ export const userApi = {
   }
 }
 
-export const globalMarketApi = {
-  getOverview: async () => {
-    const res = await http.get('/api/global-market/overview')
-    return {
-      ...res,
-      data: res.data || { indices: [] }
-    }
-  },
-  getCalendar: async (params = {}) => {
-    const res = await http.get('/api/global-market/calendar', { params })
-    const list = unwrapCalendarList(res.data)
-      .map(normalizeCalendarEvent)
-      .filter(Boolean)
-    return {
-      ...res,
-      data: list
-    }
-  },
-  getSentiment: async () => {
-    const res = await http.get('/api/global-market/sentiment')
-    const normalized = normalizeGlobalSentiment(res.data)
-    return {
-      ...res,
-      data: normalized
-    }
-  }
-}
-
 export const billingApi = {
   getReferralRewards: async (params = {}) => {
     const res = await http.get('/api/billing/referral-rewards', { params })
@@ -1105,19 +865,6 @@ export const billingApi = {
     }
   },
   createReferralWithdrawal: (payload) => http.post('/api/billing/referral-rewards/withdrawals', payload),
-  /**
-   * v3.0.6+ — list enabled USDT chains so the chain picker can render
-   * before the order is created. Chains without a configured receiving
-   * address are filtered out by the backend, so the response can be
-   * rendered verbatim.
-   */
-  listUsdtChains: async () => {
-    const res = await http.get('/api/billing/usdt/chains')
-    return {
-      ...res,
-      data: res.data || { chains: [] }
-    }
-  },
   listCryptoChains: async (currency = 'USDT') => {
     const res = await http.get('/api/billing/crypto/chains', { params: { currency } })
     return {
@@ -1132,12 +879,6 @@ export const billingApi = {
       data: res.data || {}
     }
   },
-  purchase: (plan) => http.post('/api/billing/purchase', { plan }),
-  createUsdtOrder: (plan, chain) => {
-    const payload = { plan }
-    if (chain) payload.chain = chain
-    return http.post('/api/billing/usdt/create', payload)
-  },
   createCryptoOrder: (plan, chain, currency = 'USDT') => http.post('/api/billing/crypto/create', {
     plan,
     chain,
@@ -1146,10 +887,7 @@ export const billingApi = {
   getCryptoOrder: (orderId, refresh = true) => http.get(`/api/billing/crypto/order/${orderId}`, {
     params: { refresh: refresh ? 1 : 0 }
   }),
-  createStripeCheckout: (plan) => http.post('/api/billing/stripe/create', { plan, client: 'mobile' }),
-  getUsdtOrder: (orderId, refresh = true) => http.get(`/api/billing/usdt/order/${orderId}`, {
-    params: { refresh: refresh ? 1 : 0 }
-  })
+  createStripeCheckout: (plan) => http.post('/api/billing/stripe/create', { plan, client: 'mobile' })
 }
 
 export default http

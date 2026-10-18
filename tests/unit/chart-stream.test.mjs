@@ -137,6 +137,7 @@ test('all six exchanges expose venue-scoped spot and swap endpoints', () => {
 
   assert.equal(EXCHANGE_WS.binance.buildUrl('BTC/USDT', '1m', spot), 'wss://stream.binance.com:9443/ws/btcusdt@kline_1m')
   assert.equal(EXCHANGE_WS.binance.buildUrl('BTC/USDT', '1m', swap), 'wss://fstream.binance.com/ws/btcusdt@kline_1m')
+  assert.equal(EXCHANGE_WS.okx.buildUrl('BTC/USDT', '1m', spot), 'wss://ws.okx.com/ws/v5/business')
   assert.equal(EXCHANGE_WS.bybit.buildUrl('BTC/USDT', '1', spot), 'wss://stream.bybit.com/v5/public/spot')
   assert.equal(EXCHANGE_WS.bybit.buildUrl('BTC/USDT', '1', swap), 'wss://stream.bybit.com/v5/public/linear')
   assert.equal(EXCHANGE_WS.gate.buildUrl('BTC/USDT', '1m', spot), 'wss://api.gateio.ws/ws/v4/')
@@ -153,6 +154,12 @@ test('subscriptions retain exchange, product type, and native instrument identit
   })
   assert.deepEqual(okx.args, [{ channel: 'candle1m', instId: 'BTC-USDT-SWAP' }])
 
+  const okxCompact = captureSubscription('okx', 'BTC/USDT', '1m', {
+    marketType: 'swap',
+    instrumentId: 'BTCUSDT'
+  })
+  assert.deepEqual(okxCompact.args, [{ channel: 'candle1m', instId: 'BTC-USDT-SWAP' }])
+
   const bitget = captureSubscription('bitget', 'BTC/USDT', '1m', {
     marketType: 'swap',
     instrumentId: 'BTCUSDT'
@@ -167,11 +174,23 @@ test('subscriptions retain exchange, product type, and native instrument identit
   assert.equal(gate.channel, 'futures.candlesticks')
   assert.deepEqual(gate.payload, ['1m', 'BTC_USDT'])
 
+  const gateCompact = captureSubscription('gate', 'BTC/USDT', '1m', {
+    marketType: 'spot',
+    instrumentId: 'BTCUSDT'
+  })
+  assert.deepEqual(gateCompact.payload, ['1m', 'BTC_USDT'])
+
   const htx = captureSubscription('htx', 'BTC/USDT', '1min', {
     marketType: 'swap',
     instrumentId: 'BTC-USDT'
   })
   assert.equal(htx.sub, 'market.BTC-USDT.kline.1min')
+
+  const htxCompact = captureSubscription('htx', 'BTC/USDT', '1min', {
+    marketType: 'swap',
+    instrumentId: 'BTCUSDT'
+  })
+  assert.equal(htxCompact.sub, 'market.BTC-USDT.kline.1min')
 
   const htxSpot = captureSubscription('htx', 'BTC/USDT', '1min', {
     marketType: 'spot',
@@ -248,4 +267,68 @@ test('unsupported native intervals fail closed so the chart keeps same-venue RES
   assert.equal(connected, false)
   assert.equal(errors, 1)
   assert.equal(client.currentExchange(), 'gate')
+})
+
+test('rejected subscriptions fall back immediately for every exchange response shape', async () => {
+  const cases = [
+    {
+      exchange: 'gate',
+      response: {
+        channel: 'spot.candlesticks',
+        event: 'subscribe',
+        error: { code: 2, message: 'unknown currency pair' },
+        result: { status: 'fail' }
+      }
+    },
+    { exchange: 'okx', response: { event: 'error', code: '60012', msg: 'Invalid request' } },
+    { exchange: 'bitget', response: { event: 'error', code: '30001', msg: 'Invalid channel' } },
+    { exchange: 'bybit', response: { op: 'subscribe', success: false, ret_msg: 'Invalid topic' } },
+    { exchange: 'htx', response: { status: 'error', err_code: 2002, err_msg: 'invalid topic' } },
+    { exchange: 'htx', response: { status: 'error', 'err-code': 'bad-request', 'err-msg': 'invalid topic' } }
+  ]
+
+  for (const { exchange, response } of cases) {
+    let errors = 0
+    let closed = 0
+    const client = new ExchangeKlineWs()
+    client._closed = false
+    client._exchangeId = exchange
+    client._exchangeConf = EXCHANGE_WS[exchange]
+    client._onError = () => { errors += 1 }
+    client._ws = {
+      onclose: () => {},
+      close () { closed += 1 }
+    }
+
+    await client._handleMessage({ data: JSON.stringify(response) })
+
+    assert.equal(closed, 1, exchange)
+    assert.equal(errors, 1, exchange)
+    assert.equal(client._closed, true, exchange)
+  }
+})
+
+test('successful subscription acknowledgements do not produce fallback', async () => {
+  const cases = [
+    { exchange: 'gate', response: { event: 'subscribe', result: { status: 'success' } } },
+    { exchange: 'okx', response: { event: 'subscribe', code: '0', arg: { channel: 'candle1m' } } },
+    { exchange: 'bitget', response: { event: 'subscribe', code: '0', arg: { channel: 'candle1m' } } },
+    { exchange: 'bybit', response: { op: 'subscribe', success: true, ret_msg: 'subscribe' } },
+    { exchange: 'htx', response: { status: 'ok', subbed: 'market.btcusdt.kline.1min' } }
+  ]
+
+  for (const { exchange, response } of cases) {
+    let errors = 0
+    const client = new ExchangeKlineWs()
+    client._closed = false
+    client._exchangeId = exchange
+    client._exchangeConf = EXCHANGE_WS[exchange]
+    client._onError = () => { errors += 1 }
+    client._ws = { close () { throw new Error('must not close') } }
+
+    await client._handleMessage({ data: JSON.stringify(response) })
+
+    assert.equal(errors, 0, exchange)
+    assert.equal(client._closed, false, exchange)
+  }
 })

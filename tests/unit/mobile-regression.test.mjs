@@ -8,15 +8,15 @@ import audit from '../../src/locales/audit.js'
 import {buildOAuthStartUrl} from '../../src/utils/oauthUrl.js'
 
 const form={amount:'100',sell_quantity:'',price:'65000',leverage:'5',order_type:'market',margin_mode:'cross',tp_price:'70000',sl_price:'60000'}
-const order=overrides=>buildOrder({credentialId:7,symbol:'BTC/USDT',marketType:'swap',form,side:'buy',aiDecisionFilter:true,...overrides})
+const order=overrides=>buildOrder({credentialId:7,symbol:'BTC/USDT',marketType:'swap',form,side:'buy',...overrides})
 const context={available:482.71,price:65000,balanceReady:true}
 test('native OAuth always opens an absolute URL after the fixed API host was removed',()=>{
  assert.equal(buildOAuthStartUrl({baseUrl:'',webOrigin:'https://m.quantdinger.com',provider:'google',redirectUri:'com.quantdinger.mobile://login'}),'https://m.quantdinger.com/api/auth/oauth/google?redirect=com.quantdinger.mobile%3A%2F%2Flogin')
  assert.equal(buildOAuthStartUrl({baseUrl:'https://api.example.com/',webOrigin:'https://m.example.com',provider:'google',redirectUri:'com.quantdinger.mobile://login'}),'https://api.example.com/api/auth/oauth/google?redirect=com.quantdinger.mobile%3A%2F%2Flogin')
  assert.throws(()=>buildOAuthStartUrl({provider:'google',redirectUri:'x'}),/absolute HTTP\(S\) origin/)
 })
-test('quick trade payload matches the PC contract including AI filter and margin',()=>{
- assert.deepEqual(order(),{credential_id:7,symbol:'BTC/USDT',market_type:'swap',side:'buy',order_type:'market',amount:100,price:0,leverage:5,margin_mode:'cross',tp_price:70000,sl_price:60000,source:'indicator',ai_decision_filter:true})
+test('quick trade payload matches the PC contract including margin',()=>{
+ assert.deepEqual(order(),{credential_id:7,symbol:'BTC/USDT',market_type:'swap',side:'buy',order_type:'market',amount:100,price:0,leverage:5,margin_mode:'cross',tp_price:70000,sl_price:60000,source:'indicator'})
  assert.equal(validateOrder(order(),context),'')
 })
 test('spot orders cannot inherit derivative leverage or margin mode',()=>{
@@ -78,6 +78,8 @@ test('custom plot values align by candle time after history window changes',()=>
  const renderer=createPlotRenderer({value:'light'})
  const result=renderer.buildAlignedPlotRows([{timestamp:1000},{timestamp:2000},{timestamp:3000}],{ema:[null,10,20]},[{timestamp:2000},{timestamp:3000}])
  assert.deepEqual(result,[{ema:10},{ema:20}])
+ const derived=renderer.buildAlignedPlotRows([{timestamp:1000},{timestamp:2000},{timestamp:3000}],{ema:[null,10,20]},[{timestamp:2001,sourceTimestamp:2000},{timestamp:3001,sourceTimestamp:3000}])
+ assert.deepEqual(derived,[{ema:10},{ema:20}])
 })
 test('six factor lamps have six independent labeled lanes and retain runtime colors',()=>{
  const renderer=createPlotRenderer({value:'dark'})
@@ -87,6 +89,17 @@ test('six factor lamps have six independent labeled lanes and retain runtime col
  assert.equal(bundle.plotDataMap.macd_red__color[0],'red');assert.equal(bundle.plotDataMap.macd_red[1],null)
  assert.equal(typeof bundle.extra.draw,'function')
 })
+test('trend clouds preserve both bounds and limit mobile fill opacity',()=>{
+ const renderer=createPlotRenderer({value:'dark'})
+ const bundle=renderer.build(3,[{name:'Trend cloud',type:'cloud',overlay:true,color:'#22c55e',opacity:.5,data:[null,{upper:110,lower:100,color:'#ef4444'},{upper:90,lower:95}]}])
+ assert.deepEqual(bundle.plotDataMap.trend_cloud,[null,110,90])
+ assert.deepEqual(bundle.plotDataMap.trend_cloud__lower,[null,100,95])
+ const figure=bundle.figures.find(item=>item.key==='trend_cloud')
+ assert.equal(figure.type,'bar')
+ assert.equal(figure.styles({current:{indicatorData:{trend_cloud__color:'#ef4444'}}}).color,'rgba(239, 68, 68, 0.24)')
+ const attrs=figure.attrs({coordinate:{current:{x:20,trend_cloud:10,trend_cloud__lower:30}},data:{current:{}},barSpace:{bar:7}})
+ assert.equal(attrs.height,20.8)
+})
 test('all mobile audit copy is translated in all five languages',()=>{
  const leaves=value=>Object.values(value).flatMap(x=>typeof x==='object'?leaves(x):[x])
  const english=Object.keys(audit['en-US'])
@@ -94,9 +107,10 @@ test('all mobile audit copy is translated in all five languages',()=>{
 })
 
 function loadPanel(api,dialog=async()=>{}){
+ api={getPositionHistory:async()=>({data:{supported:true,positions:[]}}),getPositionProtection:async()=>({data:{supported:true,orders:[]}}),updatePositionProtection:async()=>({data:{}}),...api}
  const source=readFileSync(new URL('../../src/components/ChartTradePanel.vue',import.meta.url),'utf8').split('<script>')[1].split('</script>')[0].replace(/^import .*$/gm,'').replace('export default','return')
  const store={selectedCredentialId:7,marketType:'swap',balance:null,history:[],positions:[],setBalance(value){this.balance=value},setHistory(value){this.history=value},setPositions(value){this.positions=value}}
- const options=new Function('quickTradeApi','showConfirmDialog','showToast','ExchangeLogo','EventRadar','buildOrder','validateOrder','tradeProductFields','OPEN_ORDER_STATUSES',source)(api,dialog,()=>{},null,null,buildOrder,validateOrder,tradeProductFields,OPEN_ORDER_STATUSES)
+ const options=new Function('quickTradeApi','showConfirmDialog','showToast','ExchangeLogo','buildOrder','validateOrder','tradeProductFields','OPEN_ORDER_STATUSES',source)(api,dialog,()=>{},null,buildOrder,validateOrder,tradeProductFields,OPEN_ORDER_STATUSES)
  const vm={...options.data(),quickTradeStore:store,selectedCredentialId:7,selectedCredential:{id:7,name:'Gate'},selectedCredentialLabel:'Gate',isCrypto:true,normalizedSymbol:'BTC/USDT',marketType:'swap',livePrice:65000,$t:key=>key,form:{...form},$emit:()=>{}}
  for(const [name,method] of Object.entries(options.methods))vm[name]=method.bind(vm)
  vm.openOrderReview=async()=>{try{await dialog();return true}catch{return false}}

@@ -42,10 +42,11 @@ export default {
     notional: '예상 명목가치 {amount} USDT', risk_orders: '익절 / 손절', optional: '선택', take_profit: '익절 트리거', stop_loss: '손절 트리거',
     live_warning: '실거래 주문입니다. 제출 전에 방향, 금액, 레버리지와 위험 주문을 확인하세요.',
     complete_order: '계정을 선택하고 유효한 주문 내용을 입력하세요', confirm_title: '실거래 주문 확인', confirm_quantity: '{account}\n{symbol} · {market}\n{side} · {type}\n수량: {quantity} {unit}\n가격: {price}\n실제 거래 계정으로 전송됩니다.', confirm_message: '{side} {symbol}\n{type} · {amount} USDT\n실제 거래 계정으로 전송됩니다.', confirm_submit: '주문 제출', order_success: '주문이 제출되었습니다',
-    size: '수량', value: '비용 / 현재', entry: '진입가', mark: '표시가', close_position: '포지션 종료', close_confirm_title: '실거래 종료 확인', close_confirm_message: '{symbol} 포지션을 종료할까요?', close_success: '종료 요청이 제출되었습니다',
+    size: '수량', value: '비용 / 현재', entry: '진입가', mark: '표시가', holding: '보유', unit_price: '단가', current_value: '현재 가치', close_position: '포지션 종료', close_confirm_title: '실거래 종료 확인', close_confirm_message: '{symbol} 포지션을 종료할까요?', close_success: '종료 요청이 제출되었습니다',
     no_positions: '보유 포지션이 없습니다', no_history: '최근 주문이 없습니다', long: '롱', short: '숏', close_long: '롱 종료', close_short: '숏 종료', status_filled: '체결', status_submitted: '제출됨', status_failed: '실패', status_canceled: '취소됨',
     fill_price: '평균 체결가', filled_quantity: '체결 수량', trade_value: '체결 금액', realized_pnl: '실현 손익', live_order: '실거래 주문', live_warning_short: '확인하면 실제 거래 계정으로 즉시 전송됩니다. 주문 내용을 다시 확인하세요.',
-    ai_allowed: '실행 허용', ai_blocked: '차단됨', ai_hold: '작업 없음', ai_confidence: '신뢰도',
+    fee: '거래 수수료', position_history: '종료 포지션', closed_quantity: '종료 수량', entry_exit: '진입 / 종료', net_pnl: '순손익', no_position_history: '종료된 포지션이 없습니다', position_history_unsupported: '이 거래소에서는 포지션 기록을 사용할 수 없습니다',
+    manage_protection: '익절 / 손절', take_profit_short: '익절', stop_loss_short: '손절', trigger_price: '트리거 가격', no_protection_orders: '익절·손절 주문이 없습니다', protection_unsupported: '이 거래소에서는 포지션 보호를 사용할 수 없습니다', protection_saved: '포지션 보호가 업데이트되었습니다', confirm_close: '종료 확인',
     chart_risk_hint: '차트 신호는 판단 보조용이며, 실거래 주문에는 확인이 필요합니다.'
   },
   api_errors: {
@@ -865,6 +866,9 @@ export default {
     equity_take_profit: '총자산 익절', equity_stop_loss: '총자산 손절', equity_trailing: '트레일링 익절',
     equity_trailing_value: '수익 {activation}에서 시작, 고점 대비 {callback} 하락 시 실행',
     equity_risk_hint: '투입 원금을 기준으로 실현·미실현 손익과 수수료를 포함해 계산합니다. 실행되면 포지션을 청산하고 전략을 중지합니다.',
+    deployment_equity_risk_title: '이번 실행의 총자산 위험 관리', deployment_equity_risk_hint: '초기 자금을 기준으로 손절과 익절을 설정합니다. 실행되면 포지션을 청산하고 전략을 중지합니다.', deployment_risk_action: '청산 후 중지',
+    equity_stop_loss_hint: '비활성화하면 총자산 손실로 전략을 중지하지 않습니다.', equity_take_profit_hint: '비활성화하면 총자산 이익으로 전략을 중지하지 않습니다.',
+    equity_trigger_value: '자산이 {value} {currency}에 도달하면 실행 예정', equity_stop_loss_required: '총자산 손절은 0%보다 크고 100% 이하여야 합니다.', equity_take_profit_required: '총자산 익절은 0%보다 크고 1000% 이하여야 합니다.',
     trigger_exchange_resting: '거래소 지정가 주문 실시간 체결', trigger_exchange_resting_hint: '지정가 주문을 거래소에 미리 두고 캔들 마감을 기다리지 않고 체결합니다.',
     trigger_realtime_price: '실시간 가격 기준 추가 매수', trigger_realtime_price_hint: '선택한 캔들 마감을 기다리지 않고 최신 가격으로 추가 레벨을 확인합니다.',
     trigger_schedule: '달력 시간 기준 정기 실행', trigger_schedule_hint: '차트 캔들과 관계없이 설정한 일정에 실행합니다.',

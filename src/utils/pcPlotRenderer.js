@@ -1,10 +1,12 @@
 // Shared rendering behavior ported from the PC KlineChart r14 implementation.
 export function createPlotRenderer(chartTheme) {
 const LAMP_FIGURE_TYPES = ['lamp', 'dot', 'point', 'scatter', 'circle']
+const CLOUD_FIGURE_TYPES = ['cloud', 'band', 'fill_between', 'fill-between']
 const getIndicatorColor = index => ['#e5a100','#3e7bfa','#a278e8','#0cad88'][index % 4]
     const normalizeCustomFigureType = (type) => {
       const rawType = String(type || 'line').toLowerCase()
       if (LAMP_FIGURE_TYPES.includes(rawType)) return 'circle'
+      if (CLOUD_FIGURE_TYPES.includes(rawType)) return 'cloud'
       if (['histogram', 'column'].includes(rawType)) return 'bar'
       if (['circle', 'bar', 'line'].includes(rawType)) return rawType
       return 'line'
@@ -38,6 +40,29 @@ const getIndicatorColor = index => ['#e5a100','#3e7bfa','#a278e8','#0cad88'][ind
       return null
     }
 
+    const getCloudPointValue = (point, edge) => {
+      if (!point || typeof point !== 'object') return null
+      const value = edge === 'upper'
+        ? (point.upper ?? point.top ?? point.high ?? point.value ?? point.y ?? point.data)
+        : (point.lower ?? point.bottom ?? point.low)
+      const numeric = Number(value)
+      return Number.isFinite(numeric) ? numeric : null
+    }
+
+    const resolveLayerColor = (color, fallback, alpha) => {
+      const raw = String(color || '').trim()
+      const base = raw || fallback
+      const hex = base.replace('#', '')
+      if (/^[0-9a-f]{6}$/i.test(hex)) {
+        const r = parseInt(hex.slice(0, 2), 16)
+        const g = parseInt(hex.slice(2, 4), 16)
+        const b = parseInt(hex.slice(4, 6), 16)
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`
+      }
+      if (/^rgba?\(/i.test(base)) return base
+      return fallback
+    }
+
     const isTruthyLampValue = (value) => {
       if (value == null) return false
       if (typeof value === 'boolean') return value
@@ -64,7 +89,7 @@ const getIndicatorColor = index => ['#e5a100','#3e7bfa','#a278e8','#0cad88'][ind
     }
 
     const getKLineTimeKey = (item) => {
-      const raw = Number(item?.timestamp ?? item?.time)
+      const raw = Number(item?.sourceTimestamp ?? item?.timestamp ?? item?.time)
       if (!Number.isFinite(raw)) return null
       return raw > 1e10 ? Math.floor(raw / 1000) : Math.floor(raw)
     }
@@ -208,6 +233,7 @@ const getIndicatorColor = index => ['#e5a100','#3e7bfa','#a278e8','#0cad88'][ind
       const styleColor = plotColor
       const colorKey = `${figureKey}__color`
       const sizeKey = `${figureKey}__size`
+      const lowerKey = `${figureKey}__lower`
       const resolveRuntimeStyle = (indicatorData = {}) => {
         const runtimeColor = indicatorData[colorKey] || styleColor
         const runtimeSize = toPositiveNumber(indicatorData[sizeKey], pointSize)
@@ -264,6 +290,45 @@ const getIndicatorColor = index => ['#e5a100','#3e7bfa','#a278e8','#0cad88'][ind
         }
       }
 
+      if (figureType === 'cloud') {
+        figure.type = 'bar'
+        figure.attrs = ({ coordinate, data, barSpace, yAxis }) => {
+          const currentCoordinate = coordinate?.current || {}
+          const indicatorData = data?.current || {}
+          const upperY = Number(currentCoordinate[figureKey])
+          let lowerY = Number(currentCoordinate[lowerKey])
+          if (!Number.isFinite(lowerY) && typeof yAxis?.convertToPixel === 'function') {
+            lowerY = Number(yAxis.convertToPixel(indicatorData[lowerKey]))
+          }
+          const x = Number(currentCoordinate.x)
+          if (!Number.isFinite(x) || !Number.isFinite(upperY) || !Number.isFinite(lowerY)) {
+            return { x: -9999, y: -9999, width: 0, height: 0 }
+          }
+          const stepWidth = Number(barSpace?.bar ?? barSpace?.gapBar ?? 8)
+          const width = Math.max(1, (Number.isFinite(stepWidth) ? stepWidth : 8) + 1)
+          const y = Math.min(upperY, lowerY)
+          return {
+            x: x - width / 2,
+            y,
+            width,
+            height: Math.max(1, Math.abs(lowerY - upperY) + 0.8)
+          }
+        }
+        figure.styles = (data) => {
+          const indicatorData = data?.current?.indicatorData || data?.current || {}
+          const runtimeColor = indicatorData[colorKey] || styleColor
+          const requestedOpacity = Number(plot.opacity)
+          const opacity = Number.isFinite(requestedOpacity)
+            ? Math.min(0.24, Math.max(0.02, requestedOpacity))
+            : 0.08
+          return {
+            style: 'fill',
+            color: resolveLayerColor(runtimeColor, styleColor, opacity),
+            borderSize: 0
+          }
+        }
+      }
+
       if (figureType === 'circle') {
         figure.attrs = ({ coordinate, data }) => {
           const indicatorData = data?.current || {}
@@ -304,7 +369,7 @@ const getIndicatorColor = index => ['#e5a100','#3e7bfa','#a278e8','#0cad88'][ind
         figure.baseValue = Number(plot.baseValue)
       }
 
-      return { figureKey, figure, colorKey, sizeKey }
+      return { figureKey, figure, colorKey, sizeKey, lowerKey, figureType }
     }
 
     const hasLampStylePlots = (plots, lampBeltMeta = null) => {
@@ -702,16 +767,21 @@ return { buildAlignedPlotRows, getCustomPaneOptions, build(dataLength, plots, na
           const fallbackName = typeof fallbackNameForIndex === 'function'
             ? fallbackNameForIndex(plotIdx)
             : `PLOT_${plotIdx}`
-          const { figureKey, figure, colorKey, sizeKey } = buildCustomPlotFigure(plot, plotIdx, fallbackName, {
+          const { figureKey, figure, colorKey, sizeKey, lowerKey, figureType } = buildCustomPlotFigure(plot, plotIdx, fallbackName, {
             forceLamp,
             lampLane
           })
 
           figures.push(figure)
-          plotDataMap[figureKey] = normalizePlotDataSeries(plot.data, {
-            forceLamp,
-            lampLane
-          })
+          if (figureType === 'cloud') {
+            plotDataMap[figureKey] = plot.data.map(point => getCloudPointValue(point, 'upper'))
+            plotDataMap[lowerKey] = plot.data.map(point => getCloudPointValue(point, 'lower'))
+          } else {
+            plotDataMap[figureKey] = normalizePlotDataSeries(plot.data, {
+              forceLamp,
+              lampLane
+            })
+          }
           plotDataMap[colorKey] = extractPlotColorSeries(plot.data)
           plotDataMap[sizeKey] = extractPlotSizeSeries(plot.data)
         }

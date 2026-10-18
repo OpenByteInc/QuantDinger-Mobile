@@ -10,10 +10,10 @@
       <button v-if="form.market.toLowerCase()==='crypto'" class="source" @click="sourceOpen=true"><span>{{ t('audit.source') }}</span><b>{{ EXCHANGE_BRANDS[form.exchangeId]?.name || form.exchangeId }} · {{ t(form.marketType==='swap'?'chart_trade.swap':'chart_trade.spot') }}</b><van-icon name="arrow-down"/></button>
     </header>
     <div class="timeframes"><button v-for="time in timeframes" :key="time" :class="{active:form.timeframe===time}" @click="form.timeframe=time;loadChart()">{{ time }}</button></div>
-    <div class="indicator-select"><button @click="indicatorSheetOpen=true"><span>{{ selectedIndicator?.name || t('indicator_chart.choose_indicator') }}</span><van-icon name="arrow-down"/></button><button v-if="parameters.length" class="parameter-button" @click="paramsOpen=true"><van-icon name="setting-o"/><b>{{ parameters.length }}</b></button></div>
+    <div class="indicator-select"><button class="indicator-button" @click="indicatorSheetOpen=true"><span>{{ selectedIndicator?.name || t('indicator_chart.choose_indicator') }}</span><van-icon name="arrow-down"/></button><button class="chart-type-button" @click="chartTypeSheetOpen=true"><van-icon name="bar-chart-o"/><span>{{ selectedChartTypeLabel }}</span></button><button v-if="parameters.length" class="parameter-button" @click="paramsOpen=true"><van-icon name="setting-o"/><b>{{ parameters.length }}</b></button></div>
     <div class="chart-area">
-      <MarketChart ref="marketChart" :data="chartData" :main="mainIndicator" :lower="lowerIndicator" :expanded="expanded"/>
-      <div v-if="loading" class="chart-placeholder"><van-skeleton title :row="8"/></div>
+      <MarketChart ref="marketChart" :data="chartData" :main="mainIndicator" :lower="lowerIndicator" :chart-type="chartType" :expanded="expanded"/>
+      <div v-if="loading&&!chartData?.candles?.length" class="chart-placeholder"><van-skeleton title :row="8"/></div>
       <div v-else-if="error" class="chart-state"><p>{{ error }}</p><van-button size="small" @click="loadChart()">{{ t('common.retry') }}</van-button></div>
       <div v-else-if="!chartData?.candles?.length" class="chart-state"><p>{{ t('audit.noData') }}</p></div>
     </div>
@@ -36,6 +36,7 @@
     </van-popup>
     <van-popup v-model:show="paramsOpen" position="bottom" round :style="{maxHeight:'80%'}"><div class="params"><h3>{{ t('indicator_chart.parameters') }}</h3><label v-for="param in parameters" :key="param.name"><span>{{ parameterLabel(param) }}</span><van-switch v-if="param.type==='bool'" v-model="form.params[param.name]" size="22"/><input v-else v-model="form.params[param.name]" :type="isNumeric(param)?'number':'text'" :min="param.min" :max="param.max" :step="param.step || 'any'"/></label><van-button block type="primary" @click="paramsOpen=false;loadChart()">{{ t('common.confirm') }}</van-button></div></van-popup>
     <van-action-sheet v-model:show="sourceOpen" :title="t('audit.source')" :actions="sourceActions" :cancel-text="t('common.cancel')" @select="selectSource"/>
+    <van-action-sheet v-model:show="chartTypeSheetOpen" :title="t('indicator_chart.chart_type')" :actions="chartTypeActions" :cancel-text="t('common.cancel')" @select="selectChartType"/>
     <SymbolPicker v-model:show="symbolPickerOpen" :title="t('indicator_chart.choose_symbol')" :auto-add="false" :default-market="form.market" :exchange-id="form.exchangeId" :market-type="form.marketType" :selected-symbol="form.symbol" @pick="selectSymbol"/>
   </div>
 </template>
@@ -52,6 +53,7 @@ import SymbolPicker from '@/components/SymbolPicker.vue'
 import ExchangeKlineWs from '@/utils/exchangeWs'
 import { toCandles } from '@/utils/chartData'
 import { mergeStreamBar, streamIsFresh } from '@/utils/chartStream'
+import { PRICE_CHART_TYPES, normalizePriceChartType } from '@/utils/priceChartTypes'
 defineOptions({name:'IndicatorChart'})
 const {t,te}=useI18n();const route=useRoute();const router=useRouter()
 const signalLabel=computed(()=>{const signal=chartData.value?.latest_signal;const raw=signal?.name||signal?.type;if(!raw)return t('indicator_chart.no_signal');const key=String(raw).toLowerCase();if(['buy','long','up','sell','short','down'].includes(key))return t(['buy','long','up'].includes(key)?'indicator_chart.signal_buy':'indicator_chart.signal_sell');return raw})
@@ -83,8 +85,12 @@ const selectedInstrumentId=computed(()=>{
 const streamContext=computed(()=>JSON.stringify([form.market,form.symbol,form.timeframe,form.exchangeId,form.marketType,selectedInstrumentId.value]))
 let stream=null,streamGeneration=0,lastTick=0,lastPreview=0,pendingBar=null,pageActive=false
 const chartData=ref(null),loading=ref(false),chartRefreshing=ref(false),error=ref(''),indicators=ref([]),parameters=ref([]),updated=ref(0),indicatorSheetOpen=ref(false),indicatorQuery=ref(''),symbolPickerOpen=ref(false),paramsOpen=ref(false),expanded=ref(false),mainIndicator=ref('EMA'),lowerIndicator=ref('')
+const chartType=ref(normalizePriceChartType(localStorage.getItem('quantdinger.mobile.chartType')||'candle_solid')),chartTypeSheetOpen=ref(false)
+const chartTypeActions=computed(()=>PRICE_CHART_TYPES.map(value=>({name:t(`indicator_chart.chart_type_${value}`),value,color:value===chartType.value?'var(--v2-brand)':undefined})))
+const selectedChartTypeLabel=computed(()=>t(`indicator_chart.chart_type_${chartType.value}`))
+function selectChartType(item){chartTypeSheetOpen.value=false;chartType.value=normalizePriceChartType(item.value);localStorage.setItem('quantdinger.mobile.chartType',chartType.value)}
 const sourceOpen=ref(false);const sourceActions=computed(()=>['binance','gate','okx','bybit','bitget','htx'].flatMap(id=>['spot','swap'].map(type=>({name:EXCHANGE_BRANDS[id]?.name+' · '+t(type==='swap'?'chart_trade.swap':'chart_trade.spot'),exchangeId:id,marketType:type}))));function selectSource(item){sourceOpen.value=false;form.exchangeId=item.exchangeId;form.marketType=item.marketType;loadChart()}
-const timeframes=['1m','5m','15m','30m','1H','4H','1D','1W'];let request=0,paramsRequest=0,timer,layoutTimer
+const timeframes=['1m','5m','15m','30m','1H','4H','1D','1W'];let request=0,paramsRequest=0,timer,layoutTimer,queuedChartLoad=false,queuedChartLoadSilent=true
 const selectedIndicator=computed(()=>indicators.value.find(x=>Number(x.id)===form.indicatorId))
 const filteredIndicators=computed(()=>{const keyword=indicatorQuery.value.trim().toLowerCase();if(!keyword)return indicators.value;return indicators.value.filter(item=>`${item.name||''} ${item.description||''}`.toLowerCase().includes(keyword))})
 const latestPrice=computed(()=>{const value=chartData.value?.candles?.at(-1)?.close;return value==null?null:Number(value)})
@@ -92,33 +98,39 @@ const change=computed(()=>{const open=Number(chartData.value?.candles?.at(-1)?.o
 const price=value=>value==null?'—':Number(value).toLocaleString(undefined,{maximumFractionDigits:Number(value)>=100?2:6})
 const isNumeric=p=>['int','integer','float','number'].includes(p.type)
 const parameterLabel=p=>p.label_key&&te(p.label_key)?t(p.label_key):p.label||p.name
+const chartContextSignature=()=>JSON.stringify([streamContext.value,form.indicatorId,form.params])
 async function loadChart(silent=false){
- if(silent&&chartRefreshing.value)return
+ if(chartRefreshing.value){
+  queuedChartLoadSilent=queuedChartLoad?queuedChartLoadSilent&&silent:silent
+  queuedChartLoad=true
+  if(!silent||!chartData.value)loading.value=true
+  return
+ }
  chartRefreshing.value=true
  const current=++request
- const context=streamContext.value,started=Date.now()
- if(!silent){loading.value=true;chartData.value=null}error.value=''
+ const context=chartContextSignature(),started=Date.now()
+ if(!silent||!chartData.value)loading.value=true
+ error.value=''
  try{
   let data
   if(form.indicatorId){const params=Object.fromEntries(parameters.value.map(p=>[p.name,p.type==='bool'?Boolean(form.params[p.name]):isNumeric(p)?Number(form.params[p.name]):form.params[p.name]]));data=(await indicatorApi.previewChart({indicator_id:form.indicatorId,market:form.market,symbol:form.symbol,timeframe:form.timeframe,exchange_id:form.market.toLowerCase()==='crypto'?form.exchangeId:undefined,market_type:form.market.toLowerCase()==='crypto'?form.marketType:'spot',instrument_id:selectedInstrumentId.value||undefined,params,limit:360})).data}
   else data={candles:(await klineApi.getKline({market:form.market,symbol:form.symbol,timeframe:form.timeframe,exchangeId:form.market.toLowerCase()==='crypto'?form.exchangeId:undefined,marketType:form.market.toLowerCase()==='crypto'?form.marketType:'spot',instrumentId:selectedInstrumentId.value||undefined,limit:360})).data}
-  if(current!==request||context!==streamContext.value)return
+  if(current!==request||context!==chartContextSignature())return
   data.candles=toCandles(data.candles||[])
   if(pendingBar&&lastTick>=started)mergeStreamBar(data.candles,pendingBar,form.timeframe)
   chartData.value=data;updated.value=Date.now()
   lastPreview=Date.now()
- }catch(e){if(current===request&&!silent){error.value=e?.localizedMessage||e?.message||t('audit.loadFailed');chartData.value=null}}
- finally{if(current===request){loading.value=false;chartRefreshing.value=false}}
+ }catch(e){if(current===request&&context===chartContextSignature()&&!silent){error.value=e?.localizedMessage||e?.message||t('audit.loadFailed');if(!chartData.value)chartData.value=null}}
+ finally{if(current===request){loading.value=false;chartRefreshing.value=false;if(queuedChartLoad){const nextSilent=queuedChartLoadSilent;queuedChartLoad=false;queuedChartLoadSilent=true;queueMicrotask(()=>loadChart(nextSilent))}}}
 }
 async function selectIndicator(item){
- indicatorSheetOpen.value=false;form.indicatorId=item.indicatorId;parameters.value=[];form.params={};const current=++paramsRequest;++request;chartData.value=null;loading.value=true;chartRefreshing.value=false
- try{const data=(await indicatorApi.getParams(form.indicatorId)).data||[];if(current!==paramsRequest)return;parameters.value=data;for(const p of data)form.params[p.name]=p.default??'';await loadChart()}catch(e){if(current===paramsRequest)error.value=e?.localizedMessage||e?.message||t('audit.loadFailed')}
- finally{if(current===paramsRequest)loading.value=false}
+ indicatorSheetOpen.value=false;form.indicatorId=item.indicatorId;parameters.value=[];form.params={};const current=++paramsRequest;loading.value=true
+ try{const data=(await indicatorApi.getParams(form.indicatorId)).data||[];if(current!==paramsRequest)return;parameters.value=data;for(const p of data)form.params[p.name]=p.default??'';await loadChart()}catch(e){if(current===paramsRequest){error.value=e?.localizedMessage||e?.message||t('audit.loadFailed');loading.value=false}}
 }
 function selectSymbol(item){form.market=item.market||'Crypto';form.symbol=item.symbol;if(form.market.toLowerCase()==='crypto'){form.exchangeId=item.exchange_id||form.exchangeId;form.marketType=item.market_type||form.marketType;selectedProduct.value={symbol:form.symbol,exchange_id:form.exchangeId,market_type:form.marketType,instrument_id:item.instrument_id||'',settle_currency:item.settle_currency||'',product_type:item.product_type||'',api_family:item.api_family||'',underlying_market:item.underlying_market||'',underlying_symbol:item.underlying_symbol||'',product_meta:item.product_meta||null}}else selectedProduct.value=null;loadChart()}
 function onTradeContextChange(context){if(!context.exchangeId)return;if(context.exchangeId===form.exchangeId&&context.marketType===form.marketType)return;form.exchangeId=context.exchangeId;form.marketType=context.marketType;loadChart()}
 function openAi(){router.push({path:'/ai',query:{symbol:form.symbol,market:form.market,timeframe:form.timeframe}})}
-async function bootstrap(){try{indicators.value=(await indicatorApi.getList()).data||[];const id=Number(route.query.indicator_id||route.query.local_copy_id||0);const preferred=indicators.value.find(x=>Number(x.id)===id)||indicators.value[0];if(preferred)await selectIndicator({indicatorId:Number(preferred.id)});else await loadChart()}catch(e){error.value=e?.localizedMessage||e?.message||t('audit.loadFailed')}}
+async function bootstrap(){const initialChart=loadChart(),indicatorList=indicatorApi.getList().then(result=>({result}),failure=>({failure}));try{await initialChart;const loaded=await indicatorList;if(loaded.failure)throw loaded.failure;indicators.value=loaded.result.data||[];const id=Number(route.query.indicator_id||route.query.local_copy_id||0);const preferred=indicators.value.find(x=>Number(x.id)===id)||indicators.value[0];if(preferred)await selectIndicator({indicatorId:Number(preferred.id)})}catch(e){if(!chartData.value)error.value=e?.localizedMessage||e?.message||t('audit.loadFailed')}}
 function stopStream(){streamGeneration++;stream?.disconnect();stream=null;lastTick=0;pendingBar=null}
 function startStream(){
  stopStream()
@@ -144,7 +156,7 @@ function startStream(){
  if(!connecting)stream=null
 }
 function resizeChartAfterActivation(){nextTick(()=>{marketChart.value?.resize();requestAnimationFrame(()=>marketChart.value?.resize());clearTimeout(layoutTimer);layoutTimer=setTimeout(()=>marketChart.value?.resize(),180)})}
-function stop(){pageActive=false;clearInterval(timer);timer=null;clearTimeout(layoutTimer);layoutTimer=null;stopStream();request++;loading.value=false;chartRefreshing.value=false}
+function stop(){pageActive=false;clearInterval(timer);timer=null;clearTimeout(layoutTimer);layoutTimer=null;stopStream();queuedChartLoad=false;queuedChartLoadSilent=true;request++;loading.value=false;chartRefreshing.value=false}
 function start(){
  pageActive=true;clearInterval(timer);startStream();resizeChartAfterActivation()
  timer=setInterval(()=>{
@@ -165,6 +177,7 @@ watch(indicatorSheetOpen,value=>{if(!value)indicatorQuery.value=''})
 </style>
 
 <style>
+.indicator-select .chart-type-button{flex:0 1 108px;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--v2-muted);font-size:11px}.indicator-select .chart-type-button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.indicator-select .parameter-button{flex:0 0 42px}
 .indicator-tools{display:flex;min-width:0}.indicator-tools .indicators{flex:1;min-width:0;overscroll-behavior-x:contain}.indicator-tools .indicators i{flex:0 0 1px}.indicator-tools>.more-indicators{flex:0 0 auto;border:0;border-left:1px solid var(--v2-line);background:var(--v2-bg);color:var(--v2-text);padding:0 12px;font-size:11px}
 .indicator-picker{width:100%;max-height:min(78vh,720px);display:flex;flex-direction:column;background:var(--v2-surface);color:var(--v2-text)}.indicator-picker-head{padding:18px 52px 6px 18px}.indicator-picker-head h3{margin:0;font-size:17px}.indicator-picker .van-search{padding:8px 14px;background:transparent}.indicator-picker .van-search__content{border:1px solid var(--v2-line);border-radius:9px;background:var(--v2-surface-2)}.indicator-picker .van-field__control{color:var(--v2-text)}.indicator-picker-list{flex:1;overflow-y:auto;padding:2px 12px 8px}.indicator-picker-list>button{width:100%;min-height:62px;display:flex;align-items:center;gap:12px;padding:11px 12px;border:0;border-bottom:1px solid var(--v2-line);background:transparent;color:var(--v2-text);text-align:left}.indicator-picker-list>button.selected{border:1px solid color-mix(in srgb,var(--v2-brand) 55%,var(--v2-line));border-radius:9px;background:color-mix(in srgb,var(--v2-brand) 9%,var(--v2-surface));}.indicator-picker-list>button>span{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}.indicator-picker-list strong{overflow:hidden;font-size:14px;text-overflow:ellipsis;white-space:nowrap}.indicator-picker-list small{display:-webkit-box;overflow:hidden;color:var(--v2-muted);font-size:11px;line-height:1.4;-webkit-box-orient:vertical;-webkit-line-clamp:2}.indicator-picker-list .van-icon{color:var(--v2-muted)}.indicator-picker-list .selected .van-icon{color:var(--v2-brand)}.browse-indicators{min-height:48px;margin:0 14px calc(12px + env(safe-area-inset-bottom));border:1px solid var(--v2-line);border-radius:9px;background:var(--v2-surface-2);color:var(--v2-text);font-weight:750}
 </style>

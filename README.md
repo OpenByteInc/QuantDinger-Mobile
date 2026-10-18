@@ -33,13 +33,17 @@ The interface ships in Simplified Chinese, Traditional Chinese, English, Japanes
 Additional flows are reached from those five entry points:
 
 - **Strategy and indicator marketplace:** search, filter, sort and paginate catalog items; compare performance and pricing; distinguish source-visible and source-protected assets; purchase with credits; review owned items and compatibility.
-- **Strategy launch:** select a saved or purchased strategy, choose a compatible account, run live or signal-only, configure parameters and notifications, and acknowledge live-trading risk before submission.
+- **Strategy launch:** select a saved or purchased strategy, choose a compatible account, run live or signal-only, configure typed parameters with visible units, set deployment-level equity stop-loss/take-profit, choose notifications, and acknowledge live-trading risk at the final submission step.
 - **Strategy operations:** inspect health, delay, pending orders, equity, P&L, positions, exchange orders, fills, AI review and strategy logs; start, stop, edit or delete when the current state permits it.
-- **Chart trading:** crypto spot and perpetual market/limit orders, spot sells by base-asset quantity, leverage and margin mode for perpetuals, optional take-profit/stop-loss, positions, order history and explicit confirmation before live submission. Supported US stock accounts use a dedicated share-order flow.
+- **Chart trading:** 11 price-chart styles, live venue-scoped bars for Binance, OKX, Bitget, Bybit, Gate.io and HTX, crypto spot and perpetual market/limit orders, optional take-profit/stop-loss, positions and order history. Alpaca accounts use a dedicated US-stock share-order flow. Every live order requires confirmation.
 - **AI research:** symbol-aware conversations, professional reports, trend checks, news impact, opportunity and risk analysis, chart attachments, conversation history and memory.
 - **Account and security:** email/password and enabled OAuth login, MFA, login history, profile editing, referrals, exchange/broker credentials, notification channels, credits, membership and configured payment methods.
 
 Some capabilities appear only when the backend enables the related provider, exchange, payment method or notification channel.
+
+### Mobile scope
+
+The mobile client focuses on monitoring, research, marketplace discovery, strategy launch and trading operations. Source editing, indicator or strategy development, full backtest authoring and administration remain desktop workflows. Compatibility redirects keep older mobile links working without duplicating those desktop tools.
 
 ## Recommended deployment
 
@@ -281,7 +285,7 @@ pnpm test:unit
 pnpm build
 ```
 
-The unit suite covers locale completeness, trading payloads and guards, strategy ranking, marketplace boundaries, theme configuration, AI report handling and native OAuth URL construction.
+The unit suite covers locale completeness, trading payloads and guards, strategy parameters and marketplace boundaries, six-exchange WebSocket parsing, all 11 chart types, viewport persistence, theme configuration, AI report handling and native OAuth URL construction.
 
 ## Project structure
 
