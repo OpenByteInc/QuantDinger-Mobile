@@ -6,6 +6,8 @@ import {toCandles,signalPoints,toTimestamp} from '../../src/utils/chartData.js'
 import {createPlotRenderer} from '../../src/utils/pcPlotRenderer.js'
 import audit from '../../src/locales/audit.js'
 import {buildOAuthStartUrl} from '../../src/utils/oauthUrl.js'
+import {balanceIssue,localizedBalanceIssue} from '../../src/utils/balanceIssue.js'
+import exchangeAccountErrors from '../../src/locales/exchange-account-errors.js'
 
 const form={amount:'100',sell_quantity:'',price:'65000',leverage:'5',order_type:'market',margin_mode:'cross',tp_price:'70000',sl_price:'60000'}
 const order=overrides=>buildOrder({credentialId:7,symbol:'BTC/USDT',marketType:'swap',form,side:'buy',...overrides})
@@ -110,8 +112,8 @@ function loadPanel(api,dialog=async()=>{}){
  api={getPositionHistory:async()=>({data:{supported:true,positions:[]}}),getPositionProtection:async()=>({data:{supported:true,orders:[]}}),updatePositionProtection:async()=>({data:{}}),...api}
  const source=readFileSync(new URL('../../src/components/ChartTradePanel.vue',import.meta.url),'utf8').split('<script>')[1].split('</script>')[0].replace(/^import .*$/gm,'').replace('export default','return')
  const store={selectedCredentialId:7,marketType:'swap',balance:null,history:[],positions:[],setBalance(value){this.balance=value},setHistory(value){this.history=value},setPositions(value){this.positions=value}}
- const options=new Function('quickTradeApi','showConfirmDialog','showToast','ExchangeLogo','buildOrder','validateOrder','tradeProductFields','OPEN_ORDER_STATUSES',source)(api,dialog,()=>{},null,buildOrder,validateOrder,tradeProductFields,OPEN_ORDER_STATUSES)
- const vm={...options.data(),quickTradeStore:store,selectedCredentialId:7,selectedCredential:{id:7,name:'Gate'},selectedCredentialLabel:'Gate',isCrypto:true,normalizedSymbol:'BTC/USDT',marketType:'swap',livePrice:65000,$t:key=>key,form:{...form},$emit:()=>{}}
+ const options=new Function('quickTradeApi','showConfirmDialog','showToast','ExchangeLogo','buildOrder','validateOrder','tradeProductFields','OPEN_ORDER_STATUSES','balanceIssue','localizedBalanceIssue',source)(api,dialog,()=>{},null,buildOrder,validateOrder,tradeProductFields,OPEN_ORDER_STATUSES,balanceIssue,localizedBalanceIssue)
+ const vm={...options.data(),quickTradeStore:store,selectedCredentialId:7,selectedCredential:{id:7,name:'Gate'},selectedCredentialLabel:'Gate',isCrypto:true,normalizedSymbol:'BTC/USDT',marketType:'swap',livePrice:65000,$t:key=>key,$te:()=>true,form:{...form},$emit:()=>{}}
  for(const [name,method] of Object.entries(options.methods))vm[name]=method.bind(vm)
  vm.openOrderReview=async()=>{try{await dialog();return true}catch{return false}}
  Object.defineProperty(vm,'activeBalanceAvailable',{get:()=>Number(store.balance?.available||0)})
@@ -130,6 +132,24 @@ test('failed balance refresh removes stale balance and cannot enable orders',asy
  const panel=loadPanel({getBalance:async()=>{throw new Error('offline')},getHistory:async()=>({data:[]}),getPosition:async()=>({data:[]}),getAiDecisions:async()=>({data:[]})})
  panel.quickTradeStore.balance={available:1000};panel.balanceReady=true;await panel.refreshTradeData()
  assert.equal(panel.balanceReady,false);assert.equal(panel.quickTradeStore.balance,null);assert.equal(panel.dataError,'audit.loadFailed')
+})
+test('successful balance response with an account issue disables quick trading',async()=>{
+ const response={available:0,error:'BITGET_UTA_HYBRID_BALANCE_UNAVAILABLE',error_hint_key:'quickTrade.errorHints.bitgetUnifiedAccount'}
+ const panel=loadPanel({getBalance:async()=>({data:response}),getHistory:async()=>({data:[]}),getPosition:async()=>({data:[]})})
+ panel.quickTradeStore.balance={available:1000};panel.balanceReady=true;await panel.refreshTradeData()
+ assert.equal(panel.quickTradeStore.balance,null)
+ assert.equal(panel.balanceReady,false)
+ assert.equal(panel.dataError,'quickTrade.errorHints.bitgetUnifiedAccount')
+})
+test('balance account issues support active market legs and all mobile locales',()=>{
+ const issue=balanceIssue({swap:{error:'unavailable',error_hint_key:'quickTrade.errorHints.bitgetUnifiedAccount'}},'swap')
+ assert.equal(issue.message,'unavailable')
+ assert.equal(localizedBalanceIssue(issue,key=>`translated:${key}`,()=>true),'translated:quickTrade.errorHints.bitgetUnifiedAccount')
+ const keys=Object.keys(exchangeAccountErrors['en-US'])
+ for(const locale of ['zh-CN','zh-TW','en-US','ja-JP','ko-KR']){
+  assert.deepEqual(Object.keys(exchangeAccountErrors[locale]),keys)
+  assert.ok(Object.values(exchangeAccountErrors[locale]).every(value=>typeof value==='string'&&value.length>0))
+ }
 })
 test('cancelled order review never sends a mutation',async()=>{
  let calls=0;const panel=loadPanel({placeOrder:async()=>calls++},async()=>{throw 'cancel'})

@@ -36,6 +36,7 @@ import {credentialsApi,alpacaApi,quickTradeApi} from '@/api'
 import ExchangeLogo from '@/components/ExchangeLogo.vue'
 import {EXCHANGE_BRANDS} from '@/constants/exchanges'
 import {accountNumber,accountPrice,canCancelAccountOrder,snapshotIssue} from '@/utils/accountDetail'
+import {balanceIssue,localizedBalanceIssue} from '@/utils/balanceIssue'
 import {notificationTime} from '@/utils/notificationDetail'
 const {t,te,locale}=useI18n(),route=useRoute(),router=useRouter()
 const credential=ref(null),account=ref(null),balances=ref({}),positions=ref([]),orders=ref([]),history=ref([]),errors=ref([]),updated=ref(null)
@@ -88,7 +89,11 @@ async function refresh(){
       else if(key==='orders')orders.value=Array.isArray(data)?data:[]
       else if(key==='history'){history.value=Array.isArray(data)?data:[];recentFills.value=history.value.filter(r=>r.status==='filled').length}
       else if(key==='snapshot'){positions.value=[...(data.spot_positions||[]).map(r=>({...r,_market:'spot'})),...(data.swap_positions||[]).map(r=>({...r,_market:'swap'}))];orders.value=(data.open_orders||[]).map(r=>({...r,_market:['spot','cash'].includes(r.market_type||r.marketType)?'spot':'swap'}));errors.value.push(...snapshotIssue(data));}
-      else balances.value[key]=data
+      else {
+        const issue=balanceIssue(data,key)
+        if(issue)errors.value.push(`${t('profile_detail.'+key)}: ${localizedBalanceIssue(issue,t,te)}`)
+        else balances.value[key]=data
+      }
     })
     if(results.some(r=>r.status==='fulfilled'))updated.value=Date.now()
   }catch(e){if(token===sequence)errors.value=[e.localizedMessage||e.message]}finally{if(token===sequence)loading.value=false}

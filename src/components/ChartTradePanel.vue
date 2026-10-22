@@ -170,6 +170,7 @@
 import ExchangeLogo from '@/components/ExchangeLogo.vue'
 import '@/styles/order-review.css'
 import {buildOrder,validateOrder,tradeProductFields,isCryptoProduct,OPEN_ORDER_STATUSES} from '@/utils/tradeOrder'
+import {balanceIssue,localizedBalanceIssue} from '@/utils/balanceIssue'
 import { showConfirmDialog, showToast } from 'vant'
 import { credentialsApi, quickTradeApi } from '@/api'
 import { useCredentialsStore, useQuickTradeStore } from '@/stores'
@@ -371,7 +372,18 @@ export default {
       if(this.marketType==='swap')requests.push(quickTradeApi.getPositionHistory(params))
       const results=await Promise.allSettled(requests)
       if(version!==this.requestId)return
-      if(results[0].status==='fulfilled'){this.quickTradeStore.setBalance(results[0].value.data);this.balanceReady=true}
+      if(results[0].status==='fulfilled'){
+        const data=results[0].value.data
+        const issue=balanceIssue(data,this.marketType)
+        if(issue){
+          this.quickTradeStore.setBalance(null)
+          this.balanceReady=false
+          this.dataError=localizedBalanceIssue(issue,this.$t.bind(this),key=>this.$te?.(key)===true)
+        }else{
+          this.quickTradeStore.setBalance(data)
+          this.balanceReady=true
+        }
+      }
       if(results[1].status==='fulfilled')this.quickTradeStore.setHistory(results[1].value.data)
       if(results[2].status==='fulfilled')this.quickTradeStore.setPositions(results[2].value.data)
       if(this.marketType==='swap'&&results[3]?.status==='fulfilled'){this.positionHistorySupported=results[3].value.data.supported;this.positionHistory=results[3].value.data.positions}
