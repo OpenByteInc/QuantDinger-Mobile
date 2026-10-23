@@ -190,6 +190,8 @@ export default {
   data() {
     return {
       positionHistory:[], positionHistorySupported:true, closeScope:'full', refreshing:false, dataError:'', orderError:'', balanceReady:false, requestId:0, contextKey:'',
+      marketOrderConfirmations: {},
+      postTradeRefreshTimers: [],
       credentialPickerOpen: false,
       protectionOpen: false,
       protectionLoading: false,
@@ -249,7 +251,7 @@ export default {
     balance() { return this.quickTradeStore.balance },
     positions() { return this.quickTradeStore.positions },
     history() { return this.quickTradeStore.history },
-    openOrders() { return this.history.filter(row=>OPEN_ORDER_STATUSES.has(String(row.status).toLowerCase())) },
+    openOrders() { return this.history.filter(row=>OPEN_ORDER_STATUSES.has(String(row.status).toLowerCase())&&!this.isMarketOrderPositionConfirmed(row)) },
     visibleHistory() { return this.activeTab==='orders'?this.openOrders:this.history },
     activeBalanceAvailable() {
       return Number(this.balance?.[this.marketType]?.available ?? this.balance?.available ?? 0)
@@ -274,9 +276,9 @@ export default {
   watch: {
     riskEnabled(value) { if(!value){this.form.tp_price='';this.form.sl_price=''} },
     '$route.query.credential_id'() { if(this.$route.path==='/indicators/chart') this.applyRequestedAccount() },
-    selectedCredentialId() { const scope=this.selectedCredential?.market_scope;if(['spot','swap'].includes(scope))this.quickTradeStore.setMarketType(scope);this.clearSpotInputs();this.form.price='';this.form.tp_price='';this.form.sl_price='';this.refreshTradeData(); this.emitContext() },
-    marketType(value) { if(value!=='swap'&&this.activeTab==='positionHistory')this.activeTab='positions';this.refreshTradeData();this.emitContext() },
-    symbol() { this.clearSpotInputs();this.form.price='';this.form.tp_price='';this.form.sl_price='';this.refreshTradeData() },
+    selectedCredentialId() { const scope=this.selectedCredential?.market_scope;if(['spot','swap'].includes(scope))this.quickTradeStore.setMarketType(scope);this.resetMarketOrderConfirmations();this.clearSpotInputs();this.form.price='';this.form.tp_price='';this.form.sl_price='';this.refreshTradeData(); this.emitContext() },
+    marketType(value) { this.resetMarketOrderConfirmations();if(value!=='swap'&&this.activeTab==='positionHistory')this.activeTab='positions';this.refreshTradeData();this.emitContext() },
+    symbol() { this.resetMarketOrderConfirmations();this.clearSpotInputs();this.form.price='';this.form.tp_price='';this.form.sl_price='';this.refreshTradeData() },
     product: {deep:true,handler(){const required=String(this.product?.market_type||'').toLowerCase();if(['spot','swap'].includes(required)&&required!==this.marketType)this.quickTradeStore.setMarketType(required);if(!this.selectedCredential&&this.credentials.length)this.quickTradeStore.setSelectedCredential(this.credentials[0].id);this.refreshTradeData()}},
     chartPrice(value) {
       if (Number(value) > 0 && !Number(this.form.price)) this.form.price = String(value)
@@ -289,8 +291,43 @@ export default {
   },
   activated() { this.startPolling() },
   deactivated() { this.stopPolling();this.marginPickerOpen=false },
-  beforeUnmount() { this.stopPolling();this.requestId++;this.resolveOrderReview(false);document.removeEventListener('pointerdown',this.closeMarginPicker) },
+  beforeUnmount() { this.stopPolling();this.clearPostTradeRefreshTimers();this.requestId++;this.resolveOrderReview(false);document.removeEventListener('pointerdown',this.closeMarginPicker) },
   methods: {
+    positionSizeForSide(side) {
+      const target=this.positionSide(side)
+      return this.positions.reduce((total,position)=>{
+        if(this.normalizeSymbol(position.symbol||this.normalizedSymbol)!==this.normalizedSymbol||this.positionSide(position.side)!==target)return total
+        return total+Math.max(0,Math.abs(this.positionSize(position))||0)
+      },0)
+    },
+    rememberMarketOrderConfirmation(tradeId,positionSide,baselineSize,direction) {
+      const key=String(tradeId||'')
+      if(!key)return
+      this.marketOrderConfirmations={...this.marketOrderConfirmations,[key]:{positionSide:this.positionSide(positionSide),baselineSize:Math.max(0,Number(baselineSize)||0),direction:direction==='decrease'?'decrease':'increase',expiresAt:Date.now()+20000}}
+    },
+    isMarketOrderPositionConfirmed(trade) {
+      if(!trade||String(trade.order_type||'').toLowerCase()!=='market')return false
+      const marker=this.marketOrderConfirmations[String(trade.id||'')]
+      if(!marker||Date.now()>Number(marker.expiresAt||0))return false
+      const current=this.positionSizeForSide(marker.positionSide),baseline=Number(marker.baselineSize)||0,tolerance=Math.max(1e-12,baseline*1e-9)
+      return marker.direction==='decrease'?current<baseline-tolerance:current>baseline+tolerance
+    },
+    pruneMarketOrderConfirmations() {
+      const terminal=new Set(['filled','cancelled','canceled','failed','rejected','expired']),statuses=new Map(this.history.map(row=>[String(row.id||''),String(row.status||'').toLowerCase()])),now=Date.now()
+      this.marketOrderConfirmations=Object.entries(this.marketOrderConfirmations).reduce((next,[key,marker])=>{if(now<=Number(marker.expiresAt||0)&&!terminal.has(statuses.get(key)))next[key]=marker;return next},{})
+    },
+    clearPostTradeRefreshTimers() {
+      for(const timer of this.postTradeRefreshTimers)clearTimeout(timer)
+      this.postTradeRefreshTimers=[]
+    },
+    resetMarketOrderConfirmations() {
+      this.clearPostTradeRefreshTimers()
+      this.marketOrderConfirmations={}
+    },
+    schedulePostTradeRefresh() {
+      this.clearPostTradeRefreshTimers()
+      this.postTradeRefreshTimers=[300,900,1800,3200].map(delay=>setTimeout(()=>{if(!document.hidden)this.refreshTradeData()},delay))
+    },
     closeMarginPicker(event) {
       if(this.marginPickerOpen&&!this.$refs.marginPicker?.contains(event.target))this.marginPickerOpen=false
     },
@@ -364,7 +401,7 @@ export default {
       const contextChanged=key!==this.contextKey
       const version=++this.requestId;this.contextKey=key
       this.refreshing=true;this.dataError=''
-      if(contextChanged){this.orderError='';this.balanceReady=false;this.quickTradeStore.setBalance(null);this.quickTradeStore.setPositions([]);this.quickTradeStore.setHistory([]);this.positionHistory=[];this.positionHistorySupported=true}
+      if(contextChanged){this.resetMarketOrderConfirmations();this.orderError='';this.balanceReady=false;this.quickTradeStore.setBalance(null);this.quickTradeStore.setPositions([]);this.quickTradeStore.setHistory([]);this.positionHistory=[];this.positionHistorySupported=true}
       if(!this.selectedCredential||!this.isCrypto){this.refreshing=false;return}
       const product={...this.product,symbol:this.normalizedSymbol}
       const params={credential_id:this.selectedCredentialId,symbol:this.normalizedSymbol,market_type:this.marketType,limit:200}
@@ -384,8 +421,9 @@ export default {
           this.balanceReady=true
         }
       }
-      if(results[1].status==='fulfilled')this.quickTradeStore.setHistory(results[1].value.data)
       if(results[2].status==='fulfilled')this.quickTradeStore.setPositions(results[2].value.data)
+      if(results[1].status==='fulfilled')this.quickTradeStore.setHistory(results[1].value.data)
+      this.pruneMarketOrderConfirmations()
       if(this.marketType==='swap'&&results[3]?.status==='fulfilled'){this.positionHistorySupported=results[3].value.data.supported;this.positionHistory=results[3].value.data.positions}
       if(results.some(x=>x.status==='rejected'))this.dataError=this.$t('audit.loadFailed')
       this.refreshing=false
@@ -405,9 +443,12 @@ export default {
         const confirmed=await this.openOrderReview(review)
         if(!confirmed)return
         if(key!==this.contextKey){showToast(this.$t('audit.accountChanged'));return}
-        await quickTradeApi.placeOrder(payload)
+        const positionSide=side==='buy'?'long':'short',baselineSize=this.positionSizeForSide(positionSide)
+        const response=await quickTradeApi.placeOrder(payload)
+        const tradeId=response?.data?.trade_id||response?.data?.id
+        if(this.marketType==='swap'&&payload.order_type==='market'&&tradeId)this.rememberMarketOrderConfirmation(tradeId,positionSide,baselineSize,'increase')
         showToast({message:this.$t('chart_trade.order_success'),type:'success'})
-        this.clearSpotInputs();await this.refreshTradeData();this.activeTab='positions'
+        this.clearSpotInputs();await this.refreshTradeData();if(payload.order_type==='market')this.schedulePostTradeRefresh();this.activeTab='positions'
       } catch(error) { if(error!=='cancel'&&error!=='close'&&error?.message)this.orderError=error.localizedMessage||error.message }
       finally {this.submitting=false}
     },
@@ -422,9 +463,9 @@ export default {
     async closePosition(position) {
       if(this.submitting)return
       const key=this.contextKey
-      const payload={credential_id:this.selectedCredentialId,symbol:this.normalizeSymbol(position.symbol||this.symbol),market_type:this.marketType,close_scope:this.marketType==='swap'?this.closeScope:'full',position_side:this.positionSide(position.side),order_type:this.closeOrderType,price:this.closeOrderType==='limit'?Number(this.closePrice):0,source:'indicator',...tradeProductFields(this.product)}
+      const payload={credential_id:this.selectedCredentialId,symbol:this.normalizeSymbol(position.symbol||this.symbol),market_type:this.marketType,close_scope:this.marketType==='swap'?this.closeScope:'full',position_side:this.positionSide(position.side),order_type:this.closeOrderType,price:this.closeOrderType==='limit'?Number(this.closePrice):0,size:this.marketType==='swap'?Math.max(0,Math.abs(this.positionSize(position))||0):0,source:'indicator',...tradeProductFields(this.product)}
       this.submitting=true
-      try{await showConfirmDialog({title:this.$t('chart_trade.close_confirm_title'),message:this.selectedCredentialLabel+'\n'+this.$t('chart_trade.close_confirm_message',{symbol:payload.symbol})+'\n'+this.sideText(position.side)+' · '+this.$t(payload.close_scope==='full'?'audit.all':'audit.tracked')+' · '+this.$t(payload.order_type==='market'?'chart_trade.order_market':'chart_trade.order_limit')});if(key!==this.contextKey){showToast(this.$t('audit.accountChanged'));return false}await quickTradeApi.closePosition(payload);showToast(this.$t('chart_trade.close_success'));await this.refreshTradeData();return true}
+      try{await showConfirmDialog({title:this.$t('chart_trade.close_confirm_title'),message:this.selectedCredentialLabel+'\n'+this.$t('chart_trade.close_confirm_message',{symbol:payload.symbol})+'\n'+this.sideText(position.side)+' · '+this.$t(payload.close_scope==='full'?'audit.all':'audit.tracked')+' · '+this.$t(payload.order_type==='market'?'chart_trade.order_market':'chart_trade.order_limit')});if(key!==this.contextKey){showToast(this.$t('audit.accountChanged'));return false}const response=await quickTradeApi.closePosition(payload);const tradeId=response?.data?.trade_id||response?.data?.id;if(payload.order_type==='market'&&tradeId)this.rememberMarketOrderConfirmation(tradeId,payload.position_side,this.positionSizeForSide(payload.position_side),'decrease');showToast(this.$t('chart_trade.close_success'));await this.refreshTradeData();if(payload.order_type==='market')this.schedulePostTradeRefresh();return true}
       catch(error){if(error?.message)this.dataError=error.message;return false}finally{this.submitting=false}
     },
     async cancelOrder(item) {

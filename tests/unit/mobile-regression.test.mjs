@@ -119,7 +119,9 @@ function loadPanel(api,dialog=async()=>{}){
  Object.defineProperty(vm,'activeBalanceAvailable',{get:()=>Number(store.balance?.available||0)})
  Object.defineProperty(vm,'sellQuantity',{get:()=>options.computed.sellQuantity.call(vm)})
  Object.defineProperty(vm,'positions',{get:()=>store.positions})
- return vm
+ Object.defineProperty(vm,'history',{get:()=>store.history})
+ Object.defineProperty(vm,'openOrders',{get:()=>options.computed.openOrders.call(vm)})
+  return vm
 }
 test('switching accounts ignores slow old balance, history and positions responses',async()=>{
  let resolveOld
@@ -205,6 +207,18 @@ test('realized PnL is shown only for derivative closing trades',()=>{
  assert.equal(panel.showRealizedPnl({market_type:'spot',is_close:true,realized_pnl:12}),false)
  assert.equal(panel.historySideText({market_type:'spot',side:'sell'}),'chart_trade.sell')
  assert.equal(panel.historySideText({market_type:'swap',is_close:true,close_side:'short'}),'chart_trade.close_short')
+})
+
+test('mobile current orders hides a market order only after the position snapshot confirms it',()=>{
+ const panel=loadPanel({})
+ panel.quickTradeStore.history=[{id:41,status:'submitted',order_type:'market',symbol:'BTC/USDT'}]
+ panel.rememberMarketOrderConfirmation(41,'long',0,'increase')
+ assert.equal(panel.openOrders.length,1)
+ panel.quickTradeStore.positions=[{symbol:'BTC/USDT',side:'long',size:0.01}]
+ assert.equal(panel.openOrders.length,0)
+ panel.quickTradeStore.history=[{id:42,status:'submitted',order_type:'limit',symbol:'BTC/USDT'}]
+ panel.rememberMarketOrderConfirmation(42,'long',0,'increase')
+ assert.equal(panel.openOrders.length,1)
 })
 
 test('direct buy and sell actions send their own side without resetting the entered limit order',async()=>{
