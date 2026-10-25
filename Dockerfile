@@ -4,8 +4,8 @@
 # static assets are architecture-neutral, so the nginx stage can publish a
 # cheap multi-arch image for linux/amd64 and linux/arm64.
 
-ARG NODE_IMAGE=node:22-alpine
-ARG NGINX_IMAGE=nginx:1.27-alpine
+ARG NODE_IMAGE=node:22.23.4-alpine3.24
+ARG NGINX_IMAGE=nginx:1.30.6-alpine3.24-slim
 
 FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS builder
 ARG APP_VERSION=""
@@ -21,7 +21,8 @@ RUN APP_VERSION="$APP_VERSION" GIT_TAG="$GIT_TAG" pnpm run build
 
 FROM ${NGINX_IMAGE}
 
-RUN apk add --no-cache curl
+RUN apk upgrade --no-cache \
+    && apk add --no-cache curl
 
 ENV NGINX_ENVSUBST_FILTER=BACKEND_URL \
     BACKEND_URL=http://backend:5000
