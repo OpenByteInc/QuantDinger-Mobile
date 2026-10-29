@@ -904,3 +904,58 @@ export const alpacaApi = {
   placeOrder: payload => alpacaRequest('post', 'order', payload),
   cancelOrder: (id, params) => alpacaRequest('delete', `order/${encodeURIComponent(id)}`, params)
 }
+
+const DIRECT_BROKER_IDS = new Set(['tiger', 'webull'])
+
+/**
+ * @typedef {Object} BrokerOrderPayload
+ * @property {string} symbol
+ * @property {'buy'|'sell'} side
+ * @property {number} quantity
+ * @property {'market'|'limit'} orderType
+ * @property {number=} price
+ * @property {'USStock'|'HKStock'=} marketType
+ */
+
+/**
+ * @typedef {Object} BrokerConnectionStatus
+ * @property {boolean} connected
+ * @property {number=} credential_id
+ * @property {string=} environment
+ * @property {boolean=} paper
+ * @property {string=} error
+ */
+
+const brokerId = (value) => {
+  const id = String(value || '').trim().toLowerCase()
+  if (!DIRECT_BROKER_IDS.has(id)) throw new Error(t('broker_mobile.unsupported'))
+  return id
+}
+
+async function brokerRequest(id, method, path, payload = {}) {
+  const broker = brokerId(id)
+  const response = await http.request({
+    method,
+    url: `/api/${broker}/${path}`,
+    raw: true,
+    ...(method === 'get' || method === 'delete' ? { params: payload } : { data: payload })
+  })
+  if (response?.success !== true) {
+    throw new Error(localizedApiMessage(response?.error || response?.message || 'api_errors.request_failed'))
+  }
+  return { code: 1, data: response.data, message: response.message }
+}
+
+export const brokerApi = {
+  accounts: (id) => brokerRequest(id, 'get', 'accounts'),
+  status: (id, credentialId) => brokerRequest(id, 'get', 'status', { credential_id: credentialId }),
+  connect: (id, payload) => brokerRequest(id, 'post', 'connect', payload),
+  disconnect: (id, credentialId) => brokerRequest(id, 'post', 'disconnect', { credential_id: credentialId }),
+  account: (id, credentialId) => brokerRequest(id, 'get', 'account', { credential_id: credentialId }),
+  positions: (id, credentialId) => brokerRequest(id, 'get', 'positions', { credential_id: credentialId }),
+  orders: (id, credentialId, params = {}) => brokerRequest(id, 'get', 'orders', { credential_id: credentialId, ...params }),
+  fills: (id, credentialId, params = {}) => brokerRequest(id, 'get', 'fills', { credential_id: credentialId, ...params }),
+  /** @param {string} id @param {number} credentialId @param {BrokerOrderPayload} payload */
+  placeOrder: (id, credentialId, payload) => brokerRequest(id, 'post', 'order', { credential_id: credentialId, ...payload }),
+  cancelOrder: (id, credentialId, orderId) => brokerRequest(id, 'delete', `order/${encodeURIComponent(orderId)}`, { credential_id: credentialId })
+}

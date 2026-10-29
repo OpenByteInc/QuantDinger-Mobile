@@ -1,5 +1,5 @@
 <template>
-  <section class="trade-terminal" :class="{ unavailable: !isCrypto }">
+  <section class="trade-terminal" :class="{ unavailable: !isCrypto && !isStockMarket }">
     <template v-if="isCrypto">
       <header class="terminal-head">
         <strong>{{ $t('chart_trade.title') }}</strong>
@@ -117,6 +117,7 @@
         </div>
       </div>
     </template>
+    <StockTradePanel v-else-if="isStockMarket" :market="market" :symbol="symbol" :chart-price="chartPrice" />
     <button v-else class="unavailable-row" @click="$router.push('/market')"><van-icon name="info-o"/><span>{{ $t('account_ui.unsupported') }}</span><van-icon name="arrow"/></button>
     <van-popup v-model:show="credentialPickerOpen" position="bottom" round teleport="body">
       <van-picker :columns="credentialActions" @cancel="credentialPickerOpen=false" @confirm="selectCredential"><template #option="option"><span class="credential-option"><ExchangeLogo :exchange="option.exchange" :size="24"/>{{ option.text }}</span></template></van-picker>
@@ -168,6 +169,7 @@
 
 <script>
 import ExchangeLogo from '@/components/ExchangeLogo.vue'
+import StockTradePanel from '@/components/StockTradePanel.vue'
 import '@/styles/order-review.css'
 import {buildOrder,validateOrder,tradeProductFields,isCryptoProduct,OPEN_ORDER_STATUSES} from '@/utils/tradeOrder'
 import {balanceIssue,localizedBalanceIssue} from '@/utils/balanceIssue'
@@ -179,7 +181,7 @@ const SUPPORTED_EXCHANGES = new Set(['binance', 'okx', 'bitget', 'bybit', 'gate'
 
 export default {
   name: 'ChartTradePanel',
-  components: { ExchangeLogo },
+  components: { ExchangeLogo, StockTradePanel },
   props: {
     market: { type: String, default: 'Crypto' },
     symbol: { type: String, default: 'BTC/USDT' },
@@ -232,6 +234,7 @@ export default {
     credentialsStore() { return useCredentialsStore() },
     quickTradeStore() { return useQuickTradeStore() },
     isCrypto() { return String(this.market).toLowerCase() === 'crypto' && isCryptoProduct(this.product) },
+    isStockMarket() { return ['usstock','hkstock'].includes(String(this.market).toLowerCase()) },
     normalizedSymbol() { return this.normalizeSymbol(this.symbol) || '--' },
     baseAsset() { return this.normalizedSymbol.split('/')[0] || '' },
     quoteAsset() { return String(this.product?.settle_currency || this.balance?.currency || this.normalizedSymbol.split('/')[1] || 'USDT').toUpperCase() },

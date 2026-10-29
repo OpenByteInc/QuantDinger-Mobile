@@ -6,5 +6,5 @@ export function apiErrorMessage(body) {
     return typeof value === 'string' ? [`${path ? `${path}: ` : ''}${value}`] : []
   }
   const messages = flatten(details)
-  return messages.length ? messages.join('; ') : body?.msg || body?.message || ''
+  return messages.length ? messages.join('; ') : body?.msg || body?.message || body?.error || ''
 }

@@ -102,9 +102,9 @@
 <script>
 import ExchangeLogo from '@/components/ExchangeLogo.vue'
 import { showConfirmDialog, showToast } from 'vant'
-import { credentialsApi } from '@/api'
+import { brokerApi, credentialsApi } from '@/api'
 import { useCredentialsStore } from '@/stores'
-import { EXCHANGE_BRANDS, EXCHANGE_SIGNUP_CARDS } from '@/constants/exchanges'
+import { EXCHANGE_BRANDS, EXCHANGE_SIGNUP_CARDS, isDirectOpenApiBroker, isStockBroker } from '@/constants/exchanges'
 import { openExternal } from '@/utils/external'
 
 export default {
@@ -145,7 +145,18 @@ export default {
       this.loadFailed = false
       try {
         const listRes = await credentialsApi.list()
-        this.credentialsStore.setItems(listRes.data || [])
+        const items = listRes.data || []
+        const statuses = await Promise.allSettled(items.map(async item => {
+          if (!isDirectOpenApiBroker(item.exchange_id)) return item
+          const response = await brokerApi.status(item.exchange_id, item.id)
+          return {
+            ...item,
+            connection_status: response.data?.connected ? 'connected' : 'error',
+            environment: response.data?.environment || (response.data?.paper ? 'paper' : 'live'),
+            broker_error: response.data?.error || ''
+          }
+        }))
+        this.credentialsStore.setItems(statuses.map((result, index) => result.status === 'fulfilled' ? result.value : items[index]))
       } catch (error) {
         this.loadFailed = true
         this.credentialsStore.setItems([])
@@ -180,13 +191,15 @@ export default {
     credentialEnvironmentLabel(item) {
       if (item?.exchange_id === 'alpaca') return this.$t(/paper/i.test(item.api_key_hint || '') ? 'audit.paperMode' : 'credentials.environment_live')
       const environment = String(item?.environment || (item?.enable_demo_trading ? 'demo' : 'live')).toLowerCase()
+      if (environment === 'paper') return this.$t('broker_mobile.paper')
+      if (environment === 'sandbox') return this.$t('broker_mobile.sandbox')
       if (environment === 'testnet') return this.$t('credentials.environment_testnet')
       if (environment === 'demo') return this.$t('credentials.environment_demo')
       return this.$t('credentials.environment_live')
     },
 
     credentialScopeLabel(item) {
-      if (item?.exchange_id === 'alpaca') return this.$t('account_ui.usStocks')
+      if (isStockBroker(item?.exchange_id)) return this.$t(item?.exchange_id === 'tiger' ? 'broker_mobile.stockMarket' : 'account_ui.usStocks')
       const scope = String(item?.market_scope || 'both').toLowerCase()
       if (scope === 'spot') return this.$t('credentials.market_scope_spot')
       if (scope === 'swap') return this.$t('credentials.market_scope_swap')

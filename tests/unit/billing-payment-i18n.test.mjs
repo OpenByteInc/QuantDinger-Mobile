@@ -60,3 +60,14 @@ test('mobile Stripe checkout preserves the current page', () => {
   assert.doesNotMatch(source, /window\.location\.assign\(res\.data\.checkout_url\)/)
   assert.doesNotMatch(source, /__billing_audit/)
 })
+
+test('mobile USDC checkout uses the official token logo', () => {
+  const source = readFileSync(new URL('../../src/views/profile/Credits.vue', import.meta.url), 'utf8')
+  const logo = readFileSync(new URL('../../src/assets/payment/usdc.svg', import.meta.url), 'utf8')
+
+  assert.match(source, /import usdcLogo from '@\/assets\/payment\/usdc\.svg'/)
+  assert.match(source, /USDC: usdcLogo/)
+  assert.match(logo, /fill="#0B53BF"/)
+  assert.match(logo, /viewBox="0 0 96 96"/)
+  assert.doesNotMatch(source, /circleLogo|circle\.svg/)
+})

@@ -24,10 +24,10 @@ const EXCHANGE_ERROR_RULES = Object.freeze([
 
 const legacyExchangeError = text => {
   const lower = text.toLowerCase()
-  const isWrapped = /^(?:exchange order failed|unexpected order error|auto-stopped|leverage or margin-mode setup failed|exchange client creation failed|ibkr order|alpaca order)/i.test(text)
+  const isWrapped = /^(?:exchange order failed|unexpected order error|auto-stopped|leverage or margin-mode setup failed|exchange client creation failed|ibkr order|alpaca order|tiger order|webull order)/i.test(text)
   if (!isWrapped) return null
   const rule = EXCHANGE_ERROR_RULES.find(([, pattern]) => pattern.test(text))
-  const exchange = ['binance', 'okx', 'gate', 'bybit', 'bitget', 'htx', 'alpaca', 'ibkr'].find(value => lower.includes(value)) || 'exchange'
+  const exchange = ['binance', 'okx', 'gate', 'bybit', 'bitget', 'htx', 'alpaca', 'ibkr', 'tiger', 'webull'].find(value => lower.includes(value)) || 'exchange'
   const context = text.match(/^[^(]+\(([^)]+)\)/)?.[1] || text.match(/^Leverage or margin-mode setup failed for\s+([^:]+)/i)?.[1] || ''
   return {
     category: rule?.[0] || 'exchange_rejected',

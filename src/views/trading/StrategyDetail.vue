@@ -15,7 +15,8 @@
         </div>
       </section>
 
-      <button v-if="hasOwnershipDrift" type="button" class="risk-card" @click="openOwnershipRepair"><van-icon name="warning-o" /><span><strong>{{ $t('trading.position_ownership_drift_title') }}</strong><small>{{ $t('trading.position_ownership_drift_desc') }}</small></span><van-icon name="arrow" /></button>
+      <button v-if="runtimeErrorText" type="button" class="risk-card" @click="activeTab = 'logs'"><van-icon name="warning-o" /><span><strong>{{ $t('trading.strategy_run_error') }}</strong><small>{{ runtimeErrorText }}</small></span><van-icon name="arrow" /></button>
+      <button v-else-if="hasOwnershipDrift" type="button" class="risk-card" @click="openOwnershipRepair"><van-icon name="warning-o" /><span><strong>{{ $t('trading.position_ownership_drift_title') }}</strong><small>{{ $t('trading.position_ownership_drift_desc') }}</small></span><van-icon name="arrow" /></button>
       <button v-else-if="hasUnmanagedPosition" type="button" class="risk-card" @click="activeTab = 'overview'"><van-icon name="warning-o" /><span><strong>{{ $t('trading.stopped_with_positions', { count: positions.length }) }}</strong><small>{{ $t('trading.stopped_with_positions_desc') }}</small></span><van-icon name="arrow" /></button>
 
       <section class="metric-section"><header><h2>{{ $t('live_detail.financialOverview') }}</h2><span>{{ financialContext }}</span></header><div class="metric-grid">
@@ -102,7 +103,11 @@ export default {
     healthState() { if (this.runtimeHealth.position_drift_blocked || Number(this.runtimeHealth.position_drift_count || 0) > 0) return 'degraded'; return String(this.runtimeHealth.health || (this.isRunning ? 'unknown' : 'inactive')).toLowerCase() },
     healthText() { return this.$t(`live_detail.${['healthy', 'degraded', 'stale', 'offline', 'inactive'].includes(this.healthState) ? this.healthState : 'unknown'}`) },
     healthTone() { return `health-${this.healthState}` },
-    needsAttention() { return Boolean(this.strategy?.error_message) || ['degraded', 'stale', 'offline'].includes(this.healthState) || Number(this.runtimeHealth.failed_orders || 0) > 0 || Boolean(this.runtimeHealth.position_drift_blocked) },
+    runtimeErrorText() {
+      const message = this.strategy?.error_message || this.runtimeHealth.last_error || ''
+      return message ? translateStrategyRuntimeMessage(message, (key, params) => this.$t(key, params), this.runtimeHealth.exchange_error) : ''
+    },
+    needsAttention() { return Boolean(this.runtimeErrorText) || ['degraded', 'stale', 'offline'].includes(this.healthState) || Number(this.runtimeHealth.failed_orders || 0) > 0 || Boolean(this.runtimeHealth.position_drift_blocked) },
     runtimeLatency() { const value = this.runtimeHealth.latency_ms ?? this.runtimeHealth.loop_latency_ms; return Number.isFinite(Number(value)) ? Number(value) : '-' },
     pendingCount() { return Number(this.runtimeHealth.pending_orders || 0) },
     pendingLabel() { return this.$t(this.isLiveStrategy ? 'live_detail.pendingOrders' : 'live_detail.pendingSignals') },
@@ -116,7 +121,7 @@ export default {
     leverage() { const value = Number(this.strategy?.trading_config?.leverage ?? this.strategy?.leverage ?? 1); return Number.isFinite(value) && value > 0 ? value : 1 },
     marketType() { return String(this.strategy?.trading_config?.market_type || this.strategy?.market_type || 'spot').toLowerCase() },
     marketTypeText() { return this.$t(this.marketType === 'spot' ? 'live_detail.spot' : 'live_detail.perpetual') },
-    currency() { const explicit = String(this.strategy?.quote_currency || this.strategy?.currency || this.strategy?.trading_config?.quote_currency || '').toUpperCase(); if (explicit) return explicit; const symbol = this.strategySymbol.replace(/^[^:]+:/, '').replace(/@(spot|swap|future|futures)$/i, ''); if (symbol.includes('/')) return symbol.split('/')[1].toUpperCase(); return this.exchangeId === 'alpaca' ? 'USD' : 'USDT' },
+    currency() { const explicit = String(this.strategy?.quote_currency || this.strategy?.currency || this.strategy?.trading_config?.quote_currency || '').toUpperCase(); if (explicit) return explicit; const symbol = this.strategySymbol.replace(/^[^:]+:/, '').replace(/@(spot|swap|future|futures)$/i, ''); if (symbol.includes('/')) return symbol.split('/')[1].toUpperCase(); const market=String(this.strategy?.market||this.strategy?.trading_config?.market||'').toLowerCase();if(market==='hkstock'||/\.HK$/i.test(symbol))return 'HKD';return ['alpaca','ibkr','tiger','webull'].includes(this.exchangeId)?'USD':'USDT' },
     financialSuffix() { return this.isLiveStrategy ? this.currency : this.$t('live_detail.virtualAccount') },
     financialContext() { return this.$t(this.isLiveStrategy ? 'live_detail.netPnlBasis' : 'live_detail.virtualBasis') },
     todayPnl() { return this.finite(this.strategy?.today_pnl) },

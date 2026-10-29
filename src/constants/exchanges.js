@@ -2,6 +2,21 @@
 
 export const EXCHANGE_BRANDS = {
   alpaca: { name: 'Alpaca', docsUrl: 'https://app.alpaca.markets/' },
+  ibkr: { name: 'Interactive Brokers', short: 'IB', docsUrl: 'https://www.interactivebrokers.com/' },
+  tiger: {
+    name: 'Tiger Brokers',
+    short: 'TB',
+    brandBg: 'rgba(255, 107, 0, 0.18)',
+    brandColor: '#ff7a1a',
+    docsUrl: 'https://quant.itigerup.com/openapi/en/python/overview/introduction.html'
+  },
+  webull: {
+    name: 'Webull',
+    short: 'WB',
+    brandBg: 'rgba(36, 85, 245, 0.18)',
+    brandColor: '#5b7cff',
+    docsUrl: 'https://developer.webull.com/'
+  },
   binance: {
     name: 'Binance',
     short: 'BN',
@@ -76,10 +91,23 @@ export const EXCHANGE_BRANDS = {
 
 export const SUPPORTED_TRADING_EXCHANGE_IDS = ['binance', 'okx', 'bitget', 'bybit', 'gate', 'htx']
 
-export const EXCHANGE_OPTIONS = [...SUPPORTED_TRADING_EXCHANGE_IDS, 'alpaca'].map((id) => ({
+export const STOCK_BROKER_IDS = ['alpaca', 'ibkr', 'tiger', 'webull']
+export const DIRECT_OPENAPI_BROKER_IDS = ['tiger', 'webull']
+export const US_STOCK_BROKER_IDS = new Set(STOCK_BROKER_IDS)
+export const HK_STOCK_BROKER_IDS = new Set(['tiger'])
+
+export const EXCHANGE_OPTIONS = [...SUPPORTED_TRADING_EXCHANGE_IDS, 'alpaca', 'tiger', 'webull'].map((id) => ({
   value: id,
   label: EXCHANGE_BRANDS[id].name
 }))
+
+export const isStockBroker = (id) => STOCK_BROKER_IDS.includes(String(id || '').trim().toLowerCase())
+export const isDirectOpenApiBroker = (id) => DIRECT_OPENAPI_BROKER_IDS.includes(String(id || '').trim().toLowerCase())
+export const brokerCurrency = (id, market = 'USStock') => {
+  const normalizedMarket = String(market || '').trim().toLowerCase()
+  if (normalizedMarket === 'hkstock' || normalizedMarket === 'hk') return 'HKD'
+  return isStockBroker(id) ? 'USD' : 'USDT'
+}
 
 // One-click signup cards (aligned with PC rebate partners)
 export const EXCHANGE_SIGNUP_CARDS = [

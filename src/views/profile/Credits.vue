@@ -299,7 +299,7 @@ import { Browser } from '@capacitor/browser'
 import { Capacitor } from '@capacitor/core'
 import { billingApi, userApi } from '@/api'
 import tetherLogo from '@/assets/payment/tether.svg'
-import circleLogo from '@/assets/payment/circle.svg'
+import usdcLogo from '@/assets/payment/usdc.svg'
 import stripeLogo from '@/assets/payment/stripe.svg'
 import visaLogo from '@/assets/payment/visa.svg'
 import mastercardLogo from '@/assets/payment/mastercard.svg'
@@ -461,7 +461,7 @@ export default {
       return descriptions[code] || ''
     },
     paymentMethodLogo(code) {
-      const logos = { USDT: tetherLogo, USDC: circleLogo, STRIPE: stripeLogo }
+      const logos = { USDT: tetherLogo, USDC: usdcLogo, STRIPE: stripeLogo }
       return logos[code] || stripeLogo
     },
     async bindNativePaymentResume() {

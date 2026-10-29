@@ -45,6 +45,58 @@
         <p>{{ cleanText(report.executive_summary || decision.rationale) || '--' }}</p>
       </article>
 
+      <van-collapse v-if="hasResearchBrief || hasResearchIntelligence" v-model="activeResearch" class="research-collapse">
+        <van-collapse-item v-if="hasResearchBrief" :title="$t('broker_mobile.researchBrief')" name="brief">
+          <section v-if="researchBrief.core_thesis" class="brief-block">
+            <strong>{{ $t('broker_mobile.coreThesis') }}</strong>
+            <p>{{ researchNarrative(researchBrief.core_thesis) }}</p>
+            <small v-if="researchEvidence(researchBrief.core_thesis).length">
+              {{ $t('professional_report.evidence_references') }}: {{ researchEvidence(researchBrief.core_thesis).join(', ') }}
+            </small>
+          </section>
+          <section v-if="researchBrief.variant_view" class="brief-block">
+            <strong>{{ $t('broker_mobile.variantView') }}</strong>
+            <p>{{ researchNarrative(researchBrief.variant_view) }}</p>
+            <small v-if="researchEvidence(researchBrief.variant_view).length">
+              {{ $t('professional_report.evidence_references') }}: {{ researchEvidence(researchBrief.variant_view).join(', ') }}
+            </small>
+          </section>
+          <section v-if="monitoringItems.length" class="brief-block">
+            <strong>{{ $t('broker_mobile.monitoringChecklist') }}</strong>
+            <ul class="monitoring-list">
+              <li v-for="(item, index) in monitoringItems" :key="`${item.kind || 'watch'}-${item.case || index}-${index}`">
+                <span>{{ researchNarrative(item) }}</span>
+                <small v-if="item.invalidation != null">
+                  {{ $t('professional_report.invalidation') }}: {{ invalidationText(item.invalidation) }}
+                </small>
+              </li>
+            </ul>
+          </section>
+        </van-collapse-item>
+
+        <van-collapse-item v-if="hasResearchIntelligence" :title="$t('broker_mobile.researchIntelligence')" name="intelligence">
+          <div class="research-summary">
+            <div v-if="researchIntelligence.workflow_id">
+              <span>{{ $t('broker_mobile.workflow') }}</span>
+              <strong>{{ labelFor(researchIntelligence.workflow_id, 'capability') }}</strong>
+            </div>
+            <div v-if="researchIntelligence.readiness_posture">
+              <span>{{ $t('broker_mobile.readiness') }}</span>
+              <strong>{{ labelFor(researchIntelligence.readiness_posture, 'capability') }}</strong>
+            </div>
+            <div v-for="item in researchPerformanceRows" :key="item.key">
+              <span>{{ labelFor(item.key, 'capability') }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+          </div>
+          <div v-if="researchCapabilities.length" class="tag-list compact research-capabilities">
+            <span v-for="item in researchCapabilities" :key="item" class="data-tag">
+              {{ labelFor(item, 'capability') }}
+            </span>
+          </div>
+        </van-collapse-item>
+      </van-collapse>
+
       <article class="report-card quality-card">
         <h3><van-icon name="shield-o" />{{ $t('professional_report.data_quality') }}</h3>
         <div class="quality-top">
@@ -196,7 +248,7 @@ export default {
     showRegenerate: { type: Boolean, default: true }
   },
   data() {
-    return { activeEvidence: [] }
+    return { activeEvidence: [], activeResearch: ['brief'] }
   },
   computed: {
     report() { return professionalReportArtifact(this.value) },
@@ -204,6 +256,37 @@ export default {
     instrument() { return this.report?.instrument || {} },
     decision() { return this.report?.decision_profile || {} },
     quality() { return this.report?.data_quality || {} },
+    researchIntelligence() { return this.report?.research_intelligence || {} },
+    researchBrief() { return this.researchIntelligence.research_brief || {} },
+    monitoringItems() {
+      const catalysts = Array.isArray(this.researchBrief.catalysts)
+        ? this.researchBrief.catalysts.map((item) => ({ ...item, kind: 'catalyst' }))
+        : []
+      const watchItems = Array.isArray(this.researchBrief.watch_items) ? this.researchBrief.watch_items : []
+      return [...catalysts, ...watchItems]
+    },
+    hasResearchBrief() {
+      return Boolean(this.researchBrief.core_thesis || this.researchBrief.variant_view || this.monitoringItems.length)
+    },
+    hasResearchIntelligence() {
+      return Boolean(
+        this.researchIntelligence.workflow_id ||
+        this.researchIntelligence.readiness_posture ||
+        this.researchCapabilities.length ||
+        this.researchPerformanceRows.length
+      )
+    },
+    researchCapabilities() {
+      return Array.isArray(this.researchIntelligence.available_capabilities)
+        ? this.researchIntelligence.available_capabilities
+        : []
+    },
+    researchPerformanceRows() {
+      return Object.entries(this.researchIntelligence.performance || {}).map(([key, value]) => ({
+        key,
+        value: key.endsWith('_pct') ? this.percent(value) : this.formatNumber(value, 0)
+      }))
+    },
     dimensions() { return Array.isArray(this.report?.dimensions) ? this.report.dimensions : [] },
     scenarios() { return Array.isArray(this.report?.scenarios) ? this.report.scenarios : [] },
     claims() { return Array.isArray(this.report?.claims) ? this.report.claims : [] },
@@ -247,7 +330,9 @@ export default {
     missingItems() {
       return [...new Set([
         ...(this.quality.missing_metrics || []),
-        ...(this.report?.market_features?.missing_capabilities || [])
+        ...(this.report?.market_features?.missing_capabilities || []),
+        ...(this.researchIntelligence.missing_required_capabilities || []),
+        ...(this.researchIntelligence.missing_optional_capabilities || [])
       ])]
     },
     qualityPercent() {
@@ -399,6 +484,13 @@ export default {
     invalidationText(value) {
       return typeof value === 'number' ? this.money(value) : this.cleanText(value)
     },
+    researchNarrative(value) {
+      const text = value && typeof value === 'object' ? value.text : value
+      return this.cleanText(text) || '--'
+    },
+    researchEvidence(value) {
+      return Array.isArray(value?.evidence_refs) ? value.evidence_refs : []
+    },
     evidenceValue(item) {
       const rawValue = item?.value
       if (rawValue && typeof rawValue === 'object') return this.structuredEvidenceValue(rawValue, item)
@@ -476,7 +568,7 @@ export default {
 .market-snapshot div { display: grid; gap: 4px; min-width: 0; padding: 12px; background: var(--bg-elevated); }
 .market-snapshot span { color: var(--text-3); font-size: 9px; }
 .market-snapshot strong { color: var(--text); font-size: 12px; overflow-wrap: anywhere; }
-.report-card, .evidence-collapse, .contract-warning { padding: 15px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-elevated); }
+.report-card, .evidence-collapse, .research-collapse, .contract-warning { padding: 15px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-elevated); }
 .report-card h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 12px; color: var(--text); font-size: 15px; }
 .report-card h3 .van-icon { color: var(--accent); }
 .report-card p { margin: 7px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.7; }
@@ -511,17 +603,29 @@ export default {
 .claim-item small, .evidence-item small { color: var(--text-3); font-size: 9px; overflow-wrap: anywhere; }
 .claim-kind { width: fit-content; color: #60a5fa; background: rgb(96 165 250 / 10%); }
 .claim-kind.risk { color: #fb923c; background: rgb(251 146 60 / 10%); }
-.evidence-collapse { padding: 0; overflow: hidden; }
-.evidence-collapse :deep(.van-cell) {
+.evidence-collapse, .research-collapse { padding: 0; overflow: hidden; }
+.evidence-collapse :deep(.van-cell), .research-collapse :deep(.van-cell) {
   color: var(--text);
   background: var(--bg-elevated);
 }
-.evidence-collapse :deep(.van-cell::after) { border-color: var(--border); }
-.evidence-collapse :deep(.van-cell__right-icon) { color: var(--text-3); }
-.evidence-collapse :deep(.van-collapse-item__content) {
+.evidence-collapse :deep(.van-cell::after), .research-collapse :deep(.van-cell::after) { border-color: var(--border); }
+.evidence-collapse :deep(.van-cell__right-icon), .research-collapse :deep(.van-cell__right-icon) { color: var(--text-3); }
+.evidence-collapse :deep(.van-collapse-item__content), .research-collapse :deep(.van-collapse-item__content) {
   color: var(--text);
   background: var(--bg-elevated);
 }
+.brief-block + .brief-block { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.brief-block > strong { color: var(--text); font-size: 12px; }
+.brief-block p { margin: 6px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.65; }
+.brief-block small { display: block; margin-top: 5px; color: var(--text-3); font-size: 9px; overflow-wrap: anywhere; }
+.monitoring-list { display: grid; gap: 8px; margin: 8px 0 0; padding-left: 18px; }
+.monitoring-list li { color: var(--text-2); font-size: 12px; line-height: 1.55; }
+.monitoring-list small { margin-top: 2px; }
+.research-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.research-summary div { display: grid; gap: 3px; padding: 9px; border-radius: 10px; background: var(--bg); }
+.research-summary span { color: var(--text-3); font-size: 10px; }
+.research-summary strong { color: var(--text); font-size: 12px; overflow-wrap: anywhere; }
+.research-capabilities .data-tag { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent); }
 .evidence-item { margin-bottom: 8px; }
 .evidence-item a { display: inline-block; margin-top: 5px; color: var(--accent); font-size: 11px; }
 .evidence-item .evidence-observed, .evidence-item .item-head > span { font-variant-numeric: tabular-nums; }

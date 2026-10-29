@@ -33,7 +33,7 @@
         @click="showEnvironmentPicker = true"
       />
       <div class="field-hint">{{ isAlpaca ? $t('account_ui.alpacaEnvironment') : environmentHint }}</div>
-      <van-cell v-if="!isAlpaca"
+      <van-cell v-if="!isStockBroker"
         :title="$t('credentials.market_scope')"
         :value="marketScopeLabel"
         is-link
@@ -41,7 +41,7 @@
       />
     </div>
 
-    <div v-if="!isAlpaca" class="egress-card">
+    <div v-if="!isStockBroker" class="egress-card">
       <div class="section-heading">
         <span class="section-icon amber"><van-icon name="shield-o" /></span>
         <div>
@@ -76,7 +76,7 @@
         <span class="section-icon violet"><van-icon name="exchange" /></span>
         <div>
           <div class="section-title">{{ $t('credentials.section_keys') }}</div>
-          <p>{{ $t(isAlpaca ? 'account_ui.alpacaKeysHint' : 'credentials.section_keys_desc') }}</p>
+          <p>{{ $t(isAlpaca ? 'account_ui.alpacaKeysHint' : isDirectBroker ? 'broker_mobile.credentialsRequired' : 'credentials.section_keys_desc') }}</p>
         </div>
       </div>
       <div v-if="selectedExchangeDocsUrl" class="api-doc-card">
@@ -88,6 +88,19 @@
           {{ $t('credentials.api_doc_action') }}
         </button>
       </div>
+      <template v-if="isTiger">
+        <van-field label-align="top" v-model="form.tiger_id" :label="$t('broker_mobile.tigerId')" :placeholder="$t('broker_mobile.tigerIdHint')" />
+        <van-field label-align="top" v-model="form.account_id" :label="$t('broker_mobile.accountId')" :placeholder="$t('broker_mobile.accountIdHint')" />
+        <van-field label-align="top" v-model="form.private_key" type="textarea" autosize :label="$t('broker_mobile.privateKey')" :placeholder="$t('broker_mobile.privateKeyHint')" />
+        <van-field label-align="top" v-model="form.license" :label="$t('broker_mobile.licenseOptional')" />
+      </template>
+      <template v-else-if="isWebull">
+        <van-field label-align="top" v-model="form.app_key" :label="$t('broker_mobile.appKey')" />
+        <van-field label-align="top" v-model="form.app_secret" type="password" :label="$t('broker_mobile.appSecret')" />
+        <van-field label-align="top" v-model="form.access_token" type="password" :label="$t('broker_mobile.accessTokenOptional')" />
+        <van-field label-align="top" v-model="form.account_id" :label="$t('broker_mobile.accountIdOptional')" />
+      </template>
+      <template v-else>
       <van-field label-align="top"
         v-model="form.api_key"
         :label="$t('credentials.api_key')"
@@ -105,10 +118,12 @@
         :label="$t('credentials.passphrase')"
         :placeholder="$t('credentials.passphrase_placeholder')"
       />
+      </template>
     </div>
 
     <div class="form-actions">
       <van-button
+        v-if="!isDirectBroker"
         block
         round
         plain
@@ -130,12 +145,12 @@
         @click="submit"
       >
         <van-icon name="success" />
-        {{ $t('credentials.save') }}
+        {{ $t(isDirectBroker ? 'broker_mobile.connectAndSave' : 'credentials.save') }}
       </van-button>
     </div>
 
     <van-popup v-model:show="showExchangePicker" position="bottom" round>
-      <div class="provider-picker"><h3>{{ $t('credentials.exchange') }}</h3><button v-for="option in exchangeColumns" :key="option.value" @click="onSelectExchange(option)"><ExchangeLogo :exchange="option.value" :size="32"/><span>{{ option.text }}</span><small>{{ $t(option.value === 'alpaca' ? 'account_ui.usStocks' : 'account_ui.crypto') }}</small><van-icon v-if="form.exchange_id === option.value" name="success"/></button></div>
+      <div class="provider-picker"><h3>{{ $t('credentials.exchange') }}</h3><button v-for="option in exchangeColumns" :key="option.value" @click="onSelectExchange(option)"><ExchangeLogo :exchange="option.value" :size="32"/><span>{{ option.text }}</span><small>{{ $t(isStockExchange(option.value) ? 'account_ui.usStocks' : 'account_ui.crypto') }}</small><van-icon v-if="form.exchange_id === option.value" name="success"/></button></div>
     </van-popup>
     <van-popup v-model:show="showEnvironmentPicker" position="bottom" round>
       <van-picker
@@ -157,9 +172,9 @@
 <script>
 import ExchangeLogo from '@/components/ExchangeLogo.vue'
 import { showToast } from 'vant'
-import { credentialsApi } from '@/api'
+import { brokerApi, credentialsApi } from '@/api'
 import { useCredentialsStore } from '@/stores'
-import { EXCHANGE_BRANDS, EXCHANGE_OPTIONS } from '@/constants/exchanges'
+import { EXCHANGE_BRANDS, EXCHANGE_OPTIONS, isDirectOpenApiBroker, isStockBroker as stockBroker } from '@/constants/exchanges'
 import { openExternal } from '@/utils/external'
 
 const PASSPHRASE_EXCHANGES = ['okx', 'bitget']
@@ -182,6 +197,13 @@ export default {
         api_key: '',
         secret_key: '',
         passphrase: '',
+        tiger_id: '',
+        account_id: '',
+        private_key: '',
+        license: '',
+        app_key: '',
+        app_secret: '',
+        access_token: '',
         environment: 'live',
         market_scope: 'both'
       }
@@ -190,6 +212,10 @@ export default {
 
   computed: {
     isAlpaca() { return this.form.exchange_id === 'alpaca' },
+    isTiger() { return this.form.exchange_id === 'tiger' },
+    isWebull() { return this.form.exchange_id === 'webull' },
+    isDirectBroker() { return isDirectOpenApiBroker(this.form.exchange_id) },
+    isStockBroker() { return stockBroker(this.form.exchange_id) },
     credentialsStore() {
       return useCredentialsStore()
     },
@@ -217,6 +243,8 @@ export default {
       const testnet = { value: 'testnet', label: this.$t('credentials.environment_testnet') }
       if (['binance', 'okx', 'bitget', 'bybit'].includes(this.form.exchange_id)) return [live, demo]
       if (this.form.exchange_id === 'gate') return [live, testnet]
+      if (this.form.exchange_id === 'tiger') return [{ value: 'paper', label: this.$t('broker_mobile.paper') }, live]
+      if (this.form.exchange_id === 'webull') return [{ value: 'sandbox', label: this.$t('broker_mobile.sandbox') }, live]
       return [live]
     },
     environmentColumns() {
@@ -271,6 +299,7 @@ export default {
 
   methods: {
     async loadEgressIp() {
+      if (this.isStockBroker) return
       try {
         const response = await credentialsApi.getEgressIp()
         this.credentialsStore.setEgressIp(response.data || null)
@@ -305,7 +334,7 @@ export default {
         this.form.passphrase = ''
       }
       if (!this.environmentOptions.some(item => item.value === this.form.environment)) {
-        this.form.environment = 'live'
+        this.form.environment = this.form.exchange_id === 'tiger' ? 'paper' : this.form.exchange_id === 'webull' ? 'sandbox' : 'live'
       }
       this.showExchangePicker = false
     },
@@ -326,6 +355,10 @@ export default {
       }
     },
 
+    isStockExchange(value) {
+      return stockBroker(value)
+    },
+
     validate() {
       if (!this.form.name.trim()) {
         showToast({ message: this.$t('credentials.name_required'), type: 'fail' })
@@ -335,11 +368,23 @@ export default {
         showToast({ message: this.$t('credentials.exchange_required'), type: 'fail' })
         return false
       }
-      if (!this.form.api_key.trim() || !this.form.secret_key.trim()) {
+      if (this.isTiger && (!this.form.tiger_id.trim() || !this.form.account_id.trim() || !this.form.private_key.trim())) {
+        showToast({ message: this.$t('broker_mobile.credentialsRequired'), type: 'fail' })
+        return false
+      }
+      if (this.isTiger && !/BEGIN[\s\S]+PRIVATE KEY[\s\S]+END/.test(this.form.private_key.trim())) {
+        showToast({ message: this.$t('broker_mobile.invalidPrivateKey'), type: 'fail' })
+        return false
+      }
+      if (this.isWebull && (!this.form.app_key.trim() || !this.form.app_secret.trim())) {
+        showToast({ message: this.$t('broker_mobile.credentialsRequired'), type: 'fail' })
+        return false
+      }
+      if (!this.isDirectBroker && (!this.form.api_key.trim() || !this.form.secret_key.trim())) {
         showToast({ message: this.$t('credentials.keys_required'), type: 'fail' })
         return false
       }
-      if (this.needsPassphrase && !this.form.passphrase.trim()) {
+      if (!this.isDirectBroker && this.needsPassphrase && !this.form.passphrase.trim()) {
         showToast({ message: this.$t('credentials.passphrase_required'), type: 'fail' })
         return false
       }
@@ -347,6 +392,22 @@ export default {
     },
 
     credentialPayload() {
+      if (this.isTiger) return {
+        name: this.form.name.trim(),
+        tigerId: this.form.tiger_id.trim(),
+        accountId: this.form.account_id.trim(),
+        privateKey: this.form.private_key.trim(),
+        license: this.form.license.trim(),
+        environment: this.form.environment
+      }
+      if (this.isWebull) return {
+        name: this.form.name.trim(),
+        appKey: this.form.app_key.trim(),
+        appSecret: this.form.app_secret.trim(),
+        accessToken: this.form.access_token.trim(),
+        accountId: this.form.account_id.trim(),
+        environment: this.form.environment
+      }
       if (this.isAlpaca) return { name: this.form.name.trim(), exchange_id: 'alpaca', api_key: this.form.api_key.trim(), secret_key: this.form.secret_key.trim() }
       return {
         name: this.form.name.trim(),
@@ -364,8 +425,9 @@ export default {
       if (!this.validate()) return
       this.testing = true
       try {
-        await credentialsApi.test(this.credentialPayload())
-        showToast({ message: this.$t('credentials.test_success'), type: 'success' })
+        if (this.isDirectBroker) await brokerApi.connect(this.form.exchange_id, this.credentialPayload())
+        else await credentialsApi.test(this.credentialPayload())
+        showToast({ message: this.$t(this.isDirectBroker ? 'broker_mobile.connectSuccess' : 'credentials.test_success'), type: 'success' })
       } catch (error) {
         const message = error?.response?.data?.msg || error?.message || this.$t('credentials.test_failed')
         showToast({ message, type: 'fail' })
@@ -378,8 +440,9 @@ export default {
       if (!this.validate()) return
       this.saving = true
       try {
-        await credentialsApi.create(this.credentialPayload())
-        showToast({ message: this.$t('credentials.saved'), type: 'success' })
+        if (this.isDirectBroker) await brokerApi.connect(this.form.exchange_id, this.credentialPayload())
+        else await credentialsApi.create(this.credentialPayload())
+        showToast({ message: this.$t(this.isDirectBroker ? 'broker_mobile.connectSuccess' : 'credentials.saved'), type: 'success' })
         this.$router.replace('/profile/credentials')
       } catch (error) {
         console.error('Create credential failed:', error)

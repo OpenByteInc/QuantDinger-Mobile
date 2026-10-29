@@ -520,7 +520,8 @@ export default {
       return this.credentialsStore.items.filter(item => {
         const exchange = String(item.exchange_id || '').toLowerCase()
         if (this.marketCategory === 'Crypto') return LIVE_CRYPTO_EXCHANGES.has(exchange)
-        if (this.marketCategory === 'USStock') return ['alpaca', 'ibkr'].includes(exchange)
+        if (this.marketCategory === 'USStock') return ['alpaca', 'ibkr', 'tiger', 'webull'].includes(exchange)
+        if (this.marketCategory === 'HKStock') return exchange === 'tiger'
         return false
       })
     },
@@ -574,7 +575,7 @@ export default {
       return this.$t(`script_strategy.type_${type}`)
     },
     supportsLive() {
-      return ['Crypto', 'USStock'].includes(this.marketCategory)
+      return ['Crypto', 'USStock', 'HKStock'].includes(this.marketCategory)
     },
     instruments() {
       return Array.isArray(this.manifest?.universe?.instruments) ? this.manifest.universe.instruments : []
