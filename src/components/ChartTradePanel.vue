@@ -374,7 +374,7 @@ export default {
     },
     scheduleTradeRefresh() {
       if(this.scheduledRefreshTimer)clearTimeout(this.scheduledRefreshTimer)
-      this.scheduledRefreshTimer=setTimeout(()=>{this.scheduledRefreshTimer=null;if(document.hidden)return;this.refreshTradeData();this.restartOrderBookFeed()},0)
+      this.scheduledRefreshTimer=setTimeout(()=>{this.scheduledRefreshTimer=null;if(document.hidden)return;void this.refreshTradeData();this.restartOrderBookFeed()},0)
     },
     stableDataSignature(value) {
       try{return JSON.stringify(value??null)}catch{return String(value)}
@@ -589,8 +589,8 @@ export default {
     startRestOrderBookFallback() {
       if(!this.selectedCredential||!this.isCrypto)return
       this.orderBookUsingRestFallback=true
-      this.refreshOrderBook()
-      if(!this.orderBookTimer)this.orderBookTimer=window.setInterval(()=>{if(!document.hidden&&!this.submitting)this.refreshOrderBook()},2000)
+      void this.refreshOrderBook()
+      if(!this.orderBookTimer)this.orderBookTimer=window.setInterval(()=>{if(!document.hidden&&!this.submitting)void this.refreshOrderBook()},2000)
     },
     restartOrderBookFeed() {
       if(this.orderBookStream)this.orderBookStream.disconnect()
@@ -609,7 +609,7 @@ export default {
       this.orderBookStreamStatus='connecting'
       this.orderBookUsingRestFallback=false
       if(!this.selectedCredential||!this.isCrypto||!exchangeId)return
-      this.refreshOrderBook()
+      void this.refreshOrderBook()
       this.connectOrderBookStream()
     },
     async confirmOrder(side) {
@@ -779,7 +779,7 @@ export default {
     startPolling() {
       this.stopPolling()
       this.restartOrderBookFeed()
-      this.pollTimer=window.setInterval(()=>{if(!document.hidden&&!this.submitting)this.refreshTradeData()},30000)
+      this.pollTimer=window.setInterval(()=>{if(!document.hidden&&!this.submitting)void this.refreshTradeData()},30000)
     },
     stopPolling() {
       if(this.pollTimer)window.clearInterval(this.pollTimer)

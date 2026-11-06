@@ -10,7 +10,7 @@ const stores=readFileSync(new URL('../../src/stores/index.js',import.meta.url),'
 test('indicator chart avoids repeated full previews while the stream is healthy',()=>{
   assert.doesNotMatch(chartView,/Date\.now\(\)-lastPreview/)
   assert.match(chartView,/if\(!healthy\)requestRecovery\(\)/)
-  assert.match(chartView,/if\(bar\.isClosed\)loadChart\(true\)/)
+  assert.match(chartView,/if\(bar\.isClosed\)void loadChart\(true\)/)
   assert.match(chartView,/silent&&nextContext===activeChartRequestContext/)
 })
 

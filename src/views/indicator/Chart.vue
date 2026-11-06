@@ -128,7 +128,7 @@ async function warmBaseChart(){
 }
 async function loadChart(silent=false){
  const nextContext=chartContextSignature()
- if(displayedChartContext.value!==snapshotContext())warmBaseChart()
+ if(displayedChartContext.value!==snapshotContext())void warmBaseChart()
  if(chartRefreshing.value){
   if(silent&&nextContext===activeChartRequestContext)return
   queuedChartLoadSilent=queuedChartLoad?queuedChartLoadSilent&&silent:silent
@@ -159,7 +159,7 @@ async function selectIndicator(item){
 function selectSymbol(item){form.market=item.market||'Crypto';form.symbol=item.symbol;if(form.market.toLowerCase()==='crypto'){form.exchangeId=item.exchange_id||form.exchangeId;form.marketType=item.market_type||form.marketType;selectedProduct.value={symbol:form.symbol,exchange_id:form.exchangeId,market_type:form.marketType,instrument_id:item.instrument_id||'',settle_currency:item.settle_currency||'',product_type:item.product_type||'',api_family:item.api_family||'',underlying_market:item.underlying_market||'',underlying_symbol:item.underlying_symbol||'',product_meta:item.product_meta||null}}else selectedProduct.value=null;loadChart()}
 function onTradeContextChange(context){if(!context.exchangeId)return;if(context.exchangeId===form.exchangeId&&context.marketType===form.marketType)return;form.exchangeId=context.exchangeId;form.marketType=context.marketType;loadChart()}
 function openAi(){router.push({path:'/ai',query:{symbol:form.symbol,market:form.market,timeframe:form.timeframe}})}
-async function bootstrap(){warmBaseChart();try{const loaded=await indicatorApi.getList();indicators.value=loaded.data||[];const id=Number(route.query.indicator_id||route.query.local_copy_id||0);const preferred=indicators.value.find(x=>Number(x.id)===id)||indicators.value[0];if(preferred)await selectIndicator({indicatorId:Number(preferred.id)});else await loadChart()}catch(e){if(!chartData.value?.candles?.length){error.value=e?.localizedMessage||e?.message||t('audit.loadFailed');await warmBaseChart()}}}
+async function bootstrap(){void warmBaseChart();try{const loaded=await indicatorApi.getList();indicators.value=loaded.data||[];const id=Number(route.query.indicator_id||route.query.local_copy_id||0);const preferred=indicators.value.find(x=>Number(x.id)===id)||indicators.value[0];if(preferred)await selectIndicator({indicatorId:Number(preferred.id)});else await loadChart()}catch(e){if(!chartData.value?.candles?.length){error.value=e?.localizedMessage||e?.message||t('audit.loadFailed');await warmBaseChart()}}}
 function stopStream(){streamGeneration++;stream?.disconnect();stream=null;lastTick=0;pendingBar=null}
 function startStream(){
  stopStream()
@@ -177,7 +177,7 @@ function startStream(){
    if(result==='ignored')return
    lastTick=Date.now();updated.value=lastTick
    marketChart.value?.updateBar(bar)
-   if(bar.isClosed)loadChart(true)
+   if(bar.isClosed)void loadChart(true)
   },
    onError(){if(generation===streamGeneration){lastTick=0;requestRecovery()}},
    onReconnecting(){if(generation===streamGeneration)lastTick=0},
@@ -185,7 +185,7 @@ function startStream(){
   },form.exchangeId,{marketType:form.marketType,instrumentId:selectedInstrumentId.value})
  if(!connecting)stream=null
 }
-function requestRecovery(){const now=Date.now();if(now-lastRecovery<5000)return;lastRecovery=now;loadChart(true)}
+function requestRecovery(){const now=Date.now();if(now-lastRecovery<5000)return;lastRecovery=now;void loadChart(true)}
 function resizeChartAfterActivation(){nextTick(()=>{marketChart.value?.resize();requestAnimationFrame(()=>marketChart.value?.resize());clearTimeout(layoutTimer);layoutTimer=setTimeout(()=>marketChart.value?.resize(),180)})}
 function stop(){pageActive=false;clearInterval(timer);timer=null;clearTimeout(layoutTimer);layoutTimer=null;stopStream();queuedChartLoad=false;queuedChartLoadSilent=true;request++;warmRequest++;loading.value=false;chartRefreshing.value=false}
 function start(){

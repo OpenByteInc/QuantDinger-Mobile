@@ -95,7 +95,7 @@ export default {
     credentialActions() { return this.credentials.map(item => ({ text: this.accountLabel(item), value: item.id, exchange: item.exchange_id })) },
     currency() { return String(this.account?.currency || brokerCurrency(this.selectedCredential?.exchange_id, this.market)).toUpperCase() },
     visibleRows() { return this.tab === 'positions' ? this.positions : this.orders },
-    canSubmit() { return Boolean(this.selectedCredential && this.displaySymbol !== '—' && Number(this.form.quantity) > 0 && (this.form.orderType !== 'limit' || Number(this.form.price) > 0) && !this.busy) }
+    canSubmit() { return Boolean(this.selectedCredential && String(this.symbol || '').trim() && Number(this.form.quantity) > 0 && (this.form.orderType !== 'limit' || Number(this.form.price) > 0) && !this.busy) }
   },
   watch: {
     credentials: { immediate: true, handler(items) { if (!this.selectedCredentialId && items.length) this.selectedCredentialId = items[0].id } },

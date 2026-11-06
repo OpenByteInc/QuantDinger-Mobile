@@ -593,9 +593,10 @@ export default {
     credentials() {
       return this.credentialsStore.items.filter(item => {
         const exchange = String(item.exchange_id || '').toLowerCase()
-        if (this.marketCategory === 'Crypto') return LIVE_CRYPTO_EXCHANGES.has(exchange)
-        if (this.marketCategory === 'USStock') return ['alpaca', 'ibkr', 'tiger', 'webull'].includes(exchange)
-        if (this.marketCategory === 'HKStock') return exchange === 'tiger'
+        const marketCategory = String(this.marketCategory || '')
+        if (marketCategory === 'Crypto') return LIVE_CRYPTO_EXCHANGES.has(exchange)
+        if (marketCategory === 'USStock') return ['alpaca', 'ibkr', 'tiger', 'webull'].includes(exchange)
+        if (marketCategory === 'HKStock') return exchange === 'tiger'
         return false
       })
     },

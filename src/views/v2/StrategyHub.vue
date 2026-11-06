@@ -197,10 +197,10 @@ watch(watchlistPageCount, count => { if (watchlistPage.value > count) watchlistP
 function selectPreference(value) { preference.value = value }
 function loadData() {
   restoreHomeCache()
-  loadStrategies()
-  loadPortfolio()
-  loadWatchlist()
-  loadGlobalIndices()
+  void loadStrategies()
+  void loadPortfolio()
+  void loadWatchlist()
+  void loadGlobalIndices()
 }
 async function loadStrategies() {
   loading.value = true
