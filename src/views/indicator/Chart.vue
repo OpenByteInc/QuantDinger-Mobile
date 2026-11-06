@@ -274,3 +274,10 @@ watch(indicatorSheetOpen,value=>{if(!value)indicatorQuery.value=''})
 .signal-summary { margin: 16px; padding: 14px 0; border: 0; border-block: 1px solid var(--v2-line); border-radius: 0; background: transparent; box-shadow: none; }
 .updated { padding-inline: 16px; }
 </style>
+
+<style scoped>
+@media (max-width: 430px) {
+  .signal-summary { margin: 8px 12px 0; padding: 9px 0; }
+  .updated { padding: 5px 12px 0; font-size: 9px; }
+}
+</style>

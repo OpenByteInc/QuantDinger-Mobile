@@ -83,7 +83,7 @@
             </label>
             <div class="side-balance"><span>{{ $t(side==='buy'?'chart_trade.can_buy':'chart_trade.can_sell') }}</span><strong v-if="balanceReady&&marketType==='spot'">{{ spotInputMode(side)==='quantity' ? formatQuantity(availableForSide(side)) : formatNumber(availableForSide(side)) }} <small>{{ spotInputUnit(side) }}</small></strong><strong v-else>{{ balanceReady ? formatNumber(maxNotional(side)) : '—' }} <small>{{ quoteAsset }}</small></strong></div>
             <div v-if="marketType==='spot'" class="amount-presets"><button v-for="pct in [25,50,75,100]" :key="pct" :disabled="submitting || !balanceReady || availableForSide(side)<=0" @click="setAmountByPercent(pct,side)">{{ pct }}%</button></div>
-            <div class="submit-row single"><button :class="side" :disabled="!canSubmitSide(side)" @click="confirmOrder(side)">{{ $t(side==='buy'?(marketType==='swap'?'chart_trade.buy_long':'chart_trade.buy'):(marketType==='swap'?'chart_trade.sell_short':'chart_trade.sell')) }}<small v-if="marketType==='swap'">{{ form.leverage }}x</small></button></div>
+            <div class="submit-row single"><button :class="side" :disabled="!canSubmitSide(side)" @click="submitOrder(side)">{{ $t(side==='buy'?(marketType==='swap'?'chart_trade.buy_long':'chart_trade.buy'):(marketType==='swap'?'chart_trade.sell_short':'chart_trade.sell')) }}<small v-if="marketType==='swap'">{{ form.leverage }}x</small></button></div>
           </div>
         </div>
         <p class="ticket-notice">{{ $t('chart_trade.live_warning') }}</p>
@@ -111,7 +111,8 @@
             </div>
             <div class="position-actions">
               <button v-if="marketType==='swap'" type="button" class="protect-position" :disabled="submitting" @click="openProtection(position)">{{ $t('chart_trade.manage_protection') }}</button>
-              <button type="button" class="close-position" :disabled="submitting" @click="prepareClose(position)">{{ $t(marketType==='spot'?'audit.sellSpot':'chart_trade.close_position') }}</button>
+              <button type="button" class="close-position market-close" :disabled="submitting" @click="prepareClose(position,'market')">{{ $t('chart_trade.market_close') }}</button>
+              <button type="button" class="close-position limit-close" :disabled="submitting" @click="prepareClose(position,'limit')">{{ $t('chart_trade.limit_close') }}</button>
             </div>
           </article>
           <van-empty v-if="!positions.length" :description="$t('chart_trade.no_positions')" />
@@ -173,26 +174,18 @@
     </van-popup>
     <van-popup v-model:show="closeReviewOpen" position="bottom" round teleport="body" class="protection-popup">
       <section class="protection-sheet close-sheet">
-        <header><div><strong>{{ $t(marketType==='spot'?'audit.sellSpot':'chart_trade.close_position') }}</strong><small>{{ normalizedSymbol }} · {{ closeReviewPosition ? sideText(closeReviewPosition.side) : '' }}</small></div><button type="button" :aria-label="$t('common.close')" @click="closeReviewOpen=false"><van-icon name="cross"/></button></header>
-        <div class="order-kind close-kind"><button v-for="type in ['market','limit']" :key="type" type="button" :class="{active:closeOrderType===type}" @click="closeOrderType=type">{{ $t(type==='market'?'chart_trade.order_market':'chart_trade.order_limit') }}</button></div>
+        <header><div><strong>{{ $t(closeOrderType==='market'?'chart_trade.market_close':'chart_trade.limit_close') }}</strong><small>{{ normalizedSymbol }} · {{ closeReviewPosition ? sideText(closeReviewPosition.side) : '' }}</small></div><button type="button" :aria-label="$t('common.close')" @click="closeReviewOpen=false"><van-icon name="cross"/></button></header>
+        <div class="close-size-kind">
+          <button v-for="mode in ['full','quantity','amount']" :key="mode" type="button" :class="{active:closeSizeMode===mode}" @click="selectCloseSizeMode(mode)">{{ $t(mode==='full'?'chart_trade.close_full':(mode==='quantity'?'chart_trade.by_quantity':'chart_trade.by_amount')) }}</button>
+        </div>
         <label v-if="closeOrderType==='limit'" class="ticket-field"><span>{{ $t('chart_trade.price') }}</span><div><input v-model="closePrice" inputmode="decimal" type="number" min="0"/><b>{{ quoteAsset }}</b></div></label>
-        <button type="button" class="submit-close" :disabled="submitting||(closeOrderType==='limit'&&!(Number(closePrice)>0))" @click="submitClosePosition">{{ $t('chart_trade.confirm_close') }}</button>
-      </section>
-    </van-popup>
-    <van-popup v-model:show="reviewOpen" round teleport="body" class="order-review-popup" :close-on-click-overlay="false">
-      <section v-if="orderReview" class="order-review">
-        <header><span>{{ $t('chart_trade.live_order') }}</span><button type="button" @click="resolveOrderReview(false)" :aria-label="$t('common.cancel')"><van-icon name="cross"/></button></header>
-        <div class="review-heading"><span :class="orderReview.side">{{ orderReview.sideLabel }}</span><div><strong>{{ orderReview.symbol }}</strong><small>{{ orderReview.account }}</small></div></div>
-        <dl>
-          <div><dt>{{ $t('chart_trade.market_type') }}</dt><dd>{{ orderReview.market }}</dd></div>
-          <div><dt>{{ $t('chart_trade.order') }}</dt><dd>{{ orderReview.type }}</dd></div>
-          <div><dt>{{ orderReview.quantity ? $t('chart_trade.filled_quantity') : $t('chart_trade.amount') }}</dt><dd>{{ orderReview.quantity ? `${orderReview.quantity} ${orderReview.unit}` : `${orderReview.amount} ${quoteAsset}` }}</dd></div>
-          <div><dt>{{ $t('chart_trade.price') }}</dt><dd>{{ orderReview.price }}</dd></div>
-          <div v-if="orderReview.marketType==='swap'"><dt>{{ $t('chart_trade.leverage') }}</dt><dd>{{ orderReview.leverage }}x · {{ orderReview.margin }}</dd></div>
-          <div v-if="riskEnabled"><dt>{{ $t('chart_trade.risk_orders') }}</dt><dd>{{ orderReview.tp }} / {{ orderReview.sl }}</dd></div>
-        </dl>
-        <p><van-icon name="warning-o"/>{{ $t('chart_trade.live_warning_short') }}</p>
-        <footer><button type="button" class="review-cancel" @click="resolveOrderReview(false)">{{ $t('common.cancel') }}</button><button type="button" :class="['review-submit',orderReview.side]" @click="resolveOrderReview(true)">{{ $t('chart_trade.confirm_submit') }}</button></footer>
+        <label v-if="closeSizeMode!=='full'" class="ticket-field"><span>{{ $t(closeSizeMode==='quantity'?'chart_trade.close_quantity':'chart_trade.close_amount') }}</span><div><input v-model="closeValue" inputmode="decimal" type="number" min="0"/><b>{{ closeSizeMode==='quantity' ? baseAsset : quoteAsset }}</b></div></label>
+        <div class="close-summary">
+          <span>{{ $t('chart_trade.close_available') }}</span><strong>{{ formatQuantity(closeMaxSize()) }} {{ baseAsset }}</strong>
+          <small v-if="closeSizeMode==='amount'&&closeRequestedSize()>0">{{ $t('chart_trade.estimated_close_quantity',{size:formatQuantity(closeRequestedSize()),unit:baseAsset}) }}</small>
+        </div>
+        <p v-if="closeValidationKey()&&closeValue!==''" class="close-error">{{ $t(closeValidationKey()) }}</p>
+        <button type="button" class="submit-close" :disabled="!canSubmitClose()" @click="submitClosePosition">{{ $t(closeOrderType==='market'?'chart_trade.market_close':'chart_trade.limit_close') }}</button>
       </section>
     </van-popup>
   </section>
@@ -201,7 +194,6 @@
 <script>
 import ExchangeLogo from '@/components/ExchangeLogo.vue'
 import StockTradePanel from '@/components/StockTradePanel.vue'
-import '@/styles/order-review.css'
 import {buildOrder,validateOrder,tradeProductFields,isCryptoProduct,OPEN_ORDER_STATUSES} from '@/utils/tradeOrder'
 import {balanceIssue,localizedBalanceIssue} from '@/utils/balanceIssue'
 import ExchangeOrderBookWs from '@/utils/exchangeOrderBookWs'
@@ -239,10 +231,9 @@ export default {
       closeReviewPosition: null,
       closeOrderType: 'market',
       closePrice: '',
+      closeSizeMode: 'full',
+      closeValue: '',
       marginPickerOpen: false,
-      reviewOpen: false,
-      orderReview: null,
-      reviewResolver: null,
       activeTab: 'positions',
       riskEnabled: false,
       submitting: false,
@@ -366,7 +357,7 @@ export default {
   },
   activated() { this.startPolling() },
   deactivated() { this.stopPolling();this.marginPickerOpen=false },
-  beforeUnmount() { this.stopPolling();this.clearPostTradeRefreshTimers();this.requestId++;this.orderBookRequestId++;this.resolveOrderReview(false);document.removeEventListener('pointerdown',this.closeMarginPicker) },
+  beforeUnmount() { this.stopPolling();this.clearPostTradeRefreshTimers();this.requestId++;this.orderBookRequestId++;document.removeEventListener('pointerdown',this.closeMarginPicker) },
   methods: {
     resetHistoryPagination() {
       this.tradeHistoryPage=1
@@ -612,7 +603,7 @@ export default {
       void this.refreshOrderBook()
       this.connectOrderBookStream()
     },
-    async confirmOrder(side) {
+    async submitOrder(side) {
       if(this.submitting)return
       if(!this.isCrypto){showToast(this.$t('account_ui.unsupported'));return}
       this.orderError=''
@@ -623,9 +614,6 @@ export default {
       const key=this.contextKey
       this.submitting=true
       try {
-        const review={account:this.selectedCredentialLabel,symbol:payload.symbol,market:this.$t(payload.market_type==='swap'?'chart_trade.swap':'chart_trade.spot'),marketType:payload.market_type,side,sideLabel:this.$t(side==='buy'?(payload.market_type==='swap'?'chart_trade.buy_long':'chart_trade.buy'):(payload.market_type==='swap'?'chart_trade.sell_short':'chart_trade.sell')),type:this.$t(payload.order_type==='market'?'chart_trade.order_market':'chart_trade.order_limit'),amount:payload.amount,quantity:payload.quantity,unit:this.baseAsset,price:payload.price||this.$t('chart_trade.order_market'),leverage:payload.leverage,margin:this.$t(payload.margin_mode==='isolated'?'chart_trade.isolated':'chart_trade.cross'),tp:payload.tp_price||'—',sl:payload.sl_price||'—'}
-        const confirmed=await this.openOrderReview(review)
-        if(!confirmed)return
         if(key!==this.contextKey){showToast(this.$t('audit.accountChanged'));return}
         const positionSide=side==='buy'?'long':'short',baselineSize=this.positionSizeForSide(positionSide)
         const response=await quickTradeApi.placeOrder(payload)
@@ -636,8 +624,42 @@ export default {
       } catch(error) { if(error!=='cancel'&&error!=='close'&&error?.message)this.orderError=error.localizedMessage||error.message }
       finally {this.submitting=false}
     },
-    prepareClose(position) {
-      this.closeReviewPosition=position;this.closeOrderType='market';this.closePrice=String(this.livePrice||'');this.closeReviewOpen=true
+    prepareClose(position,orderType='market') {
+      this.closeReviewPosition=position
+      this.closeOrderType=orderType==='limit'?'limit':'market'
+      this.closePrice=String(this.positionMarkPrice(position)||this.livePrice||'')
+      this.closeSizeMode='full'
+      this.closeValue=''
+      this.closeReviewOpen=true
+    },
+    selectCloseSizeMode(mode) {
+      this.closeSizeMode=['quantity','amount'].includes(mode)?mode:'full'
+      this.closeValue=''
+    },
+    closeMaxSize(position=this.closeReviewPosition) {
+      return Math.max(0,Math.abs(this.positionSize(position))||0)
+    },
+    closeReferencePrice() {
+      if(this.closeOrderType==='limit')return Math.max(0,Number(this.closePrice)||0)
+      return Math.max(0,this.positionMarkPrice(this.closeReviewPosition)||this.livePrice||this.positionEntryPrice(this.closeReviewPosition)||0)
+    },
+    closeRequestedSize() {
+      if(this.closeSizeMode==='full')return this.closeMaxSize()
+      const value=Math.max(0,Number(this.closeValue)||0)
+      if(this.closeSizeMode==='quantity')return value
+      const price=this.closeReferencePrice()
+      return price>0?Number((value/price).toPrecision(12)):0
+    },
+    closeValidationKey() {
+      if(!this.closeReviewPosition||!(this.closeMaxSize()>0))return 'chart_trade.close_size_invalid'
+      if(this.closeOrderType==='limit'&&!(Number(this.closePrice)>0))return 'chart_trade.close_price_invalid'
+      if(this.closeSizeMode==='amount'&&!(this.closeReferencePrice()>0))return 'chart_trade.close_price_unavailable'
+      if(this.closeSizeMode!=='full'&&!(Number(this.closeValue)>0))return 'chart_trade.close_size_invalid'
+      if(this.closeRequestedSize()>this.closeMaxSize()*(1+1e-9))return 'chart_trade.close_size_exceeds'
+      return ''
+    },
+    canSubmitClose() {
+      return !this.submitting&&!this.closeValidationKey()
     },
     async submitClosePosition() {
       if(!this.closeReviewPosition)return
@@ -646,10 +668,15 @@ export default {
     },
     async closePosition(position) {
       if(this.submitting)return
+      const validationKey=this.closeValidationKey()
+      if(validationKey){showToast(this.$t(validationKey));return false}
       const key=this.contextKey
-      const payload={credential_id:this.selectedCredentialId,symbol:this.normalizeSymbol(position.symbol||this.symbol),market_type:this.marketType,close_scope:this.marketType==='swap'?this.closeScope:'full',position_side:this.positionSide(position.side),order_type:this.closeOrderType,price:this.closeOrderType==='limit'?Number(this.closePrice):0,size:this.marketType==='swap'?Math.max(0,Math.abs(this.positionSize(position))||0):0,source:'indicator',...tradeProductFields(this.product)}
+      const partial=this.closeSizeMode!=='full'
+      const closeScope=partial?'full':(this.marketType==='swap'?this.closeScope:'full')
+      const size=!partial&&closeScope==='system_tracked'?0:this.closeRequestedSize()
+      const payload={credential_id:this.selectedCredentialId,symbol:this.normalizeSymbol(position.symbol||this.symbol),market_type:this.marketType,close_scope:closeScope,position_side:this.positionSide(position.side),order_type:this.closeOrderType,price:this.closeOrderType==='limit'?Number(this.closePrice):0,size,source:'indicator',...tradeProductFields(this.product)}
       this.submitting=true
-      try{await showConfirmDialog({title:this.$t('chart_trade.close_confirm_title'),message:this.selectedCredentialLabel+'\n'+this.$t('chart_trade.close_confirm_message',{symbol:payload.symbol})+'\n'+this.sideText(position.side)+' · '+this.$t(payload.close_scope==='full'?'audit.all':'audit.tracked')+' · '+this.$t(payload.order_type==='market'?'chart_trade.order_market':'chart_trade.order_limit')});if(key!==this.contextKey){showToast(this.$t('audit.accountChanged'));return false}const response=await quickTradeApi.closePosition(payload);const tradeId=response?.data?.trade_id||response?.data?.id;if(payload.order_type==='market'&&tradeId)this.rememberMarketOrderConfirmation(tradeId,payload.position_side,this.positionSizeForSide(payload.position_side),'decrease');showToast(this.$t('chart_trade.close_success'));await this.refreshTradeData();if(payload.order_type==='market')this.schedulePostTradeRefresh();return true}
+      try{if(key!==this.contextKey){showToast(this.$t('audit.accountChanged'));return false}const baselineSize=this.positionSizeForSide(payload.position_side);const response=await quickTradeApi.closePosition(payload);const tradeId=response?.data?.trade_id||response?.data?.id;if(payload.order_type==='market'&&tradeId)this.rememberMarketOrderConfirmation(tradeId,payload.position_side,baselineSize,'decrease');showToast(this.$t('chart_trade.close_success'));await this.refreshTradeData();if(payload.order_type==='market')this.schedulePostTradeRefresh();return true}
       catch(error){if(error?.message)this.dataError=error.message;return false}finally{this.submitting=false}
     },
     async cancelOrder(item) {
@@ -681,15 +708,6 @@ export default {
       const value=this.availableForSide(side)*pct/100
       if(this.marketType==='spot')this.form[this.spotInputField(side)]=String(this.spotInputMode(side)==='quantity'?Math.floor(value*1e8)/1e8:Math.floor(value*100)/100)
       else this.form.amount=String(Math.floor(value*100)/100)
-    },
-    openOrderReview(review) {
-      this.orderReview=review;this.reviewOpen=true
-      return new Promise(resolve=>{this.reviewResolver=resolve})
-    },
-    resolveOrderReview(confirmed) {
-      this.reviewOpen=false;this.orderReview=null
-      const resolve=this.reviewResolver;this.reviewResolver=null
-      if(resolve)resolve(Boolean(confirmed))
     },
     normalizeSymbol(value) {
       let symbol = String(value || '').trim().toUpperCase().replace('-SWAP', '')
@@ -724,13 +742,32 @@ export default {
     },
     positionSize(position) { return Number(position?.size ?? position?.quantity ?? position?.qty ?? position?.amount ?? 0) },
     positionEntryPrice(position) { return Number(position?.entry_price ?? position?.avg_price ?? 0) },
-    positionMarkPrice(position) { return Number(position?.mark_price ?? position?.current_price ?? position?.price ?? 0) },
+    positionSnapshotMarkPrice(position) { return Number(position?.mark_price ?? position?.current_price ?? position?.price ?? 0) },
+    positionRealtimePrice(position) {
+      const symbol=this.normalizeSymbol(position?.symbol||this.symbol)
+      if(symbol!==this.normalizedSymbol)return 0
+      return Math.max(0,Number(this.livePrice)||0)
+    },
+    positionMarkPrice(position) {
+      const snapshot=this.positionSnapshotMarkPrice(position)
+      return this.marketType==='swap'?(snapshot||this.positionRealtimePrice(position)):(this.positionRealtimePrice(position)||snapshot)
+    },
+    positionContractMultiplier(position) {
+      const explicit=Math.abs(Number(position?.contract_multiplier??position?.contract_size??position?.ct_val??0))
+      if(explicit>0)return explicit
+      const size=Math.abs(this.positionSize(position)),mark=this.positionSnapshotMarkPrice(position)
+      const notional=Math.abs(Number(position?.notional_usdt??position?.notionalUsd??position?.position_value??0))
+      const inferred=size>0&&mark>0&&notional>0?notional/(size*mark):0
+      if(Number.isFinite(inferred)&&inferred>0)return inferred
+      const bookMultiplier=Math.abs(Number(this.orderBookContractMultiplier)||0)
+      return this.marketType==='swap'&&bookMultiplier>0?bookMultiplier:1
+    },
     positionDerivedPnl(position) {
       const size=Math.abs(this.positionSize(position)),entry=this.positionEntryPrice(position),mark=this.positionMarkPrice(position)||this.livePrice
       if(!(size>0&&entry>0&&mark>0))return 0
       const side=String(position?.side||position?.position_side||position?.direction||'long').toLowerCase()
       const direction=['short','sell'].includes(side)?-1:1
-      const multiplier=Math.abs(Number(position?.contract_size??position?.contract_multiplier??1))||1
+      const multiplier=this.positionContractMultiplier(position)
       return (mark-entry)*size*direction*multiplier
     },
     positionPnl(position) {
@@ -738,11 +775,11 @@ export default {
       return Number.isFinite(reported)&&(Math.abs(reported)>1e-12||Math.abs(derived)<=1e-12)?reported:derived
     },
     positionCost(position) {
-      return Math.abs(this.positionSize(position)*this.positionEntryPrice(position))
+      return Math.abs(this.positionSize(position)*this.positionEntryPrice(position)*this.positionContractMultiplier(position))
     },
     positionCurrentValue(position) {
       const price=this.positionMarkPrice(position)||this.livePrice
-      return Math.abs(this.positionSize(position)*price)
+      return Math.abs(this.positionSize(position)*price*this.positionContractMultiplier(position))
     },
     positionPnlPercent(position) {
       const explicitMargin=Number(position?.initial_margin??position?.position_margin??position?.margin)
@@ -779,7 +816,7 @@ export default {
     startPolling() {
       this.stopPolling()
       this.restartOrderBookFeed()
-      this.pollTimer=window.setInterval(()=>{if(!document.hidden&&!this.submitting)void this.refreshTradeData()},30000)
+      this.pollTimer=window.setInterval(()=>{if(!document.hidden&&!this.submitting)void this.refreshTradeData()},10000)
     },
     stopPolling() {
       if(this.pollTimer)window.clearInterval(this.pollTimer)
@@ -847,11 +884,11 @@ button:disabled { opacity: .38; }
 .position-item { padding: 11px; }.position-title { display: flex; justify-content: space-between; margin-bottom: 10px; }.position-title > div { display: flex; gap: 8px; }.position-title small { color: var(--text-3); }.position-title span small{font-size:9px}.up { color: var(--up) !important; }.down { color: var(--down) !important; }
 .position-data { display: grid; grid-template-columns: .8fr 1.6fr 1fr 1fr; gap: 6px; color: var(--text-3); font-size: 10px; }.position-data span { display: flex; flex-direction: column; gap: 3px; min-width:0; }.position-data b { overflow:hidden;color: var(--text); font-size: 11px;text-overflow:ellipsis;white-space:nowrap; }
 .spot-position-data{grid-template-columns:repeat(3,minmax(0,1fr))}
-.position-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}.position-actions .close-position:only-child{grid-column:1/-1}.close-position,.protect-position{width:100%;min-height:32px;border-radius:6px;font-size:11px;font-weight:800}.close-position{border:1px solid color-mix(in srgb,var(--down) 32%,var(--border));color:var(--down);background:var(--down-soft)}.protect-position{border:1px solid color-mix(in srgb,var(--accent) 34%,var(--border));color:var(--accent);background:var(--accent-soft)}
+.position-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}.position-actions .protect-position{grid-column:1/-1}.close-position,.protect-position{width:100%;min-height:32px;border-radius:6px;font-size:11px;font-weight:800}.close-position{border:1px solid color-mix(in srgb,var(--down) 32%,var(--border));color:var(--down);background:var(--down-soft)}.close-position.limit-close{background:transparent}.protect-position{border:1px solid color-mix(in srgb,var(--accent) 34%,var(--border));color:var(--accent);background:var(--accent-soft)}
 .history-item { padding: 11px; }.history-item header { display:flex;align-items:flex-start;justify-content:space-between;gap:10px }.history-item header>div{display:flex;align-items:center;gap:7px}.history-item header>div:last-child{flex-direction:column;align-items:flex-end;gap:2px}.history-item header span{padding:2px 6px;border-radius:4px;background:var(--surface-deep);font-size:10px;font-weight:800}.history-item small,.history-item time { color: var(--text-3); font-size: 10px; }.history-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:11px;padding-top:10px;border-top:1px solid var(--hairline)}.history-metrics span{display:flex;min-width:0;flex-direction:column;gap:3px}.history-metrics b{overflow:hidden;color:var(--text);font-size:11px;font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}.history-error{margin:9px 0 0;color:var(--down);font-size:10px}.cancel-order{width:100%;min-height:30px;margin-top:9px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text-2)}
 .activity-pagination{grid-column:1/-1;margin-top:6px}.activity-pagination :deep(.van-pagination__item){min-width:36px;height:36px;color:var(--text-2);background:var(--bg-elevated);border-color:var(--border)}.activity-pagination :deep(.van-pagination__item--active){color:var(--text-on-accent);background:var(--accent)}
 .protection-popup{background:var(--bg-elevated)}.protection-sheet{padding:18px 18px calc(20px + var(--safe-area-bottom,0px));color:var(--text)}.protection-sheet>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.protection-sheet>header>div{display:flex;flex-direction:column;gap:4px}.protection-sheet>header strong{font-size:17px}.protection-sheet>header small{color:var(--text-3);font-size:11px}.protection-sheet>header button{border:0;background:transparent;color:var(--text-2);font-size:18px}.protection-orders{display:grid;gap:7px;margin-top:16px}.protection-orders article{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:10px 11px;border-radius:9px;background:var(--surface-raised)}.protection-orders span{color:var(--text-2);font-size:11px}.protection-orders strong{font-size:12px}.protection-orders button{border:0;background:transparent;color:var(--down);font-size:11px}.protection-empty{margin:18px 0;color:var(--text-3);font-size:12px;text-align:center}.protection-form{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}.protection-form .order-kind{grid-column:1/-1}.protection-form .ticket-field{margin:0}.save-protection{min-width:72px;border:0;border-radius:8px;background:var(--accent);color:var(--text-on-accent);font-size:12px;font-weight:750}.save-protection:disabled{opacity:.4}
-.close-kind{margin-top:18px}.submit-close{width:100%;min-height:44px;margin-top:12px;border:0;border-radius:8px;background:var(--down);color:#fff;font-size:13px;font-weight:800}.submit-close:disabled{opacity:.4}
+.close-size-kind{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-top:18px;padding:3px;border:1px solid var(--border);border-radius:8px;background:var(--surface-deep)}.close-size-kind button{min-height:36px;border:0;border-radius:6px;background:transparent;color:var(--text-3);font-size:11px;font-weight:700}.close-size-kind button.active{background:var(--surface-raised);color:var(--text);box-shadow:0 1px 4px color-mix(in srgb,var(--text) 9%,transparent)}.close-sheet>.ticket-field{margin-top:12px}.close-summary{display:grid;grid-template-columns:1fr auto;gap:4px 12px;margin-top:12px;color:var(--text-3);font-size:11px}.close-summary strong{color:var(--text);font-variant-numeric:tabular-nums}.close-summary small{grid-column:1/-1;color:var(--text-3)}.close-error{margin:10px 0 0;color:var(--down);font-size:11px;line-height:1.45}.submit-close{width:100%;min-height:44px;margin-top:12px;border:0;border-radius:8px;background:var(--down);color:#fff;font-size:13px;font-weight:800}.submit-close:disabled{opacity:.4}
 @media (min-width: 720px) { .trade-terminal { max-width: 720px; margin-left: auto; margin-right: auto; } }
 .segmented{display:flex;overflow-x:auto;gap:4px}.segmented button{flex:0 0 auto;padding:0 10px}.data-error{color:var(--down);font-size:12px}.ticket-account strong{white-space:normal}.position-title{gap:8px;flex-wrap:wrap}.position-title>div{flex-wrap:wrap}.trade-list>p{font-size:12px;color:var(--text-3)}
 </style>
@@ -915,6 +952,26 @@ button:disabled { opacity: .38; }
 </style>
 
 <style scoped>.dual-segment button.active{background:color-mix(in srgb,var(--v2-brand) 10%,var(--v2-surface));color:var(--v2-brand-strong);box-shadow:none}.segmented button.active{color:var(--v2-brand-strong);background:color-mix(in srgb,var(--v2-brand) 10%,var(--v2-surface));box-shadow:none;border-radius:6px}.segmented button{min-height:44px;font-weight:500}.terminal-head{gap:10px}.terminal-head .eyebrow{font-weight:400;text-transform:none;letter-spacing:0}.terminal-head strong{font-weight:500}.account-link{max-width:65%;font-weight:500}</style>
+
+<style scoped>
+@media (max-width: 430px) {
+  .trade-terminal { margin-top: 8px; }
+  .terminal-head { min-height: 44px; padding: 8px 12px; }
+  .inline-ticket { padding: 10px 12px; }
+  .ticket-mode { gap: 6px; margin-bottom: 8px; }
+  .compact-select { min-width: 76px; }
+  .compact-select-trigger { min-height: 36px; padding-inline: 8px; }
+  .compact-leverage { width: 56px; padding-inline: 7px; }
+  .order-kind button { min-height: 34px; }
+  .market-price-row, .ticket-balance { padding: 8px 0; }
+  .liquidity-snapshot { margin: 2px 0 8px; padding: 8px; }
+  .liquidity-snapshot > header { margin-bottom: 6px; }
+  .depth-mid { padding: 5px 7px; }
+  .depth-row { min-height: 21px; }
+  .inline-activity { margin-top: 8px; padding: 8px 12px 12px; }
+  .segmented button { min-height: 36px; }
+}
+</style>
 
 <style>
 

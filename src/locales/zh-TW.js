@@ -42,13 +42,13 @@ export default {
     notional: '預計名義價值 {amount} USDT', risk_orders: '止盈止損', optional: '可選', take_profit: '止盈觸發價', stop_loss: '止損觸發價',
     live_warning: '這是實盤交易。提交後會使用所選帳戶真實下單，請核對方向、金額、槓桿及止盈止損。',
     complete_order: '請選擇帳戶並填寫有效參數', confirm_title: '確認實盤下單', confirm_quantity: '{account}\n{symbol} · {market}\n{side} · {type}\n數量：{quantity} {unit}\n價格：{price}\n將傳送至真實交易帳戶。', confirm_message: '{side} {symbol}\n{type} · {amount} USDT\n將傳送至真實交易帳戶。', confirm_submit: '確認下單', order_success: '訂單已提交',
-    size: '數量', value: '成本 / 目前', entry: '開倉價', mark: '標記價', holding: '持有', unit_price: '單價', current_value: '目前價值', close_position: '平倉', close_confirm_title: '確認實盤平倉', close_confirm_message: '確定平掉 {symbol} 持倉嗎？', close_success: '平倉指令已提交',
+    size: '數量', value: '成本 / 目前', entry: '開倉價', mark: '標記價', holding: '持有', unit_price: '單價', current_value: '目前價值', close_position: '平倉', market_close: '市價平倉', limit_close: '限價平倉', close_full: '全部平倉', close_quantity: '平倉數量', close_amount: '平倉金額', close_available: '可平數量', estimated_close_quantity: '預計平倉數量：{size} {unit}', close_size_invalid: '請輸入有效的平倉數量或金額', close_size_exceeds: '平倉數量不能超過目前持倉', close_price_invalid: '請輸入有效的限價價格', close_price_unavailable: '缺少參考價格，暫時無法按金額換算', close_success: '平倉指令已提交',
     no_positions: '目前沒有持倉', no_history: '暫無最近訂單', long: '多', short: '空', close_long: '平多', close_short: '平空', status_filled: '已成交', status_submitted: '已提交', status_failed: '失敗', status_canceled: '已取消',
     fill_price: '成交均價', filled_quantity: '成交數量', trade_value: '成交額', realized_pnl: '平倉盈虧', live_order: '實盤訂單', live_warning_short: '確認後將立即提交到真實交易帳戶，請再次核對訂單。',
     fee: '交易手續費', position_history: '歷史倉位', closed_quantity: '平倉數量', entry_exit: '開倉 / 平倉', net_pnl: '淨盈虧', no_position_history: '暫無已平倉倉位', position_history_unsupported: '目前交易所暫不提供歷史倉位',
     manage_protection: '止盈止損', take_profit_short: '止盈', stop_loss_short: '止損', trigger_price: '觸發價格', no_protection_orders: '暫無止盈止損委託', protection_unsupported: '目前交易所暫不支援持倉止盈止損', protection_saved: '止盈止損已更新', confirm_close: '確認平倉',
     liquidity_title: '訂單簿', best_bid: '最佳買價', best_ask: '最佳賣價', spread: '價差', depth_price: '價格', depth_size: '數量', depth_total: '累計', buy_pressure: '買方 {value}%', sell_pressure: '賣方 {value}%', liquidity_loading: '正在載入盤口…', liquidity_unavailable: '盤口資料暫不可用',
-    chart_risk_hint: '圖表訊號僅供輔助判斷；實盤交易均需二次確認。'
+    chart_risk_hint: '圖表訊號僅供輔助判斷；閃電交易點擊後會立即提交。'
   },
   api_errors: {
     request_failed: '請求失敗', network_error: '網路錯誤', unauthorized: '登入已失效，請重新登入',

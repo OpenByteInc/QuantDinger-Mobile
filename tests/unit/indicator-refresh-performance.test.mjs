@@ -35,7 +35,7 @@ test('order book uses a live stream with lightweight REST fallback independent f
   assert.match(tradePanel,/connectOrderBookStream\(\)/)
   assert.match(tradePanel,/orderBookUsingRestFallback=true/)
   assert.match(tradePanel,/orderBookTimer=window\.setInterval\([^;]+,2000\)/)
-  assert.match(tradePanel,/pollTimer=window\.setInterval\([^;]+,30000\)/)
+  assert.match(tradePanel,/pollTimer=window\.setInterval\([^;]+,10000\)/)
   const refreshBody=tradePanel.match(/async refreshTradeData\(\) \{([\s\S]*?)\n    \},\n    async refreshOrderBook/)?.[1]||''
   assert.doesNotMatch(refreshBody,/this\.refreshOrderBook\(\)/)
   assert.match(tradePanel,/updateStoreIfChanged\('positions'/)

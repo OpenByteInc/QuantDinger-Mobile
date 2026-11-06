@@ -14,11 +14,14 @@ test('the mobile product uses one fixed Global Ivory appearance', async () => {
     read('src/views/profile/Language.vue')
   ])
 
-  assert.match(baseStyles, /--bg: #faf8f3/)
+  assert.match(baseStyles, /--bg: #fbf7ef/)
   assert.match(baseStyles, /--bg-elevated: #f6f4ef/)
   assert.match(baseStyles, /--border: rgba\(24, 25, 29, 0\.11\)/)
+  assert.match(v2Styles, /--v2-bg: #fbf7ef/)
   assert.match(v2Styles, /--v2-surface: #f6f4ef/)
   assert.match(v2Styles, /--v2-line: rgba\(24,25,29,\.11\)/)
+  assert.match(appShell, /\.app-container\.ivory-shell,[\s\S]*background: #fbf7ef/)
+  assert.match(appShell, /\.app-container\.ivory-shell[\s\S]*--v2-bg: #fbf7ef/)
   assert.match(appShell, /\.app-container\.ivory-shell[\s\S]*--v2-surface: #f6f4ef/)
   assert.match(appShell, /\.app-container\.ivory-shell[\s\S]*--bg-elevated: #f6f4ef/)
   assert.doesNotMatch(`${baseStyles}${v2Styles}${appShell}`, /#(?:f2e7d7|eadbc6)/i)
@@ -99,4 +102,21 @@ test('primary mobile screens use a restrained sans and editorial serif type syst
   assert.match(baseStyles, /:where\(h1, h2, h3\)[\s\S]*font-family: var\(--font-display\)/)
   assert.match(baseStyles, /button\[aria-selected='true'\]/)
   assert.doesNotMatch(primaryScreens, /Times New Roman/)
+})
+
+test('phone layouts use compact spacing without sparse metric cells', async () => {
+  const [profile, chart, tradePanel, research, strategyDetail] = await Promise.all([
+    read('src/views/v2/ProfileHub.vue'),
+    read('src/views/indicator/Chart.vue'),
+    read('src/components/ChartTradePanel.vue'),
+    read('src/views/v2/AiResearch.vue'),
+    read('src/views/trading/StrategyDetail.vue')
+  ])
+
+  assert.match(profile, /@media \(max-width: 430px\)[\s\S]*\.stats button \{ min-height: 44px; \}[\s\S]*\.account \{ min-height: 64px;/)
+  assert.match(chart, /@media \(max-width: 430px\)[\s\S]*\.signal-summary \{ margin: 8px 12px 0; padding: 9px 0; \}/)
+  assert.match(tradePanel, /@media \(max-width: 430px\)[\s\S]*\.compact-select-trigger \{ min-height: 36px;[\s\S]*\.depth-row \{ min-height: 21px; \}/)
+  assert.match(research, /@media \(max-width: 430px\)[\s\S]*\.research-shell :deep\(\.top-bar\)[\s\S]*margin-bottom: 10px;[\s\S]*\.research-shell :deep\(\.starter-grid button\) \{ min-height: 48px;/)
+  assert.match(strategyDetail, /@media \(max-width:430px\)\{\.metric-section\{padding:14px 0\}\.metric-grid\{grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/)
+  assert.match(strategyDetail, /\.metric-grid article:nth-child\(n\+4\)\{grid-column:span 3;border-top:1px solid var\(--v2-line\)\}/)
 })

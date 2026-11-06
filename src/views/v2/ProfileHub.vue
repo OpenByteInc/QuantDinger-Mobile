@@ -122,3 +122,19 @@ function handleMenu(item){router.push(item.path)} function formatNumber(v){retur
 .menu-icon { color: #8b6526; }
 .profile-page .logout-button { margin-top: 32px; border-radius: 0; border-color: var(--v2-line); color: var(--v2-red); background: transparent; }
 </style>
+
+<style scoped>
+@media (max-width: 430px) {
+  .profile-page.profile-page { padding: calc(12px + var(--safe-area-top)) 14px 28px; }
+  .profile-page .profile-top { top: calc(12px + var(--safe-area-top)); right: 14px; }
+  .profile-page .identity { margin-bottom: 14px; }
+  .stats { padding: 8px 0; }
+  .stats button { min-height: 44px; }
+  .stats strong { margin-top: 3px; font-size: 20px; }
+  .account { min-height: 64px; grid-template-columns: 40px 1fr auto; gap: 10px; margin-top: 8px; padding: 10px 0; }
+  .account :deep(.exchange-logo) { width: 40px; height: 40px; }
+  .account b, .account small { margin-top: 2px; }
+  .menu-block h2 { margin-top: 20px; }
+  .menu-list button { height: 50px; }
+}
+</style>

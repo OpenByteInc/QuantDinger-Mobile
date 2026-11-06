@@ -43,13 +43,13 @@ export default {
     live_warning: '这是实盘交易。提交后将使用所选交易账户真实下单，请核对方向、金额、杠杆和止盈止损。',
     complete_order: '请先选择账户并填写有效的下单参数', confirm_title: '确认实盘下单', confirm_quantity: '{account}\n{symbol} · {market}\n{side} · {type}\n数量：{quantity} {unit}\n价格：{price}\n提交后将发送到真实交易账户。',
     confirm_message: '{side} {symbol}\n{type} · {amount} USDT\n提交后将发送到真实交易账户。', confirm_submit: '确认下单', order_success: '订单已提交',
-    size: '数量', value: '成本 / 当前', entry: '开仓价', mark: '标记价', holding: '持有', unit_price: '单价', current_value: '当前价值', close_position: '平仓', close_confirm_title: '确认实盘平仓', close_confirm_message: '确定平掉 {symbol} 当前持仓吗？', close_success: '平仓指令已提交',
+    size: '数量', value: '成本 / 当前', entry: '开仓价', mark: '标记价', holding: '持有', unit_price: '单价', current_value: '当前价值', close_position: '平仓', market_close: '市价平仓', limit_close: '限价平仓', close_full: '全部平仓', close_quantity: '平仓数量', close_amount: '平仓金额', close_available: '可平数量', estimated_close_quantity: '预计平仓数量：{size} {unit}', close_size_invalid: '请输入有效的平仓数量或金额', close_size_exceeds: '平仓数量不能超过当前持仓', close_price_invalid: '请输入有效的限价价格', close_price_unavailable: '缺少参考价格，暂时无法按金额换算', close_success: '平仓指令已提交',
     no_positions: '当前没有持仓', no_history: '暂无最近订单', long: '多', short: '空', close_long: '平多', close_short: '平空', status_filled: '已成交', status_submitted: '已提交', status_failed: '失败', status_canceled: '已取消',
     fill_price: '成交均价', filled_quantity: '成交数量', trade_value: '成交额', realized_pnl: '平仓盈亏', live_order: '实盘订单', live_warning_short: '确认后将立即提交到真实交易账户，请再次核对订单。',
     fee: '交易手续费', position_history: '历史仓位', closed_quantity: '平仓数量', entry_exit: '开仓 / 平仓', net_pnl: '净盈亏', no_position_history: '暂无已平仓仓位', position_history_unsupported: '当前交易所暂不提供历史仓位',
     manage_protection: '止盈止损', take_profit_short: '止盈', stop_loss_short: '止损', trigger_price: '触发价格', no_protection_orders: '暂无止盈止损委托', protection_unsupported: '当前交易所暂不支持持仓止盈止损', protection_saved: '止盈止损已更新', confirm_close: '确认平仓',
     liquidity_title: '订单簿', best_bid: '最优买价', best_ask: '最优卖价', spread: '价差', depth_price: '价格', depth_size: '数量', depth_total: '累计', buy_pressure: '买方 {value}%', sell_pressure: '卖方 {value}%', liquidity_loading: '正在加载盘口…', liquidity_unavailable: '盘口数据暂不可用',
-    chart_risk_hint: '图表信号仅供辅助判断；实盘交易均需二次确认。'
+    chart_risk_hint: '图表信号仅供辅助判断；闪电交易点击后会立即提交。'
   },
   api_errors: {
     request_failed: '请求失败', network_error: '网络错误', unauthorized: '登录已失效，请重新登录',

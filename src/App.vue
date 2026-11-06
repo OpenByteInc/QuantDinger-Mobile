@@ -191,11 +191,11 @@ const goTab = (item) => {
 
 .app-container.ivory-shell,
 .app-container.ivory-shell .app-main {
-  background: #faf8f3;
+  background: #fbf7ef;
 }
 
 .app-container.ivory-shell {
-  --v2-bg: #faf8f3;
+  --v2-bg: #fbf7ef;
   --v2-surface: #f6f4ef;
   --v2-surface-2: #ece9e2;
   --v2-line: rgba(24, 25, 29, .11);
@@ -208,8 +208,8 @@ const goTab = (item) => {
   --v2-green: #0e603f;
   --v2-red: #8b2437;
   --v2-orange: #a87821;
-  --bg: #faf8f3;
-  --bg-page: #faf8f3;
+  --bg: #fbf7ef;
+  --bg-page: #fbf7ef;
   --bg-elevated: #f6f4ef;
   --bg-elevated-2: #ece9e2;
   --surface-flat: #f6f4ef;

@@ -148,8 +148,35 @@ onBeforeUnmount(() => {
   animation: cat-blink 6.4s ease-in-out infinite;
 }
 
+.cat-blink::before,
+.cat-blink::after {
+  position: absolute;
+  top: 78%;
+  width: 23%;
+  height: 4px;
+  border-radius: 2px;
+  background: #08111f;
+  opacity: 0;
+  content: '';
+  transform: translateY(-2px) scaleX(.68);
+  transform-origin: center;
+  transition:
+    opacity 140ms ease-out,
+    transform 200ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.cat-blink::before {
+  left: 18.2%;
+}
+
+.cat-blink::after {
+  right: 17.1%;
+}
+
 .cat-eye {
-  transition: transform 240ms cubic-bezier(.2, .8, .2, 1);
+  transition:
+    transform 240ms cubic-bezier(.2, .8, .2, 1),
+    opacity 120ms ease-out;
 }
 
 .cat-eye-left {
@@ -162,7 +189,12 @@ onBeforeUnmount(() => {
   transform-origin: 63.6% 65.75%;
 }
 
-.mood-closed .cat-eye { transform: scaleY(.06); }
+.mood-closed .cat-eye { opacity: 0; }
+.mood-closed .cat-blink::before,
+.mood-closed .cat-blink::after {
+  opacity: 1;
+  transform: translateY(0) scaleX(1);
+}
 .mood-wink .cat-eye-left { transform: scaleY(.1) rotate(-8deg); }
 .mood-wink .cat-eye-right { transform: scale(1.06); }
 .mood-smile .cat-eye-left { transform: rotate(-8deg) scaleY(.25); }
@@ -185,11 +217,16 @@ onBeforeUnmount(() => {
 }
 
 .reduced-motion .cat-blink { animation: none; }
+.reduced-motion .cat-blink::before,
+.reduced-motion .cat-blink::after,
 .reduced-motion .cat-eye,
 .reduced-motion .cat-gaze { transition: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .cat-blink { animation: none; }
-  .cat-eye, .cat-gaze { transition: none; }
+  .cat-blink::before,
+  .cat-blink::after,
+  .cat-eye,
+  .cat-gaze { transition: none; }
 }
 </style>

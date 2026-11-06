@@ -132,3 +132,37 @@ defineOptions({name:'AiResearchV2'})
 .research-shell :deep(.message-row.user .bubble) { box-shadow: none; }
 .research-shell :deep(.send-action) { border-radius: 0; background: var(--v2-brand); }
 </style>
+
+<style scoped>
+.research-shell :deep(.copilot-body.empty .chat-panel) {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+
+.research-shell :deep(.copilot-body.empty .chat-panel::-webkit-scrollbar) {
+  display: none;
+}
+
+.research-shell :deep(.copilot-body.empty .welcome-card) {
+  height: auto;
+  min-height: 100%;
+}
+
+@media (max-width: 430px) {
+  .research-shell { padding: calc(8px + var(--safe-area-top)) 12px 20px; }
+  .research-shell :deep(.top-bar) { grid-template-columns: 32px minmax(0, 1fr) 32px; gap: 4px; margin-bottom: 10px; padding-block: 5px; }
+  .research-shell :deep(.new-chat), .research-shell :deep(.history-btn) { width: 32px; height: 32px; font-size: 17px; }
+  .research-shell :deep(.top-bar .context-chip) { min-height: 36px; height: 36px; padding: 2px 4px 2px 7px; }
+  .research-shell :deep(.top-bar .context-identity strong) { font-size: 14px; }
+  .research-shell :deep(.top-bar .context-quote strong) { font-size: 12px; }
+  .research-shell :deep(.top-bar .context-switch) { width: 21px; height: 21px; }
+  .research-shell :deep(.welcome-card) { padding: 12px 0 8px; }
+  .research-shell :deep(.welcome-intro) { min-height: 104px; margin-bottom: 8px; }
+  .research-shell :deep(.report-feature-card) { margin-top: 12px; padding: 12px 0; }
+  .research-shell :deep(.starter-grid) { margin-top: 4px; }
+  .research-shell :deep(.starter-grid button) { min-height: 48px; padding: 6px 0; }
+  .research-shell :deep(.ask-card) { padding: 8px; }
+  .research-shell :deep(.ask-card textarea) { min-height: 40px; }
+}
+</style>

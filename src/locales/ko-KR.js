@@ -42,13 +42,13 @@ export default {
     notional: '예상 명목가치 {amount} USDT', risk_orders: '익절 / 손절', optional: '선택', take_profit: '익절 트리거', stop_loss: '손절 트리거',
     live_warning: '실거래 주문입니다. 제출 전에 방향, 금액, 레버리지와 위험 주문을 확인하세요.',
     complete_order: '계정을 선택하고 유효한 주문 내용을 입력하세요', confirm_title: '실거래 주문 확인', confirm_quantity: '{account}\n{symbol} · {market}\n{side} · {type}\n수량: {quantity} {unit}\n가격: {price}\n실제 거래 계정으로 전송됩니다.', confirm_message: '{side} {symbol}\n{type} · {amount} USDT\n실제 거래 계정으로 전송됩니다.', confirm_submit: '주문 제출', order_success: '주문이 제출되었습니다',
-    size: '수량', value: '비용 / 현재', entry: '진입가', mark: '표시가', holding: '보유', unit_price: '단가', current_value: '현재 가치', close_position: '포지션 종료', close_confirm_title: '실거래 종료 확인', close_confirm_message: '{symbol} 포지션을 종료할까요?', close_success: '종료 요청이 제출되었습니다',
+    size: '수량', value: '비용 / 현재', entry: '진입가', mark: '표시가', holding: '보유', unit_price: '단가', current_value: '현재 가치', close_position: '포지션 종료', market_close: '시장가 종료', limit_close: '지정가 종료', close_full: '전체 종료', close_quantity: '종료 수량', close_amount: '종료 금액', close_available: '종료 가능 수량', estimated_close_quantity: '예상 종료 수량: {size} {unit}', close_size_invalid: '유효한 종료 수량 또는 금액을 입력하세요', close_size_exceeds: '종료 수량은 현재 포지션을 초과할 수 없습니다', close_price_invalid: '유효한 지정가를 입력하세요', close_price_unavailable: '금액을 수량으로 변환할 기준 가격이 없습니다', close_success: '종료 요청이 제출되었습니다',
     no_positions: '보유 포지션이 없습니다', no_history: '최근 주문이 없습니다', long: '롱', short: '숏', close_long: '롱 종료', close_short: '숏 종료', status_filled: '체결', status_submitted: '제출됨', status_failed: '실패', status_canceled: '취소됨',
     fill_price: '평균 체결가', filled_quantity: '체결 수량', trade_value: '체결 금액', realized_pnl: '실현 손익', live_order: '실거래 주문', live_warning_short: '확인하면 실제 거래 계정으로 즉시 전송됩니다. 주문 내용을 다시 확인하세요.',
     fee: '거래 수수료', position_history: '종료 포지션', closed_quantity: '종료 수량', entry_exit: '진입 / 종료', net_pnl: '순손익', no_position_history: '종료된 포지션이 없습니다', position_history_unsupported: '이 거래소에서는 포지션 기록을 사용할 수 없습니다',
     manage_protection: '익절 / 손절', take_profit_short: '익절', stop_loss_short: '손절', trigger_price: '트리거 가격', no_protection_orders: '익절·손절 주문이 없습니다', protection_unsupported: '이 거래소에서는 포지션 보호를 사용할 수 없습니다', protection_saved: '포지션 보호가 업데이트되었습니다', confirm_close: '종료 확인',
     liquidity_title: '호가창', best_bid: '최우선 매수', best_ask: '최우선 매도', spread: '스프레드', depth_price: '가격', depth_size: '수량', depth_total: '누적', buy_pressure: '매수 {value}%', sell_pressure: '매도 {value}%', liquidity_loading: '호가창 불러오는 중…', liquidity_unavailable: '호가창을 일시적으로 사용할 수 없습니다',
-    chart_risk_hint: '차트 신호는 판단 보조용이며, 실거래 주문에는 확인이 필요합니다.'
+    chart_risk_hint: '차트 신호는 판단 보조용입니다. 빠른 거래는 탭하면 즉시 제출됩니다.'
   },
   api_errors: {
     request_failed: '요청에 실패했습니다', network_error: '네트워크 오류', unauthorized: '세션이 만료되었습니다. 다시 로그인하세요.',

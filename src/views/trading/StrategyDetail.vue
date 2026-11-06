@@ -277,6 +277,6 @@ export default {
 .risk-card{border-radius:7px}
 .ownership-sheet{color:var(--v2-text);background:var(--v2-surface)}
 .sheet-head{background:var(--v2-surface)}
-@media (max-width:430px){.metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.metric-grid article:nth-child(3){border-right:0}.metric-grid article:nth-child(n+4){border-top:1px solid var(--v2-line)}.metric-grid article:last-child:nth-child(odd){grid-column:auto}}
+@media (max-width:430px){.metric-section{padding:14px 0}.metric-grid{grid-template-columns:repeat(6,minmax(0,1fr));margin-top:10px}.metric-grid article{grid-column:span 2;min-height:68px;padding:9px}.metric-grid article:nth-child(3),.metric-grid article:nth-child(5){border-right:0}.metric-grid article:nth-child(n+4){grid-column:span 3;border-top:1px solid var(--v2-line)}.metric-grid article:last-child:nth-child(odd){grid-column:span 3}}
 @media (min-width:560px){.page{max-width:520px;margin-inline:auto;border-inline:1px solid var(--v2-line)}.hero-card,.metric-section,.tab-panel,.risk-card{width:auto;max-width:none;margin-inline:var(--detail-gutter)}}
 </style>

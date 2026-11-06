@@ -115,7 +115,6 @@ function loadPanel(api,dialog=async()=>{}){
  const options=new Function('quickTradeApi','showConfirmDialog','showToast','ExchangeLogo','StockTradePanel','buildOrder','validateOrder','tradeProductFields','OPEN_ORDER_STATUSES','balanceIssue','localizedBalanceIssue',source)(api,dialog,()=>{},null,null,buildOrder,validateOrder,tradeProductFields,OPEN_ORDER_STATUSES,balanceIssue,localizedBalanceIssue)
  const vm={...options.data(),quickTradeStore:store,selectedCredentialId:7,selectedCredential:{id:7,name:'Gate'},selectedCredentialLabel:'Gate',isCrypto:true,normalizedSymbol:'BTC/USDT',marketType:'swap',livePrice:65000,$t:key=>key,$te:()=>true,form:{...form},$emit:()=>{}}
  for(const [name,method] of Object.entries(options.methods))vm[name]=method.bind(vm)
- vm.openOrderReview=async()=>{try{await dialog();return true}catch{return false}}
  Object.defineProperty(vm,'activeBalanceAvailable',{get:()=>Number(store.balance?.available||0)})
  Object.defineProperty(vm,'sellQuantity',{get:()=>options.computed.sellQuantity.call(vm)})
  Object.defineProperty(vm,'positions',{get:()=>store.positions})
@@ -153,9 +152,9 @@ test('balance account issues support active market legs and all mobile locales',
   assert.ok(Object.values(exchangeAccountErrors[locale]).every(value=>typeof value==='string'&&value.length>0))
  }
 })
-test('cancelled order review never sends a mutation',async()=>{
- let calls=0;const panel=loadPanel({placeOrder:async()=>calls++},async()=>{throw 'cancel'})
- panel.balanceReady=true;panel.quickTradeStore.balance={available:500};await panel.confirmOrder('buy');assert.equal(calls,0);assert.equal(panel.submitting,false)
+test('quick trade submits immediately without opening a confirmation dialog',async()=>{
+ let calls=0,dialogs=0;const panel=loadPanel({placeOrder:async()=>calls++},async()=>{dialogs++;throw 'cancel'})
+ panel.balanceReady=true;panel.quickTradeStore.balance={available:500};await panel.submitOrder('buy');assert.equal(calls,1);assert.equal(dialogs,0);assert.equal(panel.submitting,false)
 })
 
 test('background account refresh retains the displayed balance and entered order',async()=>{
@@ -191,14 +190,20 @@ test('perpetual buy and sell capacity is displayed as balance times leverage',()
  const panel=loadPanel({});panel.quickTradeStore.balance={available:482.64};panel.form.leverage='5'
  assert.equal(panel.maxNotional('buy'),2413.2);assert.equal(panel.maxNotional('sell'),2413.2)
 })
-test('derivative position PnL falls back to mark price and ROE uses margin principal',()=>{
- const panel=loadPanel({});panel.livePrice=84374
- const long={side:'long',size:0.1311,entry_price:84458.2,mark_price:84374,leverage:5,unrealized_pnl:0}
- const expected=(84374-84458.2)*0.1311
- assert.ok(Math.abs(panel.positionPnl(long)-expected)<1e-9)
- assert.ok(Math.abs(panel.positionPnlPercent(long)-(expected/(84458.2*0.1311/5)*100))<1e-9)
- assert.ok(panel.positionPnl({...long,side:'short'})>0)
- assert.equal(panel.positionPnl({...long,unrealized_pnl:-12.5}),-12.5)
+test('derivative position values preserve exchange mark PnL and contract units',()=>{
+ const panel=loadPanel({});panel.livePrice=84374;panel.orderBookContractMultiplier=0.01
+ const long={symbol:'BTC/USDT',side:'long',size:111.69,entry_price:75760.97,mark_price:75861,leverage:5,initial_margin:16946,unrealized_pnl:111.69}
+ assert.equal(panel.positionMarkPrice(long),75861)
+ assert.equal(panel.positionPnl(long),111.69)
+ assert.ok(Math.abs(panel.positionPnlPercent(long)-(111.69/16946*100))<1e-9)
+ assert.ok(Math.abs(panel.positionCost(long)-(111.69*75760.97*0.01))<1e-9)
+ assert.ok(Math.abs(panel.positionCurrentValue(long)-(111.69*75861*0.01))<1e-9)
+ const inferred={...long,contract_multiplier:undefined,notional_usdt:111.69*75861*0.01}
+ panel.orderBookContractMultiplier=0
+ assert.ok(Math.abs(panel.positionContractMultiplier(inferred)-0.01)<1e-9)
+ panel.livePrice=0
+ assert.equal(panel.positionMarkPrice(long),75861)
+ assert.equal(panel.positionPnl(long),111.69)
 })
 test('realized PnL is shown only for derivative closing trades',()=>{
  const panel=loadPanel({})
@@ -226,13 +231,65 @@ test('direct buy and sell actions send their own side without resetting the ente
   const sent=[]
   const api={placeOrder:async payload=>sent.push(payload),getBalance:async()=>({data:{available:500}}),getHistory:async()=>({data:[]}),getPosition:async()=>({data:[]}),getAiDecisions:async()=>({data:[]})}
   const panel=loadPanel(api);panel.balanceReady=true;panel.quickTradeStore.balance={available:500};panel.form={...form,order_type:'limit',price:'65000',tp_price:'',sl_price:''}
-  await panel.confirmOrder(side)
+  await panel.submitOrder(side)
   assert.equal(sent.length,1);assert.equal(sent[0].side,side);assert.equal(sent[0].order_type,'limit');assert.equal(sent[0].price,65000);assert.equal(sent[0].amount,100)
  }
 })
-test('account change during order confirmation blocks the reviewed order',async()=>{
- let calls=0,panel;panel=loadPanel({placeOrder:async()=>calls++},async()=>{panel.contextKey='changed'})
- panel.balanceReady=true;panel.quickTradeStore.balance={available:500};await panel.confirmOrder('buy');assert.equal(calls,0)
+test('position close supports full, quantity, amount and limit orders without another confirmation',async()=>{
+ const sent=[]
+ const panel=loadPanel({closePosition:async payload=>{sent.push(payload);return {data:{trade_id:sent.length}}}},async()=>{throw new Error('confirmation should not open')})
+ const position={symbol:'BTC/USDT',side:'long',size:1,mark_price:50000,entry_price:48000}
+ panel.quickTradeStore.positions=[position]
+ panel.refreshTradeData=async()=>{}
+ panel.schedulePostTradeRefresh=()=>{}
+
+ panel.prepareClose(position,'market')
+ await panel.submitClosePosition()
+ assert.equal(sent[0].order_type,'market')
+ assert.equal(sent[0].size,1)
+
+ panel.prepareClose(position,'market')
+ panel.selectCloseSizeMode('quantity')
+ panel.closeValue='0.25'
+ await panel.submitClosePosition()
+ assert.equal(sent[1].size,0.25)
+
+ panel.prepareClose(position,'market')
+ panel.selectCloseSizeMode('amount')
+ panel.closeValue='12500'
+ await panel.submitClosePosition()
+ assert.equal(sent[2].size,0.25)
+
+ panel.prepareClose(position,'limit')
+ panel.closePrice='51000'
+ panel.selectCloseSizeMode('amount')
+ panel.closeValue='10200'
+ await panel.submitClosePosition()
+ assert.equal(sent[3].order_type,'limit')
+ assert.equal(sent[3].price,51000)
+ assert.equal(sent[3].size,0.2)
+})
+test('system-tracked full close lets the backend resolve its own tracked quantity',async()=>{
+ let sent
+ const panel=loadPanel({closePosition:async payload=>{sent=payload;return {data:{}}}})
+ const position={symbol:'BTC/USDT',side:'long',size:2,mark_price:50000}
+ panel.quickTradeStore.positions=[position]
+ panel.closeScope='system_tracked'
+ panel.refreshTradeData=async()=>{}
+ panel.schedulePostTradeRefresh=()=>{}
+ panel.prepareClose(position,'market')
+ await panel.submitClosePosition()
+ assert.equal(sent.close_scope,'system_tracked')
+ assert.equal(sent.size,0)
+})
+test('partial close rejects quantities larger than the current position',()=>{
+ const panel=loadPanel({})
+ const position={symbol:'BTC/USDT',side:'long',size:1,mark_price:50000}
+ panel.prepareClose(position,'market')
+ panel.selectCloseSizeMode('amount')
+ panel.closeValue='50001'
+ assert.equal(panel.closeValidationKey(),'chart_trade.close_size_exceeds')
+ assert.equal(panel.canSubmitClose(),false)
 })
 import {rankStrategies,strategyCurrency,contractChanged} from '../../src/utils/strategyDisplay.js'
 test('conservative strategy ranking uses drawdown magnitude and places missing results last',()=>{
@@ -253,7 +310,7 @@ test('editing detects a changed instrument, frequency or market type before adop
 
 test('background refresh preserves an actionable order error until the account context changes',async()=>{
  const api={getBalance:async()=>({data:{available:500}}),getHistory:async()=>({data:[]}),getPosition:async()=>({data:[]}),getAiDecisions:async()=>({data:[]}),placeOrder:async()=>{throw Object.assign(new Error('400'),{localizedMessage:'quantity: Unknown field.'})}}
- const panel=loadPanel(api);await panel.refreshTradeData();await panel.confirmOrder('buy')
+ const panel=loadPanel(api);await panel.refreshTradeData();await panel.submitOrder('buy')
  assert.equal(panel.orderError,'quantity: Unknown field.')
  await panel.refreshTradeData();assert.equal(panel.orderError,'quantity: Unknown field.')
  panel.selectedCredentialId=8;await panel.refreshTradeData();assert.equal(panel.orderError,'')
