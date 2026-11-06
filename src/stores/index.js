@@ -1,13 +1,7 @@
 import { createPinia, defineStore } from 'pinia'
-import { DEFAULT_THEME } from '@/config'
 import { initialLocale, setLocale as applyLocale } from '@/locales'
 
 export const pinia = createPinia()
-
-const ACCENT_OPTIONS = [
-  'gold', 'ocean', 'emerald', 'violet', 'coral',
-  'crimson', 'sunrise', 'sky', 'mint', 'pink', 'cyan', 'yellow', 'plum'
-]
 
 const CRYPTO_EXCHANGE_IDS = new Set([
   'binance',
@@ -161,27 +155,10 @@ export const useDashboardStore = defineStore('dashboard', {
 
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
-    theme: localStorage.getItem('theme') || DEFAULT_THEME,
-    accent: ACCENT_OPTIONS.includes(localStorage.getItem('accent'))
-      ? localStorage.getItem('accent')
-      : 'gold',
     locale: initialLocale
   }),
 
   actions: {
-    setTheme(theme) {
-      this.theme = theme
-      localStorage.setItem('theme', theme)
-      document.documentElement.setAttribute('data-theme', theme)
-    },
-
-    setAccent(accent) {
-      if (!ACCENT_OPTIONS.includes(accent)) return
-      this.accent = accent
-      localStorage.setItem('accent', accent)
-      document.documentElement.setAttribute('data-accent', accent)
-    },
-
     setLocale(locale) {
       this.locale = locale
       applyLocale(locale)
@@ -312,7 +289,10 @@ export const useWatchlistStore = defineStore('watchlist', {
 export const useQuickTradeStore = defineStore('quickTrade', {
   state: () => ({
     selectedCredentialId: null,
-    marketType: 'swap',
+    marketType: ['spot', 'swap'].includes(localStorage.getItem('quick_trade_market_type'))
+      ? localStorage.getItem('quick_trade_market_type')
+      : 'swap',
+    exchangeId: localStorage.getItem('quick_trade_exchange_id') || '',
     balance: null,
     positions: [],
     history: [],
@@ -324,7 +304,13 @@ export const useQuickTradeStore = defineStore('quickTrade', {
       this.selectedCredentialId = id || null
     },
     setMarketType(type) {
-      this.marketType = type || 'swap'
+      this.marketType = ['spot', 'swap'].includes(type) ? type : 'swap'
+      localStorage.setItem('quick_trade_market_type', this.marketType)
+    },
+    setExchangeId(id) {
+      this.exchangeId = String(id || '').trim().toLowerCase()
+      if (this.exchangeId) localStorage.setItem('quick_trade_exchange_id', this.exchangeId)
+      else localStorage.removeItem('quick_trade_exchange_id')
     },
     setBalance(data) {
       this.balance = data || null

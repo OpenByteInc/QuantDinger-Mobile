@@ -226,10 +226,10 @@ http.interceptors.response.use(
 )
 
 export const authApi = {
-  login: (data) => http.post('/api/auth/login', data),
-  loginWithCode: (data) => http.post('/api/auth/login-code', data),
-  verifyLoginMfa: (data) => http.post('/api/auth/mfa/verify-login', data),
-  register: (data) => http.post('/api/auth/register', data),
+  login: (data) => http.post('/api/auth/login', { ...data, client_type: 'mobile' }),
+  loginWithCode: (data) => http.post('/api/auth/login-code', { ...data, client_type: 'mobile' }),
+  verifyLoginMfa: (data) => http.post('/api/auth/mfa/verify-login', { ...data, client_type: 'mobile' }),
+  register: (data) => http.post('/api/auth/register', { ...data, client_type: 'mobile' }),
   sendCode: (data) => http.post('/api/auth/send-code', data),
   resetPassword: (data) => http.post('/api/auth/reset-password', data),
   issueTurnstileClearance: (data) => http.post('/api/auth/turnstile-clearance', data),
@@ -273,9 +273,21 @@ export const credentialsApi = {
 }
 
 export const quickTradeApi = {
+  getOrderBook: async (params = {}) => {
+    const res = await http.get('/api/quick-trade/order-book', {
+      params,
+      timeout: 6000,
+      suppressErrorToast: true
+    })
+    return {
+      ...res,
+      data: res.data || null
+    }
+  },
   getBalance: async (credentialId, marketType = 'swap', product = null) => {
     const res = await http.get('/api/quick-trade/balance', {
-      params: { credential_id: credentialId, market_type: marketType }
+      params: { credential_id: credentialId, market_type: marketType },
+      suppressErrorToast: true
     })
     return {
       ...res,
@@ -288,7 +300,8 @@ export const quickTradeApi = {
         credential_id: credentialId,
         symbol,
         market_type: marketType
-      }
+      },
+      suppressErrorToast: true
     })
     return {
       ...res,
@@ -299,14 +312,14 @@ export const quickTradeApi = {
   closePosition: (payload) => http.post('/api/quick-trade/close-position', payload),
   cancelOrder: (tradeId) => http.post('/api/quick-trade/cancel-order', { trade_id: tradeId }),
   getHistory: async (params = {}) => {
-    const res = await http.get('/api/quick-trade/history', { params })
+    const res = await http.get('/api/quick-trade/history', { params, suppressErrorToast: true })
     return {
       ...res,
       data: unwrapItems(res.data, 'trades')
     }
   },
   getPositionHistory: async (params = {}) => {
-    const res = await http.get('/api/quick-trade/position-history', { params })
+    const res = await http.get('/api/quick-trade/position-history', { params, suppressErrorToast: true })
     return {
       ...res,
       data: {
@@ -316,7 +329,7 @@ export const quickTradeApi = {
     }
   },
   getPositionProtection: async (params = {}) => {
-    const res = await http.get('/api/quick-trade/position-protection', { params })
+    const res = await http.get('/api/quick-trade/position-protection', { params, suppressErrorToast: true })
     return {
       ...res,
       data: {
@@ -337,6 +350,13 @@ export const strategyApi = {
     return {
       ...res,
       data: ensureArray(res.data).map(normalizeStrategy)
+    }
+  },
+  getPortfolioSummary: async () => {
+    const res = await http.get('/api/dashboard/summary')
+    return {
+      ...res,
+      data: res.data || null
     }
   },
   getDetail: async (id) => {
@@ -503,7 +523,8 @@ export const scriptSourceApi = {
       ...res,
       data: res.data?.manifest || null
     }
-  }
+  },
+  update: (id, payload) => http.put('/api/strategies/script-sources/update', payload, { params: { id } })
 }
 
 export const marketApi = {
@@ -583,6 +604,16 @@ export const marketApi = {
   }
 }
 
+export const globalMarketApi = {
+  getOverview: async () => {
+    const res = await http.get('/api/global-market/overview')
+    return {
+      ...res,
+      data: res.data && typeof res.data === 'object' ? res.data : {}
+    }
+  }
+}
+
 export const watchlistApi = {
   getList: async () => {
     const res = await http.get('/api/market/watchlist/get')
@@ -597,10 +628,10 @@ export const watchlistApi = {
   add: (payload) => http.post('/api/market/watchlist/add', payload),
   remove: (item) => http.post('/api/market/watchlist/remove', typeof item === 'string' ? { symbol: item } : item),
   search: async (params) => {
-    const res = await http.get('/api/market/symbols/search', { params })
+    const res = await http.get('/api/market/assets/search', { params })
     return {
       ...res,
-      data: ensureArray(res.data)
+      data: ensureArray(res.data?.results || res.data?.items || res.data)
     }
   },
   getHot: async (params) => {
@@ -630,14 +661,15 @@ export const klineApi = {
     beforeTime,
     exchangeId,
     marketType,
-    instrumentId
+    instrumentId,
+    suppressErrorToast = false
   } = {}) => {
     const params = { market, symbol, timeframe, limit }
     if (beforeTime) params.before_time = beforeTime
     if (exchangeId) params.exchange_id = exchangeId
     if (marketType) params.market_type = marketType
     if (instrumentId) params.instrument_id = instrumentId
-    const res = await http.get('/api/indicator/kline', { params })
+    const res = await http.get('/api/indicator/kline', { params, suppressErrorToast })
     return {
       ...res,
       data: ensureArray(res.data)
@@ -783,8 +815,8 @@ export const indicatorApi = {
       data: Array.isArray(res.data) ? res.data : (res.data?.params || [])
     }
   },
-  previewChart: async (payload) => {
-    const res = await http.post('/api/indicator/chart-preview', payload, { timeout: 45000 })
+  previewChart: async (payload, options = {}) => {
+    const res = await http.post('/api/indicator/chart-preview', payload, { timeout: 45000, ...options })
     return {
       ...res,
       data: res.data || null

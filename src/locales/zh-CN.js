@@ -48,6 +48,7 @@ export default {
     fill_price: '成交均价', filled_quantity: '成交数量', trade_value: '成交额', realized_pnl: '平仓盈亏', live_order: '实盘订单', live_warning_short: '确认后将立即提交到真实交易账户，请再次核对订单。',
     fee: '交易手续费', position_history: '历史仓位', closed_quantity: '平仓数量', entry_exit: '开仓 / 平仓', net_pnl: '净盈亏', no_position_history: '暂无已平仓仓位', position_history_unsupported: '当前交易所暂不提供历史仓位',
     manage_protection: '止盈止损', take_profit_short: '止盈', stop_loss_short: '止损', trigger_price: '触发价格', no_protection_orders: '暂无止盈止损委托', protection_unsupported: '当前交易所暂不支持持仓止盈止损', protection_saved: '止盈止损已更新', confirm_close: '确认平仓',
+    liquidity_title: '订单簿', best_bid: '最优买价', best_ask: '最优卖价', spread: '价差', depth_price: '价格', depth_size: '数量', depth_total: '累计', buy_pressure: '买方 {value}%', sell_pressure: '卖方 {value}%', liquidity_loading: '正在加载盘口…', liquidity_unavailable: '盘口数据暂不可用',
     chart_risk_hint: '图表信号仅供辅助判断；实盘交易均需二次确认。'
   },
   api_errors: {
@@ -219,6 +220,8 @@ export default {
     market_moex: 'MOEX',
     removed: '已从自选中移除',
     added: '已添加到自选',
+    remove_confirm_title: '移出自选',
+    remove_confirm: '确定将 {symbol} 移出自选吗？',
     manage: '管理自选',
     tap_to_select: '点击选择交易对',
     change_symbol: '更换交易对',

@@ -48,6 +48,7 @@ export default {
     fill_price: 'Average fill', filled_quantity: 'Filled quantity', trade_value: 'Trade value', realized_pnl: 'Realized P&L', live_order: 'Live order', live_warning_short: 'This order will be sent to the live account immediately after confirmation. Review it carefully.',
     fee: 'Trading fee', position_history: 'Closed positions', closed_quantity: 'Closed quantity', entry_exit: 'Entry / exit', net_pnl: 'Net P&L', no_position_history: 'No closed positions', position_history_unsupported: 'Closed-position history is unavailable for this exchange',
     manage_protection: 'TP / SL', take_profit_short: 'Take profit', stop_loss_short: 'Stop loss', trigger_price: 'Trigger price', no_protection_orders: 'No TP / SL orders', protection_unsupported: 'Position protection is unavailable for this exchange', protection_saved: 'Position protection updated', confirm_close: 'Confirm close',
+    liquidity_title: 'Order book', best_bid: 'Best bid', best_ask: 'Best ask', spread: 'Spread', depth_price: 'Price', depth_size: 'Size', depth_total: 'Total', buy_pressure: 'Buy {value}%', sell_pressure: 'Sell {value}%', liquidity_loading: 'Loading order book…', liquidity_unavailable: 'Order book is temporarily unavailable',
     chart_risk_hint: 'Chart signals are decision support only. Every live order requires confirmation.'
   },
   api_errors: {
@@ -220,6 +221,8 @@ export default {
     market_moex: 'MOEX',
     removed: 'Removed from watchlist',
     added: 'Added to watchlist',
+    remove_confirm_title: 'Remove from watchlist',
+    remove_confirm: 'Remove {symbol} from your watchlist?',
     manage: 'Manage Watchlist',
     tap_to_select: 'Tap to choose a symbol',
     change_symbol: 'Change Symbol',

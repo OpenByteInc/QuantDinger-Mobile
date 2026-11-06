@@ -4,6 +4,7 @@
     class="symbol-picker-popup"
     position="bottom"
     round
+    teleport="body"
     @update:show="onUpdateShow"
     @close="$emit('close')"
   >
@@ -69,12 +70,14 @@
       <!-- Search tab -->
       <div v-else class="search-wrap">
         <div v-if="!onlyCrypto" class="market-tabs">
-          <span
+          <button
             v-for="m in marketOptions"
             :key="m.value"
+            type="button"
             :class="['mt-chip', { active: searchMarketInner === m.value }]"
+            :aria-pressed="searchMarketInner === m.value"
             @click="onMarketTab(m.value)"
-          >{{ m.label }}</span>
+          >{{ m.label }}</button>
         </div>
         <van-search
           v-model="keyword"
@@ -120,10 +123,11 @@
 </template>
 
 <script>
-import { showToast } from 'vant'
+import { showConfirmDialog, showToast } from 'vant'
 import { watchlistApi } from '@/api'
 import { useWatchlistStore } from '@/stores'
 import { isSupportedMarketSymbol } from '@/utils/tradeOrder'
+import { groupWatchlistAssets, watchlistAssetKey, watchlistPayload } from '@/utils/watchlistAssets'
 
 export default {
   name: 'SymbolPicker',
@@ -156,7 +160,7 @@ export default {
       return [
         { value: 'Crypto', label: this.$t('watchlist.market_crypto') },
         { value: 'USStock', label: this.$t('watchlist.market_usstock') },
-        { value: 'ChinaStock', label: this.$t('watchlist.market_chinastock') },
+        { value: 'CNStock', label: this.$t('watchlist.market_chinastock') },
         { value: 'HKStock', label: this.$t('watchlist.market_hkstock') },
         { value: 'Forex', label: this.$t('watchlist.market_forex') },
         { value: 'Futures', label: this.$t('watchlist.market_futures') },
@@ -234,11 +238,10 @@ export default {
         const res = await watchlistApi.search({
           market,
           keyword,
-          limit: 30,
-          exchange_id: market === 'Crypto' ? this.exchangeId : undefined,
-          market_type: market === 'Crypto' ? this.marketType : undefined
+          limit: 60
         })
-        this.searchResults = (res.data || []).filter(isSupportedMarketSymbol)
+        const supported = (res.data || []).filter(isSupportedMarketSymbol)
+        this.searchResults = groupWatchlistAssets(supported).map(group => group.item)
       } catch {
         this.searchResults = []
       } finally {
@@ -279,10 +282,13 @@ export default {
         product_meta: item.product_meta || null
       }
       if (!symbol) return
-      if (this.autoAdd) {
+      if (this.autoAdd && !this.isInWatchlist({ ...item, market, symbol })) {
         try {
-          await watchlistApi.add({ market, symbol, name, ...context })
+          const payload = watchlistPayload(item)
+          if (!payload.asset_id) throw new Error(this.$t('common.failed'))
+          await watchlistApi.add(payload)
           await this.load()
+          showToast({ message: this.$t('watchlist.added'), type: 'success' })
         } catch (e) {
           showToast({ message: e?.message || this.$t('common.failed'), type: 'fail' })
           return
@@ -313,7 +319,17 @@ export default {
     },
     async handleRemove(item) {
       try {
-        await watchlistApi.remove({ market: item.market, symbol: item.symbol })
+        await showConfirmDialog({
+          title: this.$t('watchlist.remove_confirm_title'),
+          message: this.$t('watchlist.remove_confirm', { symbol: item.symbol })
+        })
+      } catch {
+        return
+      }
+      try {
+        const payload = watchlistPayload(item)
+        if (!payload.asset_id) throw new Error(this.$t('common.failed'))
+        await watchlistApi.remove(payload)
         await this.load()
         showToast({ message: this.$t('watchlist.removed'), type: 'success' })
       } catch (e) {
@@ -328,6 +344,26 @@ export default {
     },
     isSelected(item) {
       return Boolean(this.selectedSymbol) && String(item?.symbol || '').toUpperCase() === String(this.selectedSymbol).toUpperCase()
+    },
+    isInWatchlist(item) {
+      const assetKey = watchlistAssetKey(item)
+      if (assetKey.startsWith('asset:')) {
+        return this.watchlistStore.items.some(candidate => watchlistAssetKey(candidate) === assetKey)
+      }
+      const symbol = String(item?.symbol || '').trim().toUpperCase()
+      const market = String(item?.market || this.searchMarketInner || '').trim().toLowerCase()
+      const exchange = String(item?.exchange_id || '').trim().toLowerCase()
+      const marketType = String(item?.market_type || '').trim().toLowerCase()
+      if (!symbol) return false
+      return this.watchlistStore.items.some((candidate) => {
+        if (String(candidate?.symbol || '').trim().toUpperCase() !== symbol) return false
+        if (market && String(candidate?.market || '').trim().toLowerCase() !== market) return false
+        const candidateExchange = String(candidate?.exchange_id || '').trim().toLowerCase()
+        const candidateMarketType = String(candidate?.market_type || '').trim().toLowerCase()
+        if (exchange && candidateExchange && exchange !== candidateExchange) return false
+        if (marketType && candidateMarketType && marketType !== candidateMarketType) return false
+        return true
+      })
     },
     watchlistFallback(market) {
       return this.displayedList.filter((item) => item.market === market).slice(0, 8)
@@ -372,6 +408,7 @@ export default {
 }
 .market-tabs::-webkit-scrollbar { display: none; }
 .mt-chip {
+  appearance: none;
   flex-shrink: 0;
   padding: 7px 12px;
   border-radius: 999px;
@@ -383,9 +420,9 @@ export default {
   cursor: pointer;
 }
 .mt-chip.active {
-  background: var(--v2-brand);
-  color: var(--v2-on-brand);
-  border-color: var(--v2-brand);
+  background: color-mix(in srgb, var(--v2-brand) 10%, var(--v2-surface));
+  color: var(--v2-brand-strong);
+  border-color: var(--v2-line);
 }
 
 .picker-tabs {
@@ -411,9 +448,9 @@ export default {
   color: var(--v2-muted);
 }
 .picker-tabs .tab.active {
-  color: var(--v2-text);
-  background: var(--v2-surface);
-  box-shadow: 0 1px 5px color-mix(in srgb, var(--v2-text) 8%, transparent);
+  color: var(--v2-brand-strong);
+  background: color-mix(in srgb, var(--v2-brand) 9%, var(--v2-surface));
+  box-shadow: none;
 }
 
 .mine-wrap,
@@ -493,7 +530,7 @@ export default {
 .hot-item strong { max-width: 100%; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .hot-item small { width: 100%; overflow: hidden; margin-top: 3px; color: var(--v2-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .hot-item .van-icon { position: absolute; right: 11px; color: var(--v2-muted); font-size: 12px; }
-.hot-item.selected { border-color: color-mix(in srgb, var(--v2-brand) 42%, var(--v2-line)); background: color-mix(in srgb, var(--v2-brand) 9%, var(--v2-bg)); }
+.hot-item.selected { border-color: var(--v2-line); background: color-mix(in srgb, var(--v2-brand) 9%, var(--v2-bg)); }
 .hot-item.selected .van-icon { color: var(--v2-brand-strong); }
 .empty-block :deep(.van-empty__description) { color: var(--v2-muted); }
 .empty-block :deep(.van-button--primary) { border-color: var(--v2-brand); background: var(--v2-brand); color: var(--v2-on-brand); }

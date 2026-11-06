@@ -13,46 +13,31 @@
     <section class="overview-grid">
       <article>
         <span>{{ t('v2.live.running') }}</span>
-        <strong>{{ runningCount }}</strong>
-        <small>/ {{ modeStrategies.length }}</small>
+        <div class="overview-value"><strong>{{ runningCount }}</strong><small>/ {{ modeStrategies.length }}</small></div>
       </article>
       <article>
         <span>{{ t('v2.live.sectionAttention') }}</span>
-        <strong :class="{ danger: attentionCount > 0 }">{{ attentionCount }}</strong>
-        <small>{{ t(attentionCount ? 'v2.live.requiresReview' : 'v2.live.allClear') }}</small>
+        <div class="overview-value"><strong :class="{ danger: attentionCount > 0 }">{{ attentionCount }}</strong><small>{{ t(attentionCount ? 'v2.live.requiresReview' : 'v2.live.allClear') }}</small></div>
       </article>
       <article class="money-summary">
         <span>{{ t('v2.live.todayPnl') }}</span>
-        <div v-if="todayRows.length">
+        <div v-if="todayRows.length" class="overview-value multi-value">
           <strong v-for="row in todayRows" :key="row.currency" :class="pnlClass(row.value)">
             {{ money(row.value) }} <small>{{ row.currency }}</small>
           </strong>
         </div>
-        <strong v-else>—</strong>
+        <div v-else class="overview-value"><strong>—</strong></div>
       </article>
       <article class="money-summary">
         <span>{{ t('v2.live.totalPnl') }}</span>
-        <div v-if="totalRows.length">
+        <div v-if="totalRows.length" class="overview-value multi-value">
           <strong v-for="row in totalRows" :key="row.currency" :class="pnlClass(row.value)">
             {{ money(row.value) }} <small>{{ row.currency }}</small>
           </strong>
         </div>
-        <strong v-else>—</strong>
+        <div v-else class="overview-value"><strong>—</strong></div>
       </article>
     </section>
-
-    <nav class="mode-tabs" :aria-label="t('v2.live.modeFilter')">
-      <button
-        v-for="mode in ['live', 'signal']"
-        :key="mode"
-        type="button"
-        :class="{ active: executionMode === mode }"
-        @click="executionMode = mode"
-      >
-        {{ t(mode === 'live' ? 'audit.liveMode' : 'audit.signalMode') }}
-        <b>{{ modeCount(mode) }}</b>
-      </button>
-    </nav>
 
     <section class="strategy-section">
       <div class="filter-row">
@@ -66,6 +51,20 @@
         <button type="button" class="create-button" @click="router.push('/trading/create')">
           <van-icon name="plus" />
           {{ t('v2.common.createStrategy') }}
+        </button>
+      </div>
+
+      <div class="mode-tabs" role="tablist" :aria-label="t('v2.live.modeFilter')">
+        <button
+          v-for="mode in modeFilters"
+          :key="mode.key"
+          type="button"
+          role="tab"
+          :aria-selected="executionMode === mode.key"
+          :class="[mode.key, { active: executionMode === mode.key }]"
+          @click="executionMode = mode.key"
+        >
+          {{ mode.label }} <b>{{ mode.count }}</b>
         </button>
       </div>
 
@@ -124,10 +123,16 @@
             </div>
           </div>
 
-          <footer>
-            <span>{{ strategyCurrency(item) }}</span>
-            <span>{{ marketLabel(item) }}</span>
-            <span v-if="pendingCount(item) > 0">{{ t('v2.live.pendingOrders', { count: pendingCount(item) }) }}</span>
+          <footer class="strategy-footer">
+            <div class="strategy-tags">
+              <span :class="['execution-tag', executionModeOf(item)]">{{ executionModeLabel(item) }}</span>
+              <span>{{ marketLabel(item) }}</span>
+              <span v-if="strategyTimeframe(item)">{{ strategyTimeframe(item) }}</span>
+              <span v-if="leverageOf(item) != null">{{ t('v2.live.leverageTag', { value: leverageOf(item) }) }}</span>
+              <span>{{ strategyCurrency(item) }}</span>
+              <span v-if="createdAtLabel(item)">{{ t('v2.live.createdAt', { date: createdAtLabel(item) }) }}</span>
+              <span v-if="pendingCount(item) > 0">{{ t('v2.live.pendingOrders', { count: pendingCount(item) }) }}</span>
+            </div>
             <time>{{ activityLabel(item) }}</time>
           </footer>
         </article>
@@ -153,11 +158,11 @@ import { useNotificationStore, useStrategyStore } from '@/stores'
 
 defineOptions({ name: 'LiveOverviewV2' })
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const store = useStrategyStore()
 const notifications = useNotificationStore()
-const executionMode = ref('live')
+const executionMode = ref('all')
 const statusFilter = ref('all')
 const keyword = ref('')
 const loading = ref(false)
@@ -166,7 +171,9 @@ const refreshedAt = ref(null)
 let refreshTimer = null
 
 const allStrategies = computed(() => Array.isArray(store.strategies) ? store.strategies : [])
-const modeStrategies = computed(() => allStrategies.value.filter(item => executionModeOf(item) === executionMode.value))
+const modeStrategies = computed(() => executionMode.value === 'all'
+  ? allStrategies.value
+  : allStrategies.value.filter(item => executionModeOf(item) === executionMode.value))
 const runningStrategies = computed(() => modeStrategies.value.filter(isRunning))
 const attentionStrategies = computed(() => modeStrategies.value.filter(needsAttention))
 const stoppedStrategies = computed(() => modeStrategies.value.filter(item => !isRunning(item) && !needsAttention(item)))
@@ -177,6 +184,11 @@ const totalRows = computed(() => groupedPnlRows(modeStrategies.value, totalPnl))
 const refreshedLabel = computed(() => refreshedAt.value
   ? t('v2.live.updatedAt', { time: refreshedAt.value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })
   : t('audit.refresh'))
+const modeFilters = computed(() => [
+  { key: 'all', label: t('v2.live.allModes'), count: allStrategies.value.length },
+  { key: 'live', label: t('audit.liveMode'), count: modeCount('live') },
+  { key: 'signal', label: t('audit.signalMode'), count: modeCount('signal') }
+])
 const statusTabs = computed(() => [
   { key: 'all', label: t('v2.live.total'), count: modeStrategies.value.length },
   { key: 'running', label: t('v2.live.running'), count: runningStrategies.value.length },
@@ -252,6 +264,10 @@ function executionModeOf(item) {
   return String(item?.execution_mode || item?.trading_config?.execution_mode || 'signal').toLowerCase() === 'live' ? 'live' : 'signal'
 }
 
+function executionModeLabel(item) {
+  return t(executionModeOf(item) === 'live' ? 'audit.liveMode' : 'audit.signalMode')
+}
+
 function health(item) {
   return item?.runtime_health && typeof item.runtime_health === 'object' ? item.runtime_health : {}
 }
@@ -295,6 +311,19 @@ function strategySymbol(item) {
 
 function strategyTimeframe(item) {
   return String(item?.timeframe || item?.trading_config?.timeframe || '')
+}
+
+function leverageOf(item) {
+  return finiteValue(item?.leverage ?? item?.trading_config?.leverage)
+}
+
+function createdAtLabel(item) {
+  const value = item?.created_at || item?.createdAt
+  if (!value) return ''
+  const numeric = /^\d+(?:\.\d+)?$/.test(String(value)) ? Number(value) : null
+  const timestamp = numeric != null ? numeric * (numeric < 100000000000 ? 1000 : 1) : Date.parse(value)
+  if (!Number.isFinite(timestamp)) return ''
+  return new Intl.DateTimeFormat(locale.value, { year: '2-digit', month: '2-digit', day: '2-digit' }).format(new Date(timestamp))
 }
 
 function strategyCapital(item) {
@@ -465,4 +494,312 @@ function openStrategy(item) {
 @keyframes live-spin { to { transform: rotate(360deg); } }
 @media (min-width: 720px) { .live-page { max-width: 760px; } .overview-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 360px) { .refresh-button small { display: none; } .create-button { width: 42px; padding: 0; font-size: 0; } .create-button .van-icon { font-size: 16px; } .strategy-row footer time { display: none; } }
+</style>
+
+<style scoped>
+.live-page .mode-tabs,
+.live-page .status-tabs {
+  display: grid;
+  overflow: visible;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.live-page .mode-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 10px; }
+.live-page .status-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 6px; }
+.live-page .mode-tabs button,
+.live-page .mode-tabs button.active,
+.live-page .status-tabs button,
+.live-page .status-tabs button.active {
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, var(--v2-line) 78%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--v2-surface-2) 58%, transparent);
+  color: var(--v2-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.live-page .mode-tabs button.live {
+  border-color: color-mix(in srgb, var(--v2-green) 24%, var(--v2-line));
+  background: color-mix(in srgb, var(--v2-green) 6%, var(--v2-surface));
+  color: var(--v2-green);
+}
+.live-page .mode-tabs button.signal {
+  border-color: color-mix(in srgb, #b08a42 28%, var(--v2-line));
+  background: color-mix(in srgb, #b08a42 7%, var(--v2-surface));
+  color: #816326;
+}
+.live-page .mode-tabs button.active {
+  border-color: color-mix(in srgb, var(--v2-brand) 42%, var(--v2-line));
+  background: color-mix(in srgb, var(--v2-brand) 12%, var(--v2-surface));
+  color: var(--v2-brand-strong);
+}
+.live-page .mode-tabs button.live.active {
+  border-color: color-mix(in srgb, var(--v2-green) 48%, var(--v2-line));
+  background: color-mix(in srgb, var(--v2-green) 13%, var(--v2-surface));
+  color: var(--v2-green);
+}
+.live-page .mode-tabs button.signal.active {
+  border-color: color-mix(in srgb, #b08a42 52%, var(--v2-line));
+  background: color-mix(in srgb, #b08a42 14%, var(--v2-surface));
+  color: #765817;
+}
+.live-page .status-tabs button.active {
+  border-color: color-mix(in srgb, var(--v2-brand) 32%, var(--v2-line));
+  background: color-mix(in srgb, var(--v2-brand) 9%, var(--v2-surface));
+  color: var(--v2-text);
+}
+.live-page .mode-tabs button.active::after { display: none; }
+.live-page .strategy-metrics { margin-top: 12px; }
+.live-page .strategy-footer {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.live-page .strategy-tags {
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.live-page .strategy-tags span {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border: 1px solid color-mix(in srgb, var(--v2-line) 72%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--v2-surface-2) 68%, transparent);
+  color: var(--v2-muted);
+  font-size: 8px;
+  line-height: 1.25;
+}
+.live-page .strategy-tags .execution-tag.live {
+  border-color: color-mix(in srgb, var(--v2-green) 30%, var(--v2-line));
+  background: color-mix(in srgb, var(--v2-green) 10%, var(--v2-surface));
+  color: var(--v2-green);
+}
+.live-page .strategy-tags .execution-tag.signal {
+  border-color: color-mix(in srgb, #b08a42 34%, var(--v2-line));
+  background: color-mix(in srgb, #b08a42 10%, var(--v2-surface));
+  color: #765817;
+}
+.live-page .strategy-footer time { margin-left: 0; font-size: 8px; }
+@media (min-width: 720px) {
+  .live-page .overview-grid article + article { border-left: 1px solid var(--v2-line); }
+  .live-page .overview-grid article:nth-child(n+3) { border-top: 0; }
+}
+</style>
+
+<style scoped>
+.live-page .overview-grid article { min-height: 84px; }
+.overview-value { min-height: 38px; display: flex; align-items: baseline; gap: 5px; margin-top: 8px; }
+.overview-grid .overview-value > strong { margin: 0; color: var(--v2-text); font-family: var(--font-sans); font-size: 24px; font-weight: 560; line-height: 1; font-variant-numeric: tabular-nums; }
+.overview-grid .overview-value > small,
+.overview-grid .overview-value > strong > small { color: var(--v2-muted); font-size: 9px; font-weight: 500; }
+.overview-value.multi-value { align-items: flex-start; flex-direction: column; gap: 4px; }
+.overview-grid .multi-value > strong { font-size: 18px; line-height: 1.05; }
+.live-page .strategy-section { margin-top: 18px; }
+.live-page .mode-tabs { display: flex; gap: 5px; margin-top: 10px; padding: 0; overflow-x: auto; border: 0; border-radius: 0; background: transparent; scrollbar-width: none; }
+.live-page .mode-tabs::-webkit-scrollbar { display: none; }
+.live-page .mode-tabs button,
+.live-page .mode-tabs button.active { min-height: 32px; flex: 0 0 auto; padding: 0 11px; border: 0; border-radius: 7px; background: transparent; color: var(--v2-muted); font-size: 11px; font-weight: 500; }
+.live-page .mode-tabs button.active { background: color-mix(in srgb, var(--v2-brand) 10%, var(--v2-surface)); color: var(--v2-brand-strong); }
+.live-page .mode-tabs button.active::after { display: none; }
+.live-page .mode-tabs button b,
+.live-page .status-tabs button b { margin-left: 3px; color: inherit; font-size: 9px; font-weight: 650; }
+.live-page .status-tabs { gap: 12px; margin-top: 4px; padding-top: 4px; overflow-x: auto; border-bottom: 1px solid var(--v2-line); }
+.live-page .status-tabs button,
+.live-page .status-tabs button.active { min-height: 34px; flex: 0 0 auto; padding: 0 0 7px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--v2-muted); box-shadow: none; font-size: 11px; }
+.live-page .status-tabs button.active { border-bottom-color: var(--v2-brand); color: var(--v2-text); }
+.strategy-tags { display: flex; gap: 5px; margin: 0; overflow-x: auto; scrollbar-width: none; }
+.strategy-tags::-webkit-scrollbar { display: none; }
+.strategy-tags span { flex: 0 0 auto; padding: 3px 6px; border: 1px solid color-mix(in srgb, var(--v2-line) 72%, transparent); border-radius: 5px; background: color-mix(in srgb, var(--v2-surface-2) 68%, transparent); color: var(--v2-muted); font-size: 9px; line-height: 1.25; }
+.strategy-row footer span { padding: 0; border-radius: 0; background: transparent; }
+</style>
+
+<style scoped>
+.live-page { padding: calc(16px + var(--safe-area-top)) 16px calc(34px + var(--safe-area-bottom)); }
+.system-state { min-height: 36px; padding: 0; border: 0; border-bottom: 1px solid var(--v2-line); border-radius: 0; background: transparent; }
+.system-state > i { box-shadow: none; }
+.refresh-button { border-left-color: var(--v2-line); }
+.overview-grid { gap: 0; margin-top: 22px; border-block: 1px solid var(--v2-line); }
+.overview-grid article { min-height: 92px; padding: 15px 12px; border: 0; border-radius: 0; background: transparent; }
+.overview-grid article:nth-child(even) { border-left: 1px solid var(--v2-line); }
+.overview-grid article:nth-child(n+3) { border-top: 1px solid var(--v2-line); }
+.overview-grid article > strong { font-family: var(--font-sans); font-size: 26px; font-weight: 680; }
+.money-summary div strong { font-size: 18px; font-weight: 500; }
+.mode-tabs { gap: 0; margin-top: 24px; padding: 0; border: 0; border-bottom: 1px solid var(--v2-line); border-radius: 0; background: transparent; }
+.mode-tabs button { position: relative; min-height: 44px; border-radius: 0; }
+.mode-tabs button.active { background: transparent; color: var(--v2-text); }
+.mode-tabs button.active::after { position: absolute; right: 28%; bottom: -1px; left: 28%; width: auto; margin: 0; background: #b08a42; }
+.filter-row { margin-top: 18px; }
+.search-field { border-radius: 0; background: transparent; }
+.create-button { border-radius: 0; background: var(--v2-brand); }
+.status-tabs { gap: 18px; margin-top: 12px; border-bottom: 1px solid var(--v2-line); }
+.status-tabs button { padding: 0 0 9px; border: 0; border-radius: 0; background: transparent; }
+.status-tabs button.active { color: var(--v2-text); border-bottom: 2px solid #b08a42; background: transparent; }
+.section-heading { margin: 26px 0 4px; }
+.section-heading h2 { font-family: var(--font-sans); font-size: 20px; font-weight: 680; }
+.strategy-list { gap: 0; }
+.strategy-row { padding: 18px 0; border: 0; border-bottom: 1px solid var(--v2-line); border-radius: 0; background: transparent; }
+.strategy-row:first-child { border-top: 1px solid var(--v2-line); }
+.strategy-row header { grid-template-columns: 7px minmax(0, 1fr) auto 14px; }
+.strategy-identity h3 { font-size: 15px; font-weight: 600; }
+.strategy-metrics { margin-top: 14px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--v2-line) 70%, transparent); }
+.strategy-metrics strong { font-family: var(--font-sans); font-size: 16px; font-weight: 650; }
+</style>
+
+<style scoped>
+.live-page { padding: calc(12px + var(--safe-area-top)) 12px calc(32px + var(--safe-area-bottom)); }
+.system-state { min-height: 40px; padding: 0 12px; border-radius: 10px; }
+.system-state > i, .system-state.warning > i { width: 6px; height: 6px; box-shadow: none; }
+.system-state b { font-weight: 500; }
+.refresh-button { min-height: 32px; padding-inline: 8px; }
+.overview-grid { gap: 8px; margin-top: 8px; }
+.overview-grid article { min-height: 92px; padding: 12px; border-radius: 12px; }
+.overview-grid article > span { font-size: 11px; }
+.overview-grid article > strong { margin-top: 10px; font-size: 28px; font-weight: 500; }
+.money-summary div strong { font-size: 16px; font-weight: 500; }
+.mode-tabs { margin-top: 16px; padding: 4px; border-radius: 12px; }
+.mode-tabs button { min-height: 40px; border-radius: 8px; font-size: 13px; }
+.mode-tabs button.active { font-weight: 500; }
+.mode-tabs button.active::after { height: 2px; }
+.strategy-section { margin-top: 16px; }
+.search-field, .create-button { min-height: 44px; }
+.search-field { border-radius: 10px; }
+.search-field input { font-size: 13px; }
+.create-button { padding-inline: 14px; font-size: 12px; font-weight: 600; }
+.status-tabs { gap: 4px; margin-top: 12px; }
+.status-tabs button { min-height: 32px; padding: 0 10px; border-radius: 7px; background: transparent; font-size: 11px; }
+.status-tabs button.active { border-color: transparent; background: color-mix(in srgb,var(--v2-brand) 10%,var(--v2-surface)); color: var(--v2-brand-strong); box-shadow: none; }
+.section-heading { margin: 24px 2px 12px; }
+.section-heading h2 { font-size: 19px; font-weight: 500; }
+.strategy-list { gap: 8px; }
+.strategy-row { padding: 14px; border-radius: 14px; }
+.status-dot, .status-dot.running, .status-dot.attention { width: 6px; height: 6px; box-shadow: none; }
+.strategy-identity h3 { font-size: 15px; font-weight: 500; }
+.strategy-identity p { font-size: 10px; }
+.status-label { padding: 0; border-radius: 0; background: transparent; font-size: 10px; }
+.status-label.running, .status-label.attention { background: transparent; }
+.strategy-metrics { margin-top: 16px; padding: 12px 0; }
+.strategy-metrics span, .strategy-row footer { font-size: 10px; }
+.strategy-metrics strong { font-size: 14px; font-weight: 500; }
+.strategy-row footer span { padding: 0; border-radius: 0; background: transparent; }
+</style>
+
+<style scoped>
+.live-page.live-page { padding: calc(16px + var(--safe-area-top)) 16px calc(34px + var(--safe-area-bottom)); }
+.system-state { min-height: 36px; padding: 0; border: 0; border-bottom: 1px solid var(--v2-line); border-radius: 0; background: transparent; }
+.overview-grid { gap: 0; margin-top: 22px; border-block: 1px solid var(--v2-line); }
+.overview-grid article { min-height: 92px; padding: 15px 12px; border: 0; border-radius: 0; background: transparent; }
+.overview-grid article:nth-child(even) { border-left: 1px solid var(--v2-line); }
+.overview-grid article:nth-child(n+3) { border-top: 1px solid var(--v2-line); }
+.overview-grid article > strong { font-family: var(--font-sans); font-size: 26px; font-weight: 680; }
+.mode-tabs { gap: 0; margin-top: 24px; padding: 0; border: 0; border-bottom: 1px solid var(--v2-line); border-radius: 0; background: transparent; }
+.mode-tabs button, .mode-tabs button.active { position: relative; min-height: 44px; border-radius: 0; background: transparent; }
+.mode-tabs button.active::after { position: absolute; right: 28%; bottom: -1px; left: 28%; width: auto; margin: 0; background: #b08a42; }
+.search-field, .create-button { border-radius: 0; }
+.search-field { background: transparent; }
+.status-tabs { gap: 18px; border-bottom: 1px solid var(--v2-line); }
+.status-tabs button, .status-tabs button.active { padding: 0 0 9px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.status-tabs button.active { border-bottom: 2px solid #b08a42; }
+.section-heading { margin: 26px 0 4px; }
+.section-heading h2 { font-family: var(--font-sans); font-size: 20px; font-weight: 680; }
+.strategy-list { gap: 0; }
+.strategy-row { padding: 18px 0; border: 0; border-bottom: 1px solid var(--v2-line); border-radius: 0; background: transparent; }
+.strategy-row:first-child { border-top: 1px solid var(--v2-line); }
+.strategy-metrics strong { font-family: var(--font-sans); font-size: 16px; font-weight: 650; }
+@media (min-width: 720px) { .live-page.live-page { max-width: 520px; } }
+</style>
+
+<style scoped>
+.live-page .overview-grid article { min-height: 84px; }
+.live-page .overview-value { min-height: 38px; display: flex; align-items: baseline; gap: 5px; margin-top: 8px; }
+.live-page .overview-grid .overview-value > strong { margin: 0; color: var(--v2-text); font-family: var(--font-sans); font-size: 21px; font-weight: 560; line-height: 1; font-variant-numeric: tabular-nums; }
+.live-page .overview-grid .overview-value > small,
+.live-page .overview-grid .overview-value > strong > small { color: var(--v2-muted); font-size: 9px; font-weight: 500; }
+.live-page .overview-value.multi-value { align-items: flex-start; flex-direction: column; gap: 4px; }
+.live-page .overview-grid .multi-value > strong { font-size: 21px; line-height: 1.05; }
+.live-page .strategy-section { margin-top: 18px; }
+.live-page .mode-tabs { display: flex; gap: 5px; margin-top: 10px; padding: 0; overflow-x: auto; border: 0; border-radius: 0; background: transparent; scrollbar-width: none; }
+.live-page .mode-tabs::-webkit-scrollbar { display: none; }
+.live-page .mode-tabs button,
+.live-page .mode-tabs button.active { position: static; min-height: 32px; flex: 0 0 auto; padding: 0 11px; border: 0; border-radius: 7px; background: transparent; color: var(--v2-muted); font-size: 11px; font-weight: 500; }
+.live-page .mode-tabs button.active { background: color-mix(in srgb, var(--v2-brand) 10%, var(--v2-surface)); color: var(--v2-brand-strong); }
+.live-page .mode-tabs button.active::after { display: none; }
+.live-page .mode-tabs button b,
+.live-page .status-tabs button b { margin-left: 3px; color: inherit; font-size: 9px; font-weight: 650; }
+.live-page .status-tabs { gap: 12px; margin-top: 4px; padding-top: 4px; overflow-x: auto; border-bottom: 1px solid var(--v2-line); }
+.live-page .status-tabs button,
+.live-page .status-tabs button.active { min-height: 34px; flex: 0 0 auto; padding: 0 0 7px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--v2-muted); box-shadow: none; font-size: 11px; }
+.live-page .status-tabs button.active { border-bottom-color: var(--v2-brand); color: var(--v2-text); }
+.live-page .strategy-tags { display: flex; gap: 5px; margin: 0; overflow-x: auto; scrollbar-width: none; }
+.live-page .strategy-tags::-webkit-scrollbar { display: none; }
+.live-page .strategy-tags span { flex: 0 0 auto; padding: 3px 6px; border: 1px solid color-mix(in srgb, var(--v2-line) 72%, transparent); border-radius: 5px; background: color-mix(in srgb, var(--v2-surface-2) 68%, transparent); color: var(--v2-muted); font-size: 9px; line-height: 1.25; }
+</style>
+
+<style scoped>
+.live-page .mode-tabs,
+.live-page .status-tabs {
+  display: grid;
+  overflow: visible;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.live-page .mode-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 10px; }
+.live-page .status-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 6px; }
+.live-page .mode-tabs button,
+.live-page .mode-tabs button.active,
+.live-page .status-tabs button,
+.live-page .status-tabs button.active {
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, var(--v2-line) 78%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--v2-surface-2) 58%, transparent);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.live-page .mode-tabs button.active::after { display: none; }
+.live-page .status-tabs button.active {
+  border-color: color-mix(in srgb, var(--v2-brand) 32%, var(--v2-line));
+  background: color-mix(in srgb, var(--v2-brand) 9%, var(--v2-surface));
+  color: var(--v2-text);
+}
+.live-page .overview-grid .multi-value > strong > small {
+  display: block;
+  margin-top: 5px;
+  line-height: 1;
+}
+.live-page .strategy-list {
+  gap: 10px;
+}
+.live-page .strategy-row,
+.live-page .strategy-row:first-child {
+  padding: 14px;
+  border: 1px solid var(--v2-line);
+  border-radius: 11px;
+  background: transparent;
+}
+.live-page .section-heading h2,
+.live-page .strategy-identity h3,
+.live-page .overview-grid .overview-value > strong,
+.live-page .strategy-metrics strong {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+}
+@media (min-width: 720px) {
+  .live-page .overview-grid article + article { border-left: 1px solid var(--v2-line); }
+  .live-page .overview-grid article:nth-child(n+3) { border-top: 0; }
+}
 </style>

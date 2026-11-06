@@ -34,6 +34,35 @@
           <span>{{ $t('chart_trade.price') }}</span><div><input v-model="form.price" :disabled="submitting" inputmode="decimal" type="number" min="0"/><b>{{ quoteAsset }}</b></div>
         </label>
         <div v-else class="market-price-row"><span>{{ $t('chart_trade.live_price') }}</span><b>{{ formatPrice(livePrice) }} <small>{{ quoteAsset }}</small></b></div>
+        <section v-if="selectedCredential" class="liquidity-snapshot" :data-transport="orderBookUsingRestFallback ? 'rest' : (orderBookStreamStatus === 'live' ? 'websocket' : orderBookStreamStatus)" :aria-label="$t('chart_trade.liquidity_title')">
+          <header>
+            <div><i class="liquidity-status" :class="{ stale: orderBookError, fallback: orderBookUsingRestFallback, connecting: orderBookStreamStatus === 'connecting' || orderBookStreamStatus === 'reconnecting' }"></i><strong>{{ $t('chart_trade.liquidity_title') }}</strong></div>
+            <button v-if="orderBookError || orderBookUsingRestFallback" type="button" :disabled="orderBookLoading" :aria-label="$t('common.refresh')" @click="refreshOrderBook"><van-icon name="replay" :class="{ spinning: orderBookLoading }" /></button>
+          </header>
+          <div v-if="orderBook" class="liquidity-body">
+            <div class="depth-mid"><strong>{{ formatPrice(orderBook?.mid || livePrice) }}</strong><span>{{ $t('chart_trade.spread') }} {{ formatSpread(orderBookSpreadBps) }}</span></div>
+            <div class="depth-columns">
+              <section class="depth-side bids">
+                <header><span>{{ $t('chart_trade.depth_size') }} · {{ $t('chart_trade.depth_price') }}</span><b>{{ $t('chart_trade.buy') }}</b></header>
+                <div v-for="row in orderBookBidRows" :key="`bid-${row.price}`" class="depth-row bid">
+                  <i :style="{width:`${row.depthPercent}%`}"></i><span>{{ formatDepthValue(row.size) }}</span><b>{{ formatPrice(row.price) }}</b>
+                </div>
+              </section>
+              <section class="depth-side asks">
+                <header><b>{{ $t('chart_trade.sell') }}</b><span>{{ $t('chart_trade.depth_price') }} · {{ $t('chart_trade.depth_size') }}</span></header>
+                <div v-for="row in orderBookAskRows" :key="`ask-${row.price}`" class="depth-row ask">
+                  <i :style="{width:`${row.depthPercent}%`}"></i><b>{{ formatPrice(row.price) }}</b><span>{{ formatDepthValue(row.size) }}</span>
+                </div>
+              </section>
+            </div>
+            <div class="liquidity-pressure" role="progressbar" :aria-label="$t('chart_trade.buy_pressure', { value: Math.round(orderBookBidShare) })" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="Math.round(orderBookBidShare)">
+              <i :style="{ width: `${orderBookBidShare}%` }"></i><b :class="orderBookBidShare >= 50 ? 'is-bid' : 'is-ask'" :style="{ left: `clamp(7px, ${orderBookBidShare}%, calc(100% - 7px))` }"></b>
+            </div>
+            <p><span>{{ $t('chart_trade.buy_pressure', { value: Math.round(orderBookBidShare) }) }}</span><span>{{ $t('chart_trade.sell_pressure', { value: Math.round(100 - orderBookBidShare) }) }}</span></p>
+          </div>
+          <p v-else-if="orderBookError" class="liquidity-state">{{ $t('chart_trade.liquidity_unavailable') }}</p>
+          <p v-else class="liquidity-state">{{ $t('chart_trade.liquidity_loading') }}</p>
+        </section>
         <label v-if="marketType==='swap'" class="ticket-field"><span>{{ $t('chart_trade.margin_amount') }}</span><div><input v-model="form.amount" :disabled="submitting" inputmode="decimal" type="number" min="0"/><b>{{ quoteAsset }}</b></div></label>
         <div v-if="marketType==='swap'" class="amount-presets"><button v-for="pct in [25,50,75,100]" :key="pct" :disabled="submitting || !balanceReady || activeBalanceAvailable<=0" @click="setAmountByPercent(pct)">{{ pct }}%</button></div>
         <div class="ticket-balance"><span>{{ $t('chart_trade.available') }}</span><strong>{{ balanceReady ? formatNumber(activeBalanceAvailable) : '—' }} <small>{{ quoteAsset }}</small></strong></div>
@@ -89,7 +118,7 @@
         </div>
 
         <div v-else-if="activeTab==='positionHistory'" class="trade-list position-history-list">
-          <article v-for="item in positionHistory" :key="item.id" class="history-item position-history-item">
+          <article v-for="item in pagedPositionHistory" :key="item.id" class="history-item position-history-item">
             <header><div><strong>{{ normalizeSymbol(item.symbol || normalizedSymbol) }}</strong><span :class="item.side==='long'?'up':'down'">{{ sideText(item.side) }}</span></div><time>{{ formatTime(item.closed_at) }}</time></header>
             <div class="history-metrics">
               <span><small>{{ $t('chart_trade.closed_quantity') }}</small><b>{{ formatQuantity(item.quantity) }} {{ baseAsset }}</b></span>
@@ -99,6 +128,7 @@
             </div>
           </article>
           <van-empty v-if="!positionHistory.length" :description="$t(positionHistorySupported?'chart_trade.no_position_history':'chart_trade.position_history_unsupported')" />
+          <van-pagination v-if="positionHistoryPageCount > 1" v-model="positionHistoryPage" class="activity-pagination" :total-items="positionHistory.length" :items-per-page="historyPageSize" :show-page-size="3" force-ellipses />
         </div>
         <div v-else class="trade-list history-list">
           <article v-for="item in visibleHistory" :key="item.id || `${item.symbol}-${item.created_at}`" class="history-item">
@@ -114,6 +144,7 @@
             <button v-if="activeTab==='orders' && item.status!=='cancel_pending'" class="cancel-order" :disabled="submitting" @click="cancelOrder(item)">{{ $t('audit.cancelOrder') }}</button>
           </article>
           <van-empty v-if="!visibleHistory.length" :description="$t('chart_trade.no_history')" />
+          <van-pagination v-if="activeTab==='history' && tradeHistoryPageCount > 1" v-model="tradeHistoryPage" class="activity-pagination" :total-items="history.length" :items-per-page="historyPageSize" :show-page-size="3" force-ellipses />
         </div>
       </div>
     </template>
@@ -173,6 +204,8 @@ import StockTradePanel from '@/components/StockTradePanel.vue'
 import '@/styles/order-review.css'
 import {buildOrder,validateOrder,tradeProductFields,isCryptoProduct,OPEN_ORDER_STATUSES} from '@/utils/tradeOrder'
 import {balanceIssue,localizedBalanceIssue} from '@/utils/balanceIssue'
+import ExchangeOrderBookWs from '@/utils/exchangeOrderBookWs'
+import {normalizeContractOrderBook,usesNativeContractQuantity} from '@/utils/orderBookUnits'
 import { showConfirmDialog, showToast } from 'vant'
 import { credentialsApi, quickTradeApi } from '@/api'
 import { useCredentialsStore, useQuickTradeStore } from '@/stores'
@@ -191,7 +224,7 @@ export default {
   emits: ['context-change'],
   data() {
     return {
-      positionHistory:[], positionHistorySupported:true, closeScope:'full', refreshing:false, dataError:'', orderError:'', balanceReady:false, requestId:0, contextKey:'',
+      positionHistory:[], positionHistorySupported:true, historyPageSize:5, tradeHistoryPage:1, positionHistoryPage:1, closeScope:'full', refreshing:false, dataError:'', orderError:'', balanceReady:false, requestId:0, contextKey:'',
       marketOrderConfirmations: {},
       postTradeRefreshTimers: [],
       credentialPickerOpen: false,
@@ -214,6 +247,19 @@ export default {
       riskEnabled: false,
       submitting: false,
       pollTimer: null,
+      orderBookTimer: null,
+      scheduledRefreshTimer: null,
+      dataSignatures: {},
+      orderBook: null,
+      orderBookLoading: false,
+      orderBookError: false,
+      orderBookRefreshing: false,
+      orderBookRequestId: 0,
+      orderBookContextKey: '',
+      orderBookStream: null,
+      orderBookStreamStatus: 'idle',
+      orderBookUsingRestFallback: false,
+      orderBookContractMultiplier: 0,
       form: {
         amount: '',
         buy_quantity: '',
@@ -255,7 +301,11 @@ export default {
     positions() { return this.quickTradeStore.positions },
     history() { return this.quickTradeStore.history },
     openOrders() { return this.history.filter(row=>OPEN_ORDER_STATUSES.has(String(row.status).toLowerCase())&&!this.isMarketOrderPositionConfirmed(row)) },
-    visibleHistory() { return this.activeTab==='orders'?this.openOrders:this.history },
+    tradeHistoryPageCount() { return Math.max(1,Math.ceil(this.history.length/this.historyPageSize)) },
+    positionHistoryPageCount() { return Math.max(1,Math.ceil(this.positionHistory.length/this.historyPageSize)) },
+    pagedTradeHistory() { const start=(this.tradeHistoryPage-1)*this.historyPageSize;return this.history.slice(start,start+this.historyPageSize) },
+    pagedPositionHistory() { const start=(this.positionHistoryPage-1)*this.historyPageSize;return this.positionHistory.slice(start,start+this.historyPageSize) },
+    visibleHistory() { return this.activeTab==='orders'?this.openOrders:this.pagedTradeHistory },
     activeBalanceAvailable() {
       return Number(this.balance?.[this.marketType]?.available ?? this.balance?.available ?? 0)
     },
@@ -263,6 +313,26 @@ export default {
       return this.positions.filter(p=>this.normalizeSymbol(p.symbol)===this.normalizedSymbol).reduce((total,p)=>total+Math.max(0,Number(p.available??p.free??this.positionSize(p))||0),0)
     },
     livePrice() { return Number(this.chartPrice || this.form.price || 0) },
+    bestBid() { return Number(this.orderBook?.best_bid || this.orderBook?.bids?.[0]?.price || 0) },
+    bestAsk() { return Number(this.orderBook?.best_ask || this.orderBook?.asks?.[0]?.price || 0) },
+    orderBookSpreadBps() {
+      const direct = Number(this.orderBook?.spread_bps)
+      if (Number.isFinite(direct)) return direct
+      const mid = Number(this.orderBook?.mid || ((this.bestBid + this.bestAsk) / 2))
+      return mid > 0 ? (this.bestAsk - this.bestBid) / mid * 10000 : 0
+    },
+    orderBookBidShare() {
+      const weighted = (rows = []) => rows.slice(0, 10).reduce((sum, row, index) => sum + Math.max(0, Number(row?.size || 0)) / Math.pow(index + 1, 0.72), 0)
+      const bids = weighted(this.orderBook?.bids)
+      const asks = weighted(this.orderBook?.asks)
+      return bids + asks > 0 ? bids / (bids + asks) * 100 : 50
+    },
+    orderBookDepthMax() {
+      const sizes=[...(this.orderBook?.bids||[]).slice(0,5),...(this.orderBook?.asks||[]).slice(0,5)].map(row=>Math.max(0,Number(row?.size)||0))
+      return Math.max(...sizes,1)
+    },
+    orderBookAskRows() { return this.buildOrderBookRows(this.orderBook?.asks,false) },
+    orderBookBidRows() { return this.buildOrderBookRows(this.orderBook?.bids,false) },
     estimatedNotional() {
       const amount = Math.max(0, Number(this.form.amount) || 0)
       return this.marketType === 'swap' ? amount * Math.max(1, Number(this.form.leverage) || 1) : amount
@@ -279,10 +349,12 @@ export default {
   watch: {
     riskEnabled(value) { if(!value){this.form.tp_price='';this.form.sl_price=''} },
     '$route.query.credential_id'() { if(this.$route.path==='/indicators/chart') this.applyRequestedAccount() },
-    selectedCredentialId() { const scope=this.selectedCredential?.market_scope;if(['spot','swap'].includes(scope))this.quickTradeStore.setMarketType(scope);this.resetMarketOrderConfirmations();this.clearSpotInputs();this.form.price='';this.form.tp_price='';this.form.sl_price='';this.refreshTradeData(); this.emitContext() },
-    marketType(value) { this.resetMarketOrderConfirmations();if(value!=='swap'&&this.activeTab==='positionHistory')this.activeTab='positions';this.refreshTradeData();this.emitContext() },
-    symbol() { this.resetMarketOrderConfirmations();this.clearSpotInputs();this.form.price='';this.form.tp_price='';this.form.sl_price='';this.refreshTradeData() },
-    product: {deep:true,handler(){const required=String(this.product?.market_type||'').toLowerCase();if(['spot','swap'].includes(required)&&required!==this.marketType)this.quickTradeStore.setMarketType(required);if(!this.selectedCredential&&this.credentials.length)this.quickTradeStore.setSelectedCredential(this.credentials[0].id);this.refreshTradeData()}},
+    selectedCredentialId() { const scope=this.selectedCredential?.market_scope;if(['spot','swap'].includes(scope))this.quickTradeStore.setMarketType(scope);this.resetMarketOrderConfirmations();this.clearSpotInputs();this.form.price='';this.form.tp_price='';this.form.sl_price='';this.scheduleTradeRefresh();this.emitContext() },
+    marketType(value) { this.resetMarketOrderConfirmations();if(value!=='swap'&&this.activeTab==='positionHistory')this.activeTab='positions';this.scheduleTradeRefresh();this.emitContext() },
+    symbol() { this.resetMarketOrderConfirmations();this.clearSpotInputs();this.form.price='';this.form.tp_price='';this.form.sl_price='';this.scheduleTradeRefresh() },
+    product: {deep:true,handler(){const required=String(this.product?.market_type||'').toLowerCase();if(['spot','swap'].includes(required)&&required!==this.marketType)this.quickTradeStore.setMarketType(required);if(!this.selectedCredential&&this.credentials.length)this.quickTradeStore.setSelectedCredential(this.credentials[0].id);this.scheduleTradeRefresh()}},
+    history() { this.tradeHistoryPage=Math.min(this.tradeHistoryPage,this.tradeHistoryPageCount) },
+    positionHistory() { this.positionHistoryPage=Math.min(this.positionHistoryPage,this.positionHistoryPageCount) },
     chartPrice(value) {
       if (Number(value) > 0 && !Number(this.form.price)) this.form.price = String(value)
     }
@@ -294,8 +366,25 @@ export default {
   },
   activated() { this.startPolling() },
   deactivated() { this.stopPolling();this.marginPickerOpen=false },
-  beforeUnmount() { this.stopPolling();this.clearPostTradeRefreshTimers();this.requestId++;this.resolveOrderReview(false);document.removeEventListener('pointerdown',this.closeMarginPicker) },
+  beforeUnmount() { this.stopPolling();this.clearPostTradeRefreshTimers();this.requestId++;this.orderBookRequestId++;this.resolveOrderReview(false);document.removeEventListener('pointerdown',this.closeMarginPicker) },
   methods: {
+    resetHistoryPagination() {
+      this.tradeHistoryPage=1
+      this.positionHistoryPage=1
+    },
+    scheduleTradeRefresh() {
+      if(this.scheduledRefreshTimer)clearTimeout(this.scheduledRefreshTimer)
+      this.scheduledRefreshTimer=setTimeout(()=>{this.scheduledRefreshTimer=null;if(document.hidden)return;this.refreshTradeData();this.restartOrderBookFeed()},0)
+    },
+    stableDataSignature(value) {
+      try{return JSON.stringify(value??null)}catch{return String(value)}
+    },
+    updateStoreIfChanged(name,value,setter) {
+      const signature=this.stableDataSignature(value)
+      if(this.dataSignatures[name]===signature)return
+      this.dataSignatures={...this.dataSignatures,[name]:signature}
+      setter(value)
+    },
     positionSizeForSide(side) {
       const target=this.positionSide(side)
       return this.positions.reduce((total,position)=>{
@@ -352,7 +441,7 @@ export default {
       this.applyRequestedAccount()
       if (!this.selectedCredential && this.credentials.length) this.quickTradeStore.setSelectedCredential(this.credentials[0].id)
       if (Number(this.chartPrice) > 0) this.form.price = String(this.chartPrice)
-      await this.refreshTradeData()
+      await Promise.all([this.refreshTradeData(),this.refreshOrderBook()])
       this.emitContext()
     },
     availableForSide(side) {
@@ -396,7 +485,9 @@ export default {
       this.form.leverage = value === 'spot' ? '1' : (Number(this.form.leverage) > 1 ? this.form.leverage : '5')
     },
     emitContext() {
-      this.$emit('context-change', { exchangeId: this.selectedCredential?.exchange_id || '', marketType: this.marketType })
+      const exchangeId = this.selectedCredential?.exchange_id || ''
+      this.quickTradeStore.setExchangeId(exchangeId)
+      this.$emit('context-change', { exchangeId, marketType: this.marketType })
     },
     async refreshTradeData() {
       const key=JSON.stringify([this.selectedCredentialId,this.marketType,this.normalizedSymbol,this.product?.instrument_id||'',this.product?.product_type||'',this.product?.api_family||''])
@@ -404,7 +495,7 @@ export default {
       const contextChanged=key!==this.contextKey
       const version=++this.requestId;this.contextKey=key
       this.refreshing=true;this.dataError=''
-      if(contextChanged){this.resetMarketOrderConfirmations();this.orderError='';this.balanceReady=false;this.quickTradeStore.setBalance(null);this.quickTradeStore.setPositions([]);this.quickTradeStore.setHistory([]);this.positionHistory=[];this.positionHistorySupported=true}
+      if(contextChanged){this.resetHistoryPagination();this.resetMarketOrderConfirmations();this.orderError='';this.balanceReady=false;this.dataSignatures={...this.dataSignatures,balance:'null',positions:'[]',history:'[]',positionHistory:'[]'};this.quickTradeStore.setBalance(null);this.quickTradeStore.setPositions([]);this.quickTradeStore.setHistory([]);this.positionHistory=[];this.positionHistorySupported=true}
       if(!this.selectedCredential||!this.isCrypto){this.refreshing=false;return}
       const product={...this.product,symbol:this.normalizedSymbol}
       const params={credential_id:this.selectedCredentialId,symbol:this.normalizedSymbol,market_type:this.marketType,limit:200}
@@ -416,20 +507,110 @@ export default {
         const data=results[0].value.data
         const issue=balanceIssue(data,this.marketType)
         if(issue){
-          this.quickTradeStore.setBalance(null)
+          this.updateStoreIfChanged('balance',null,value=>this.quickTradeStore.setBalance(value))
           this.balanceReady=false
           this.dataError=localizedBalanceIssue(issue,this.$t.bind(this),key=>this.$te?.(key)===true)
         }else{
-          this.quickTradeStore.setBalance(data)
+          this.updateStoreIfChanged('balance',data,value=>this.quickTradeStore.setBalance(value))
           this.balanceReady=true
         }
       }
-      if(results[2].status==='fulfilled')this.quickTradeStore.setPositions(results[2].value.data)
-      if(results[1].status==='fulfilled')this.quickTradeStore.setHistory(results[1].value.data)
+      if(results[2].status==='fulfilled')this.updateStoreIfChanged('positions',results[2].value.data,value=>this.quickTradeStore.setPositions(value))
+      if(results[1].status==='fulfilled')this.updateStoreIfChanged('history',results[1].value.data,value=>this.quickTradeStore.setHistory(value))
       this.pruneMarketOrderConfirmations()
-      if(this.marketType==='swap'&&results[3]?.status==='fulfilled'){this.positionHistorySupported=results[3].value.data.supported;this.positionHistory=results[3].value.data.positions}
+      if(this.marketType==='swap'&&results[3]?.status==='fulfilled'){this.positionHistorySupported=results[3].value.data.supported;const positions=results[3].value.data.positions;this.updateStoreIfChanged('positionHistory',positions,value=>{this.positionHistory=value})}
       if(results.some(x=>x.status==='rejected'))this.dataError=this.$t('audit.loadFailed')
       this.refreshing=false
+    },
+    orderBookFeedContext() {
+      const exchangeId=String(this.selectedCredential?.exchange_id||this.product?.exchange_id||'').toLowerCase()
+      return {exchangeId,contextKey:JSON.stringify([this.selectedCredentialId,exchangeId,this.marketType,this.normalizedSymbol])}
+    },
+    captureOrderBookMetadata(payload) {
+      const multiplier=Number(payload?.contract_multiplier||0)
+      if(!(multiplier>0)||multiplier===this.orderBookContractMultiplier)return false
+      this.orderBookContractMultiplier=multiplier
+      return true
+    },
+    applyOrderBookSnapshot(payload) {
+      if(!payload||!Array.isArray(payload.bids)||!Array.isArray(payload.asks))return
+      this.captureOrderBookMetadata(payload)
+      const {exchangeId}=this.orderBookFeedContext()
+      const normalized=usesNativeContractQuantity(exchangeId,this.marketType)
+        ? normalizeContractOrderBook(payload,this.orderBookContractMultiplier)
+        : payload
+      const compact={...normalized,bids:normalized.bids.slice(0,10),asks:normalized.asks.slice(0,10)}
+      const signature=this.stableDataSignature(compact)
+      if(this.dataSignatures.orderBook!==signature){this.dataSignatures={...this.dataSignatures,orderBook:signature};this.orderBook=compact}
+      this.orderBookError=false
+      this.orderBookLoading=false
+    },
+    async refreshOrderBook() {
+      if(!this.selectedCredential||!this.isCrypto)return
+      const {exchangeId,contextKey}=this.orderBookFeedContext()
+      if(!exchangeId)return
+      if(this.orderBookRefreshing&&contextKey===this.orderBookContextKey)return
+      const version=++this.orderBookRequestId
+      this.orderBookContextKey=contextKey
+      this.orderBookRefreshing=true
+      this.orderBookLoading=!this.orderBook
+      if(!this.orderBook)this.orderBookError=false
+      try {
+        const response=await quickTradeApi.getOrderBook({exchange_id:exchangeId,symbol:this.normalizedSymbol,market_type:this.marketType,limit:10})
+        if(version!==this.orderBookRequestId)return
+        const payload=response?.data?.data||response?.data
+        if(!payload||!Array.isArray(payload.bids)||!Array.isArray(payload.asks))throw new Error('INVALID_ORDER_BOOK')
+        const metadataChanged=this.captureOrderBookMetadata(payload)
+        if(metadataChanged&&this.orderBook)this.applyOrderBookSnapshot(this.orderBook)
+        if(this.orderBookStreamStatus!=='live'||this.orderBookUsingRestFallback||!this.orderBook)this.applyOrderBookSnapshot(payload)
+      }catch{
+        if(version===this.orderBookRequestId&&(!this.orderBook||this.orderBookUsingRestFallback))this.orderBookError=true
+      }finally{
+        if(version===this.orderBookRequestId){this.orderBookLoading=false;this.orderBookRefreshing=false}
+      }
+    },
+    connectOrderBookStream() {
+      const {exchangeId}=this.orderBookFeedContext()
+      this.orderBookStream=new ExchangeOrderBookWs()
+      const connected=this.orderBookStream.connect(this.normalizedSymbol,{
+        onSnapshot:payload=>{
+          this.orderBookStreamStatus='live'
+          this.orderBookUsingRestFallback=false
+          if(this.orderBookTimer)window.clearInterval(this.orderBookTimer)
+          this.orderBookTimer=null
+          this.applyOrderBookSnapshot(payload)
+        },
+        onStatus:status=>{this.orderBookStreamStatus=status},
+        onFallback:()=>this.startRestOrderBookFallback(),
+        onUnavailable:()=>this.startRestOrderBookFallback()
+      },exchangeId,{marketType:this.marketType})
+      if(!connected)this.startRestOrderBookFallback()
+    },
+    startRestOrderBookFallback() {
+      if(!this.selectedCredential||!this.isCrypto)return
+      this.orderBookUsingRestFallback=true
+      this.refreshOrderBook()
+      if(!this.orderBookTimer)this.orderBookTimer=window.setInterval(()=>{if(!document.hidden&&!this.submitting)this.refreshOrderBook()},2000)
+    },
+    restartOrderBookFeed() {
+      if(this.orderBookStream)this.orderBookStream.disconnect()
+      this.orderBookStream=null
+      if(this.orderBookTimer)window.clearInterval(this.orderBookTimer)
+      this.orderBookTimer=null
+      const {exchangeId,contextKey}=this.orderBookFeedContext()
+      if(contextKey!==this.orderBookContextKey){
+        this.orderBookRequestId++
+        this.orderBookContextKey=contextKey
+        this.orderBook=null
+        this.orderBookError=false
+        this.orderBookContractMultiplier=0
+        this.dataSignatures={...this.dataSignatures,orderBook:null}
+      }
+      this.orderBookStreamStatus='connecting'
+      this.orderBookUsingRestFallback=false
+      if(!this.selectedCredential||!this.isCrypto||!exchangeId)return
+      this.refreshOrderBook()
+      this.connectOrderBookStream()
     },
     async confirmOrder(side) {
       if(this.submitting)return
@@ -570,16 +751,46 @@ export default {
       return margin>0?this.positionPnl(position)/margin*100:0
     },
     formatQuantity(value) { return Number(value||0).toLocaleString(undefined,{maximumFractionDigits:8}) },
+    buildOrderBookRows(rows,reverse) {
+      let total=0
+      const normalized=(rows||[]).slice(0,5).map(row=>{
+        const price=Math.max(0,Number(row?.price)||0),size=Math.max(0,Number(row?.size)||0)
+        total+=Math.max(0,Number(row?.notional)||price*size)
+        return {price,size,total,depthPercent:Math.max(2,Math.min(100,Math.sqrt(size/this.orderBookDepthMax)*100))}
+      }).filter(row=>row.price>0&&row.size>0)
+      return reverse?normalized.reverse():normalized
+    },
+    formatDepthValue(value) {
+      const number=Math.max(0,Number(value)||0)
+      if(number>=1e9)return `${(number/1e9).toFixed(number>=1e10?1:2)}B`
+      if(number>=1e6)return `${(number/1e6).toFixed(number>=1e7?1:2)}M`
+      if(number>=1e3)return `${(number/1e3).toFixed(number>=1e4?1:2)}K`
+      return number.toLocaleString(undefined,{maximumFractionDigits:number>=100?2:6})
+    },
     formatNumber(value) { return formatMoney(value) },
     formatPrice(value) {
       const number = Number(value || 0)
       if (!number) return '--'
       return number.toLocaleString('en-US', { minimumFractionDigits: number >= 100 ? 2 : 4, maximumFractionDigits: number >= 100 ? 2 : 6 })
     },
+    formatSpread(value) { return Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)} bps` : '—' },
     formatSigned(value) { const number = Number(value || 0); return `${number > 0 ? '+' : ''}${number.toFixed(2)}` },
     formatTime(value) { const date = new Date(typeof value === 'number' && value < 1e11 ? value * 1000 : value); return Number.isNaN(date.getTime()) ? '-' : `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}` },
-    startPolling() { this.stopPolling(); this.pollTimer = window.setInterval(() => {if(!document.hidden&&!this.submitting)this.refreshTradeData()}, 30000) },
-    stopPolling() { if (this.pollTimer) window.clearInterval(this.pollTimer); this.pollTimer = null }
+    startPolling() {
+      this.stopPolling()
+      this.restartOrderBookFeed()
+      this.pollTimer=window.setInterval(()=>{if(!document.hidden&&!this.submitting)this.refreshTradeData()},30000)
+    },
+    stopPolling() {
+      if(this.pollTimer)window.clearInterval(this.pollTimer)
+      if(this.orderBookTimer)window.clearInterval(this.orderBookTimer)
+      if(this.scheduledRefreshTimer)clearTimeout(this.scheduledRefreshTimer)
+      if(this.orderBookStream)this.orderBookStream.disconnect()
+      this.orderBookStream=null
+      this.orderBookStreamStatus='idle'
+      this.orderBookUsingRestFallback=false
+      this.pollTimer=null;this.orderBookTimer=null;this.scheduledRefreshTimer=null
+    }
   }
 }
 
@@ -638,6 +849,7 @@ button:disabled { opacity: .38; }
 .spot-position-data{grid-template-columns:repeat(3,minmax(0,1fr))}
 .position-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}.position-actions .close-position:only-child{grid-column:1/-1}.close-position,.protect-position{width:100%;min-height:32px;border-radius:6px;font-size:11px;font-weight:800}.close-position{border:1px solid color-mix(in srgb,var(--down) 32%,var(--border));color:var(--down);background:var(--down-soft)}.protect-position{border:1px solid color-mix(in srgb,var(--accent) 34%,var(--border));color:var(--accent);background:var(--accent-soft)}
 .history-item { padding: 11px; }.history-item header { display:flex;align-items:flex-start;justify-content:space-between;gap:10px }.history-item header>div{display:flex;align-items:center;gap:7px}.history-item header>div:last-child{flex-direction:column;align-items:flex-end;gap:2px}.history-item header span{padding:2px 6px;border-radius:4px;background:var(--surface-deep);font-size:10px;font-weight:800}.history-item small,.history-item time { color: var(--text-3); font-size: 10px; }.history-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:11px;padding-top:10px;border-top:1px solid var(--hairline)}.history-metrics span{display:flex;min-width:0;flex-direction:column;gap:3px}.history-metrics b{overflow:hidden;color:var(--text);font-size:11px;font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}.history-error{margin:9px 0 0;color:var(--down);font-size:10px}.cancel-order{width:100%;min-height:30px;margin-top:9px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text-2)}
+.activity-pagination{grid-column:1/-1;margin-top:6px}.activity-pagination :deep(.van-pagination__item){min-width:36px;height:36px;color:var(--text-2);background:var(--bg-elevated);border-color:var(--border)}.activity-pagination :deep(.van-pagination__item--active){color:var(--text-on-accent);background:var(--accent)}
 .protection-popup{background:var(--bg-elevated)}.protection-sheet{padding:18px 18px calc(20px + var(--safe-area-bottom,0px));color:var(--text)}.protection-sheet>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.protection-sheet>header>div{display:flex;flex-direction:column;gap:4px}.protection-sheet>header strong{font-size:17px}.protection-sheet>header small{color:var(--text-3);font-size:11px}.protection-sheet>header button{border:0;background:transparent;color:var(--text-2);font-size:18px}.protection-orders{display:grid;gap:7px;margin-top:16px}.protection-orders article{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:10px 11px;border-radius:9px;background:var(--surface-raised)}.protection-orders span{color:var(--text-2);font-size:11px}.protection-orders strong{font-size:12px}.protection-orders button{border:0;background:transparent;color:var(--down);font-size:11px}.protection-empty{margin:18px 0;color:var(--text-3);font-size:12px;text-align:center}.protection-form{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}.protection-form .order-kind{grid-column:1/-1}.protection-form .ticket-field{margin:0}.save-protection{min-width:72px;border:0;border-radius:8px;background:var(--accent);color:var(--text-on-accent);font-size:12px;font-weight:750}.save-protection:disabled{opacity:.4}
 .close-kind{margin-top:18px}.submit-close{width:100%;min-height:44px;margin-top:12px;border:0;border-radius:8px;background:var(--down);color:#fff;font-size:13px;font-weight:800}.submit-close:disabled{opacity:.4}
 @media (min-width: 720px) { .trade-terminal { max-width: 720px; margin-left: auto; margin-right: auto; } }
@@ -645,9 +857,28 @@ button:disabled { opacity: .38; }
 </style>
 
 <style scoped>
+.trade-terminal { margin-top: 16px; border-top-color: var(--v2-line); }
+.terminal-head { min-height: 52px; padding: 10px 12px; }
+.terminal-head .eyebrow { font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.terminal-head strong { font-size: 16px; font-weight: 500; }
+.account-link { font-weight: 500; }
+.account-link .status-dot.online { box-shadow: none; }
+.compact-select, .compact-leverage { border: 1px solid var(--v2-line); border-radius: 8px; background: var(--v2-surface); }
+.compact-select-trigger { border-radius: 8px; }
+.compact-select-trigger[aria-expanded='true'] { border-color: var(--v2-brand); box-shadow: none; }
+.order-kind { gap: 4px; padding: 4px; border-radius: 10px; background: var(--v2-surface); }
+.order-kind button { min-height: 40px; border-radius: 7px; font-weight: 500; }
+.order-kind button.active { background: color-mix(in srgb,var(--v2-brand) 10%,var(--v2-surface)); color: var(--v2-brand-strong); box-shadow: none; }
+.dual-segment button.active { background: color-mix(in srgb,var(--v2-brand) 10%,var(--v2-surface)); color: var(--v2-brand-strong); box-shadow: none; }
+.side-input-mode { border-radius: 9px; background: var(--v2-surface); }
+.trade-actions button, .submit-row button { font-weight: 600; }
+.inline-activity .segmented button { font-weight: 500; }
+</style>
+
+<style scoped>
 .credential-option{display:flex;align-items:center;gap:10px;max-width:100%;font-size:14px}.credential-option .exchange-logo{flex-shrink:0}
 .trade-terminal{margin:12px 0 0;border-radius:0;border-left:0;border-right:0;background:var(--v2-bg)}
-.inline-ticket{padding:14px}.inline-activity{border-top:6px solid var(--v2-surface-2);padding:0 14px 16px}
+.inline-ticket{padding:14px}.inline-activity{margin-top:12px;padding:10px 14px 16px;border-top:1px solid var(--v2-line)}
 .terminal-head{padding:12px 14px}.account-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ticket-mode{display:flex;gap:8px;margin-bottom:12px}.ticket-mode .dual-segment{flex:1;margin:0;border:0;min-width:0}
 .compact-select,.compact-leverage{display:flex;align-items:center;background:var(--v2-surface-2);border-radius:6px}.compact-select{position:relative;min-width:88px}
@@ -660,6 +891,20 @@ button:disabled { opacity: .38; }
 .market-price-row,.ticket-balance{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--v2-muted);padding:12px 0}
 .market-price-row b,.ticket-balance strong{color:var(--v2-text);font-variant-numeric:tabular-nums}.market-price-row small,.ticket-balance small{font-size:10px}
 .ticket-balance strong{margin-left:auto}
+.liquidity-snapshot{margin:4px 0 12px;padding:11px;border:1px solid var(--v2-line);border-radius:10px;background:transparent}
+.liquidity-snapshot>header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.liquidity-snapshot>header>div{display:flex;align-items:center;gap:7px}.liquidity-snapshot>header .liquidity-status{width:6px;height:6px;border-radius:50%;background:var(--v2-green)}.liquidity-snapshot>header .liquidity-status.stale{background:var(--v2-orange)}.liquidity-snapshot>header strong{font-size:11px;font-weight:600}.liquidity-snapshot>header button{width:28px;height:28px;display:grid;place-items:center;border:1px solid var(--v2-line);border-radius:50%;background:var(--v2-surface-2);color:var(--v2-muted)}.liquidity-snapshot>header button:disabled{opacity:.55}.liquidity-snapshot>header button .van-icon{font-size:13px}.liquidity-snapshot .spinning{animation:liquidity-spin .8s linear infinite}
+.liquidity-body{display:grid;gap:6px}.depth-mid{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:7px 8px;border-radius:6px;background:var(--v2-surface-2)}.depth-mid strong{color:var(--v2-text);font-size:15px;font-variant-numeric:tabular-nums}.depth-mid span{color:var(--v2-muted);font-size:9px}.depth-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0}.depth-side{display:grid;min-width:0;gap:1px}.depth-side.bids{padding-right:6px}.depth-side.asks{padding-left:6px;border-left:1px solid var(--v2-line)}.depth-side>header{display:flex;align-items:baseline;justify-content:space-between;gap:6px;min-width:0;padding:0 4px 4px}.depth-side>header b{font-size:10px}.depth-side.asks>header b{color:var(--v2-red)}.depth-side.bids>header b{color:var(--v2-green)}.depth-side>header span{overflow:hidden;color:var(--v2-muted);font-size:8px;text-overflow:ellipsis;white-space:nowrap}.depth-row{position:relative;display:grid;align-items:center;column-gap:5px;min-height:24px;padding:0 4px;overflow:hidden;border-radius:3px;font-size:9px;font-variant-numeric:tabular-nums}.depth-row.bid{grid-template-columns:minmax(0,.58fr) minmax(0,1fr)}.depth-row.ask{grid-template-columns:minmax(0,1fr) minmax(0,.58fr)}.depth-row i{position:absolute;z-index:0;top:1px;bottom:1px;transition:width .28s ease-out}.depth-row.bid i{right:0;border-radius:3px 0 0 3px;background:color-mix(in srgb,var(--v2-green) 12%,transparent)}.depth-row.ask i{left:0;border-radius:0 3px 3px 0;background:color-mix(in srgb,var(--v2-red) 11%,transparent)}.depth-row b,.depth-row span{position:relative;z-index:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.depth-row b{font-weight:650}.depth-row.ask b{color:var(--v2-red);text-align:left}.depth-row.bid b{color:var(--v2-green);text-align:right}.depth-row.ask span{color:var(--v2-text);text-align:right}.depth-row.bid span{color:var(--v2-text);text-align:left}.liquidity-pressure{height:4px;overflow:hidden;margin-top:3px;border-radius:999px;background:var(--v2-red)}.liquidity-pressure i{display:block;height:100%;background:var(--v2-green);transition:width .32s ease-out}.liquidity-body>p{display:flex;justify-content:space-between;margin:0;color:var(--v2-muted);font-size:9px}.liquidity-state{margin:0;padding:5px 0;color:var(--v2-muted);font-size:10px;text-align:center}
+.depth-mid strong{font-family:var(--font-display);font-optical-sizing:auto}
+.liquidity-pressure{position:relative;height:7px;overflow:visible;margin:6px 4px 3px;background:color-mix(in srgb,var(--v2-red) 88%,white);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--v2-red) 18%,transparent)}
+.liquidity-pressure i{border-radius:999px 0 0 999px;background:color-mix(in srgb,var(--v2-green) 92%,white)}
+.liquidity-pressure b{position:absolute;z-index:1;top:50%;width:14px;height:14px;border:2px solid var(--v2-surface);border-radius:50%;background:linear-gradient(90deg,var(--v2-green) 0 50%,var(--v2-red) 50% 100%);box-shadow:0 1px 4px rgba(20,28,24,.2);transform:translate(-50%,-50%);transition:left .32s ease-out,box-shadow .32s ease-out}
+.liquidity-pressure b::after{content:'';position:absolute;inset:50% auto auto 50%;width:4px;height:4px;border-radius:50%;background:var(--v2-surface);box-shadow:0 0 0 1px color-mix(in srgb,var(--v2-text) 15%,transparent);transform:translate(-50%,-50%)}
+.liquidity-pressure b.is-bid{box-shadow:0 1px 4px rgba(20,28,24,.18),0 0 0 3px color-mix(in srgb,var(--v2-green) 12%,transparent)}
+.liquidity-pressure b.is-ask{box-shadow:0 1px 4px rgba(20,28,24,.18),0 0 0 3px color-mix(in srgb,var(--v2-red) 11%,transparent)}
+.liquidity-body>p{margin:0 4px}
+.liquidity-snapshot>header i.connecting{background:var(--v2-muted)}
+.liquidity-snapshot>header i.fallback,.liquidity-snapshot>header i.stale{background:var(--v2-orange)}
+@keyframes liquidity-spin{to{transform:rotate(360deg)}}
 .ticket-options{display:flex;align-items:center;gap:12px;margin:10px 0 16px;font-size:12px}
 .ticket-notice{margin:10px 0 0;font-size:10px;line-height:1.6;color:var(--v2-muted)}
 .inline-activity .segmented{border:0;border-bottom:1px solid var(--v2-line);border-radius:0;background:none;margin-bottom:12px;padding:0}
@@ -669,7 +914,7 @@ button:disabled { opacity: .38; }
 @media(max-width:420px){.position-data{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:10px}}
 </style>
 
-<style scoped>.dual-segment button.active{background:var(--v2-brand);color:var(--v2-on-brand)}.segmented button.active{color:var(--v2-text);background:none;box-shadow:inset 0 -3px var(--v2-brand);border-radius:0}.segmented button{min-height:44px}.terminal-head{gap:10px}.account-link{max-width:65%}</style>
+<style scoped>.dual-segment button.active{background:color-mix(in srgb,var(--v2-brand) 10%,var(--v2-surface));color:var(--v2-brand-strong);box-shadow:none}.segmented button.active{color:var(--v2-brand-strong);background:color-mix(in srgb,var(--v2-brand) 10%,var(--v2-surface));box-shadow:none;border-radius:6px}.segmented button{min-height:44px;font-weight:500}.terminal-head{gap:10px}.terminal-head .eyebrow{font-weight:400;text-transform:none;letter-spacing:0}.terminal-head strong{font-weight:500}.account-link{max-width:65%;font-weight:500}</style>
 
 <style>
 

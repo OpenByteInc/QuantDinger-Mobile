@@ -47,6 +47,7 @@ export default {
     fill_price: '평균 체결가', filled_quantity: '체결 수량', trade_value: '체결 금액', realized_pnl: '실현 손익', live_order: '실거래 주문', live_warning_short: '확인하면 실제 거래 계정으로 즉시 전송됩니다. 주문 내용을 다시 확인하세요.',
     fee: '거래 수수료', position_history: '종료 포지션', closed_quantity: '종료 수량', entry_exit: '진입 / 종료', net_pnl: '순손익', no_position_history: '종료된 포지션이 없습니다', position_history_unsupported: '이 거래소에서는 포지션 기록을 사용할 수 없습니다',
     manage_protection: '익절 / 손절', take_profit_short: '익절', stop_loss_short: '손절', trigger_price: '트리거 가격', no_protection_orders: '익절·손절 주문이 없습니다', protection_unsupported: '이 거래소에서는 포지션 보호를 사용할 수 없습니다', protection_saved: '포지션 보호가 업데이트되었습니다', confirm_close: '종료 확인',
+    liquidity_title: '호가창', best_bid: '최우선 매수', best_ask: '최우선 매도', spread: '스프레드', depth_price: '가격', depth_size: '수량', depth_total: '누적', buy_pressure: '매수 {value}%', sell_pressure: '매도 {value}%', liquidity_loading: '호가창 불러오는 중…', liquidity_unavailable: '호가창을 일시적으로 사용할 수 없습니다',
     chart_risk_hint: '차트 신호는 판단 보조용이며, 실거래 주문에는 확인이 필요합니다.'
   },
   api_errors: {
@@ -188,6 +189,8 @@ export default {
     market_moex: 'MOEX',
     removed: '관심 목록에서 제거되었습니다',
     added: '관심 목록에 추가되었습니다',
+    remove_confirm_title: '관심 목록에서 제거',
+    remove_confirm: '{symbol}을(를) 관심 목록에서 제거할까요?',
     manage: '관심 목록 관리',
     tap_to_select: '탭하여 종목 선택',
     change_symbol: '종목 변경',

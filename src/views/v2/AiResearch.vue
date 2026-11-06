@@ -51,4 +51,84 @@ defineOptions({name:'AiResearchV2'})
 }
 </style>
 
+<style scoped>
+.research-shell { width: 100%; max-width: 520px; min-height: 100%; margin: 0 auto; padding: calc(16px + var(--safe-area-top)) 16px 32px; border-inline: 1px solid var(--v2-line); background: var(--v2-bg); }
+.research-shell :deep(.ai-copilot-page) { padding: 0; }
+.research-shell :deep(.top-bar) { margin-bottom: 22px; padding-block: 10px; border-block: 1px solid var(--v2-line); }
+.research-shell :deep(.new-chat), .research-shell :deep(.history-btn) { border: 0; border-radius: 0; }
+.research-shell :deep(.top-bar .context-chip) { border: 0; border-radius: 0; background: transparent; }
+.research-shell :deep(.welcome-card) { padding: 24px 0 14px; border: 0; border-radius: 0; background: transparent; }
+.research-shell :deep(.eyebrow), .research-shell :deep(.welcome-title-row small) { color: #8b6526; }
+.research-shell :deep(.welcome-title-row span) { font-family: var(--font-display); font-optical-sizing: auto; font-size: 28px; font-weight: 650; line-height: 1.12; }
+.research-shell :deep(.report-feature-card) { margin-top: 24px; padding: 18px 0; border: 0; border-block: 1px solid var(--v2-line); border-radius: 0; background: transparent; box-shadow: none; }
+.research-shell :deep(.report-feature-icon) { border-radius: 0; background: transparent; color: var(--v2-brand); }
+.research-shell :deep(.starter-grid) { grid-template-columns: 1fr; gap: 0; border-top: 1px solid var(--v2-line); }
+.research-shell :deep(.starter-grid button) { min-height: 72px; padding: 12px 0; border: 0; border-bottom: 1px solid var(--v2-line); border-radius: 0; background: transparent; }
+.research-shell :deep(.starter-icon) { color: #8b6526; }
+.research-shell :deep(.ask-card) { border-radius: 0; border-color: var(--v2-line); background: var(--v2-surface); box-shadow: none; }
+.research-shell :deep(.send-action) { border-radius: 0; background: var(--v2-brand); }
+.research-shell :deep(.analysis-report-card), .research-shell :deep(.bubble) { border-radius: 0; }
+</style>
+
 <style scoped>.research-shell :deep(.message-row.user .bubble){color:var(--v2-text)}.research-shell :deep(.message-row.user .markdown-body){color:inherit}</style>
+
+<style scoped>
+.research-shell { font-family: var(--font-sans); }
+.research-shell :deep(.welcome-title-row span),
+.research-shell :deep(.drawer-head > span),
+.research-shell :deep(.memory-section-head strong) { font-family: var(--font-display); font-optical-sizing: auto; }
+.research-shell :deep(.ai-copilot-page) { padding-inline: 12px; }
+.research-shell :deep(.top-bar) { margin-bottom: 16px; }
+.research-shell :deep(.new-chat),
+.research-shell :deep(.history-btn) { border-radius: 10px; background: transparent; color: var(--v2-muted); }
+.research-shell :deep(.top-bar .context-chip) { border-radius: 10px; background: var(--v2-surface); }
+.research-shell :deep(.top-bar .context-identity strong) { font-size: 15px; font-weight: 600; }
+.research-shell :deep(.top-bar .context-quote strong) { font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.research-shell :deep(.welcome-card) { justify-content: flex-start; padding: 40px 4px 16px; text-align: left; }
+.research-shell :deep(.eyebrow) { font-size: 12px; font-weight: 500; color: var(--v2-brand); }
+.research-shell :deep(.welcome-title-row) { align-items: flex-start; gap: 6px; }
+.research-shell :deep(.welcome-title-row span) { font-size: 25px; font-weight: 500; letter-spacing: -.02em; }
+.research-shell :deep(.welcome-title-row em) { max-width: 320px; font-size: 13px; line-height: 1.5; }
+.research-shell :deep(.report-feature-card) {
+  padding: 14px;
+  border-color: var(--v2-line);
+  border-radius: 12px;
+  background: var(--v2-surface);
+  box-shadow: none;
+}
+.research-shell :deep(.report-feature-icon) { width: 36px; height: 36px; border-radius: 9px; background: var(--v2-surface-2); color: var(--v2-brand); }
+.research-shell :deep(.report-feature-card strong) { font-weight: 500; }
+.research-shell :deep(.starter-grid) { gap: 6px; margin-top: 8px; }
+.research-shell :deep(.starter-grid button) { min-height: 60px; border-radius: 10px; background: transparent; }
+.research-shell :deep(.starter-grid strong) { font-weight: 500; }
+.research-shell :deep(.starter-icon) { background: transparent; color: var(--v2-muted); }
+.research-shell :deep(.ask-card) { padding: 10px; border-radius: 14px; background: var(--v2-surface); backdrop-filter: none; }
+.research-shell :deep(.ask-card textarea) { min-height: 48px; font-size: 14px; line-height: 1.5; }
+.research-shell :deep(.memory-action) { border: 1px solid var(--v2-line); background: transparent; font-weight: 500; }
+.research-shell :deep(.send-action) { border-radius: 9px; font-weight: 600; }
+.research-shell :deep(.bubble) { border-radius: 12px; }
+.research-shell :deep(.message-row.user .bubble) { background: var(--v2-surface-2); box-shadow: none; }
+
+@media (max-width: 430px) {
+  .research-shell :deep(.welcome-card) { padding-top: 28px; }
+  .research-shell :deep(.welcome-title-row span) { font-size: 24px; }
+}
+</style>
+
+<style scoped>
+.research-shell { min-height: 100%; padding: calc(16px + var(--safe-area-top)) 16px 32px; background: var(--v2-bg); }
+.research-shell :deep(.ai-copilot-page) { padding: 0; }
+.research-shell :deep(.top-bar) { margin-bottom: 22px; padding-block: 10px; border-block: 1px solid var(--v2-line); }
+.research-shell :deep(.new-chat), .research-shell :deep(.history-btn), .research-shell :deep(.top-bar .context-chip) { border: 0; border-radius: 0; background: transparent; }
+.research-shell :deep(.welcome-card) { padding: 24px 0 14px; border: 0; border-radius: 0; background: transparent; }
+.research-shell :deep(.eyebrow), .research-shell :deep(.welcome-title-row small) { color: #8b6526; }
+.research-shell :deep(.welcome-title-row span) { font-family: var(--font-display); font-optical-sizing: auto; font-size: 28px; font-weight: 650; line-height: 1.12; }
+.research-shell :deep(.report-feature-card) { margin-top: 24px; padding: 18px 0; border: 0; border-block: 1px solid var(--v2-line); border-radius: 0; background: transparent; box-shadow: none; }
+.research-shell :deep(.report-feature-icon) { border-radius: 0; background: transparent; color: var(--v2-brand); }
+.research-shell :deep(.starter-grid) { gap: 0; border-top: 1px solid var(--v2-line); }
+.research-shell :deep(.starter-grid button) { min-height: 72px; padding: 12px 0; border: 0; border-bottom: 1px solid var(--v2-line); border-radius: 0; background: transparent; }
+.research-shell :deep(.starter-icon) { color: #8b6526; }
+.research-shell :deep(.ask-card), .research-shell :deep(.analysis-report-card), .research-shell :deep(.bubble) { border-radius: 0; box-shadow: none; }
+.research-shell :deep(.message-row.user .bubble) { box-shadow: none; }
+.research-shell :deep(.send-action) { border-radius: 0; background: var(--v2-brand); }
+</style>

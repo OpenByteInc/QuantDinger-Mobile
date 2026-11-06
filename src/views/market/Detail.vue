@@ -1061,3 +1061,26 @@ export default {
   min-width: 0;
 }
 </style>
+
+<style scoped>
+.detail-page{color:var(--v2-text);background:var(--v2-bg)}
+:deep(.van-nav-bar){border-bottom:1px solid var(--v2-line);background:var(--v2-bg)!important}
+:deep(.van-nav-bar__title){font-size:16px;font-weight:650}
+.hero{margin:0 18px;padding:22px 0 18px;border:0;border-bottom:1px solid var(--v2-line);border-radius:0;background:transparent}
+.hero::before{display:none}.hero-title{font-size:24px;font-weight:680;letter-spacing:-.025em}
+.hero-score{width:62px;min-height:62px;border-color:var(--v2-line);border-radius:50%;background:transparent}.hero-score strong{color:var(--v2-orange);font-size:22px}
+.hero-kpis{gap:0;margin-top:18px;border-block:1px solid var(--v2-line)}
+.hero-kpi{padding:12px 10px;border:0;border-right:1px solid var(--v2-line);border-radius:0;background:transparent}.hero-kpi:last-child{border-right:0}
+.card{margin:0 18px;padding:18px 0;border:0;border-bottom:1px solid var(--v2-line);border-radius:0;background:transparent}
+.card-title{font-size:15px;font-weight:650}.desc{line-height:1.65}
+.contract-section{margin:0 18px;padding:18px 0;border-color:var(--v2-line)}
+.contract-badge,.sample-pill,.mini-tag,.review-edit-badge{border-radius:4px}
+.performance-card{background:transparent}.curve-panel{padding:12px 0;border:0;border-radius:0;background:transparent}
+.perf-grid.rich{gap:0;border:1px solid var(--v2-line)}.perf-item{padding:12px;border:0;border-right:1px solid var(--v2-line);border-bottom:1px solid var(--v2-line);border-radius:0;background:transparent}.perf-item:nth-child(2n){border-right:0}.perf-item:nth-last-child(-n+2){border-bottom:0}
+.review-composer{padding:14px 0;border:0;border-radius:0;background:transparent}
+.review-composer :deep(.van-cell){border-color:var(--v2-line);border-radius:7px;background:var(--v2-surface)!important}
+.adaptation-popup{color:var(--v2-text);background:var(--v2-surface)}.adaptation-sheet :deep(.van-cell){border-color:var(--v2-line);border-radius:7px;background:var(--v2-surface-2)}
+.footer-bar{background:color-mix(in srgb,var(--v2-surface) 96%,transparent);border-color:var(--v2-line);box-shadow:0 -8px 28px rgba(48,35,15,.08)}
+.footer-bar :deep(.van-button){border-radius:7px}
+@media (min-width:560px){.detail-page{width:100%;max-width:520px;margin-inline:auto;border-inline:1px solid var(--v2-line)}.footer-bar{right:auto;left:50%;width:520px;transform:translateX(-50%)}}
+</style>

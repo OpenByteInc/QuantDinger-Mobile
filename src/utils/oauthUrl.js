@@ -5,5 +5,6 @@ export function buildOAuthStartUrl({ baseUrl = '', webOrigin = '', provider, red
   }
   const url = new URL(`${root}/api/auth/oauth/${encodeURIComponent(provider)}`)
   url.searchParams.set('redirect', redirectUri)
+  url.searchParams.set('client_type', 'mobile')
   return url.toString()
 }

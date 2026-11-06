@@ -41,6 +41,7 @@ test('referral reward translations are registered and complete for all mobile lo
   for (const locale of locales) {
     assert.deepEqual(Object.keys(referralRewards[locale]).sort(), englishKeys)
     for (const key of englishKeys) assert.ok(String(referralRewards[locale][key]).trim(), `${locale}.${key}`)
-    assert.match(localeSource, new RegExp(`referral_rewards: referralRewards\\['${locale}'\\]`))
+    assert.match(localeSource, /referral_rewards: referralRewards\[locale\]/)
+    assert.match(localeSource, new RegExp(`buildLocale\\([^\\n]+, '${locale}'\\)`))
   }
 })

@@ -47,6 +47,7 @@ export default {
     fill_price: '成交均價', filled_quantity: '成交數量', trade_value: '成交額', realized_pnl: '平倉盈虧', live_order: '實盤訂單', live_warning_short: '確認後將立即提交到真實交易帳戶，請再次核對訂單。',
     fee: '交易手續費', position_history: '歷史倉位', closed_quantity: '平倉數量', entry_exit: '開倉 / 平倉', net_pnl: '淨盈虧', no_position_history: '暫無已平倉倉位', position_history_unsupported: '目前交易所暫不提供歷史倉位',
     manage_protection: '止盈止損', take_profit_short: '止盈', stop_loss_short: '止損', trigger_price: '觸發價格', no_protection_orders: '暫無止盈止損委託', protection_unsupported: '目前交易所暫不支援持倉止盈止損', protection_saved: '止盈止損已更新', confirm_close: '確認平倉',
+    liquidity_title: '訂單簿', best_bid: '最佳買價', best_ask: '最佳賣價', spread: '價差', depth_price: '價格', depth_size: '數量', depth_total: '累計', buy_pressure: '買方 {value}%', sell_pressure: '賣方 {value}%', liquidity_loading: '正在載入盤口…', liquidity_unavailable: '盤口資料暫不可用',
     chart_risk_hint: '圖表訊號僅供輔助判斷；實盤交易均需二次確認。'
   },
   api_errors: {
@@ -188,6 +189,8 @@ export default {
     market_moex: 'MOEX',
     removed: '已從自選中移除',
     added: '已加入自選',
+    remove_confirm_title: '移出自選',
+    remove_confirm: '確定將 {symbol} 移出自選嗎？',
     manage: '管理自選',
     tap_to_select: '點擊選擇交易對',
     change_symbol: '更換交易對',

@@ -51,3 +51,28 @@ test('all modular locale bundles have matching keys', () => {
     })
   })
 })
+
+test('AI research entry points and memory controls are localized in Japanese and Korean', () => {
+  const visibleKeys = [
+    'workspaceEyebrow',
+    'professionalReport',
+    'professionalReportDesc',
+    'quickDiagnose',
+    'quickDiagnoseDesc',
+    'quickNews',
+    'quickNewsDesc',
+    'quickRisk',
+    'quickRiskDesc',
+    'memoryTitle'
+  ]
+
+  assert.equal(aiChat['en-US'].quickDiagnose, 'Trend check')
+  assert.equal(aiChat['ja-JP'].quickDiagnose, 'トレンド診断')
+  assert.equal(aiChat['ko-KR'].quickDiagnose, '추세 진단')
+
+  for (const locale of ['ja-JP', 'ko-KR']) {
+    for (const key of visibleKeys) {
+      assert.notEqual(aiChat[locale][key], aiChat['en-US'][key], `${locale}.${key} still uses English copy`)
+    }
+  }
+})

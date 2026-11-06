@@ -248,3 +248,35 @@ export default {
 .ownership-sheet{max-height:min(84vh,760px);padding:0 16px calc(18px + env(safe-area-inset-bottom));overflow-y:auto;color:var(--text);background:var(--bg-elevated)}.sheet-head{position:sticky;top:0;z-index:2;margin:0 -16px;padding:18px 16px 12px;background:var(--bg-elevated)}.sheet-head>div{display:flex;flex-direction:column;gap:3px}.sheet-head strong{font-size:17px}.sheet-head small{color:var(--text-3);font-size:10px}.sheet-head button{width:34px;height:34px;border:0;border-radius:50%;color:var(--text-2);background:var(--bg)}.sheet-warning{margin-bottom:12px;padding:10px;display:flex;gap:8px;border-radius:10px;color:var(--down);background:var(--down-soft);font-size:10px;line-height:1.5}.ownership-card{padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--bg)}.ownership-actions{margin-top:12px;display:flex;justify-content:flex-end;flex-wrap:wrap;gap:7px}
 @media (min-width:720px){.hero-card,.metric-section,.tab-panel,.risk-card{width:calc(100% - 2 * var(--detail-gutter));max-width:980px;margin-left:auto;margin-right:auto}.metric-grid{grid-template-columns:repeat(5,1fr)}.metric-grid article:last-child:nth-child(odd){grid-column:auto}.settlement-grid,.review-metrics{grid-template-columns:repeat(4,1fr)}.record-card dl,.ownership-card dl{grid-template-columns:repeat(4,1fr)}}
 </style>
+
+<style scoped>
+.page{--detail-gutter:18px;background:var(--v2-bg)}
+:deep(.van-nav-bar){border-bottom:1px solid var(--v2-line);background:var(--v2-bg)!important}
+:deep(.van-nav-bar__title){font-size:16px;font-weight:650}
+.hero-card,.metric-section,.tab-panel{margin:0 var(--detail-gutter);border:0;border-bottom:1px solid var(--v2-line);border-radius:0;background:transparent}
+.hero-card{padding:22px 0 18px}
+.hero-copy h1{font-size:24px;font-weight:680;letter-spacing:-.025em}
+.hero-tags{gap:6px}.status-pill,.mode-pill,.exchange-pill,.decision-pill{border-radius:4px;font-weight:650}
+.hero-time{margin-top:14px}.runtime-strip{margin-top:16px;padding:13px 0}
+.control-bar{margin-top:14px}.control-bar :deep(.van-button){height:40px;border-radius:7px;background:transparent}
+.metric-section{padding:18px 0}
+.metric-section>header h2,.section-title-row h3,.review-list-card h3{font-size:15px;font-weight:650}
+.metric-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-top:14px;border-block:1px solid var(--v2-line)}
+.metric-grid article{min-height:82px;padding:12px 9px;border:0;border-right:1px solid var(--v2-line);border-radius:0;background:transparent}
+.metric-grid article:last-child{border-right:0}.metric-grid article:last-child:nth-child(odd){grid-column:auto}
+.metric-grid .primary-metric{border-color:var(--v2-line);background:color-mix(in srgb,var(--v2-brand) 7%,transparent)}
+.metric-grid span{font-size:9px;line-height:1.35}.metric-grid strong{font-size:14px}.metric-grid small{font-size:8px}
+:deep(.van-tabs__wrap){height:46px}:deep(.van-tabs__nav),:deep(.van-sticky--fixed){background:var(--v2-bg)!important}
+:deep(.van-tab){font-size:12px}:deep(.van-tab--active){color:var(--v2-brand);background:color-mix(in srgb,var(--v2-brand) 8%,transparent)}
+:deep(.van-tabs__line){display:none}
+.tab-panel{min-height:280px;padding:18px 0}.stacked-panels{gap:0}
+.content-card,.review-summary,.review-list-card{padding:17px 0;border:0;border-bottom:1px solid var(--v2-line);border-radius:0;background:transparent}
+.ownership-entry,.record-card,.ownership-card{border-radius:7px;background:color-mix(in srgb,var(--v2-surface) 55%,transparent)}
+.record-list{gap:8px}.record-card{border-color:var(--v2-line)}
+.settlement-grid article,.review-metrics article,.mini-kpis div{border-radius:4px;background:var(--v2-surface-2)}
+.risk-card{border-radius:7px}
+.ownership-sheet{color:var(--v2-text);background:var(--v2-surface)}
+.sheet-head{background:var(--v2-surface)}
+@media (max-width:430px){.metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.metric-grid article:nth-child(3){border-right:0}.metric-grid article:nth-child(n+4){border-top:1px solid var(--v2-line)}.metric-grid article:last-child:nth-child(odd){grid-column:auto}}
+@media (min-width:560px){.page{max-width:520px;margin-inline:auto;border-inline:1px solid var(--v2-line)}.hero-card,.metric-section,.tab-panel,.risk-card{width:auto;max-width:none;margin-inline:var(--detail-gutter)}}
+</style>

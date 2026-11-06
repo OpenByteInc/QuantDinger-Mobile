@@ -16,18 +16,19 @@
         </button>
       </template>
       <template v-else>
-        <div class="source-empty-icon"><van-icon name="description" /></div>
+        <div class="source-empty-index">01</div>
         <div class="source-empty-copy">
           <div class="source-label">{{ $t('script_strategy.source_label') }}</div>
           <div class="source-title">{{ $t('script_strategy.source_empty_title') }}</div>
           <p>{{ sourceDescription }}</p>
         </div>
         <button type="button" class="source-primary-action" @click="showSourcePicker = true">
-          {{ $t('script_strategy.source_choose_action') }}
+          <span><van-icon name="description" />{{ $t('script_strategy.source_choose_action') }}</span>
           <van-icon name="arrow" />
         </button>
         <button type="button" class="source-market-action" @click="goToStrategyMarket">
           {{ $t('trading.create_market_cta') }}
+          <van-icon name="arrow" />
         </button>
       </template>
     </section>
@@ -58,6 +59,25 @@
         <div><span>{{ $t('script_strategy.frequency') }}</span><strong>{{ manifestFrequency }}</strong></div>
         <div><span>{{ $t('script_strategy.strategy_type') }}</span><strong>{{ strategyTypeLabel }}</strong></div>
       </div>
+
+      <section v-if="canEditSourceRuntime" class="runtime-source-card">
+        <header>
+          <div><strong>{{ $t('script_strategy.runtime_target_title') }}</strong><small>{{ $t('script_strategy.runtime_target_hint') }}</small></div>
+          <van-icon name="exchange" />
+        </header>
+        <button type="button" class="runtime-symbol" @click="showRuntimeSymbolPicker = true">
+          <span><small>{{ $t('script_strategy.runtime_symbol') }}</small><strong>{{ runtimeDraft.symbol || '—' }}</strong><em>{{ runtimeMarketLabel }}</em></span>
+          <van-icon name="arrow" />
+        </button>
+        <div v-if="runtimeContract.hasProduct && runtimeDraft.market_category === 'Crypto'" class="runtime-options">
+          <span>{{ $t('script_strategy.runtime_product') }}</span>
+          <div><button v-for="type in ['spot', 'swap']" :key="type" type="button" :class="{ active: runtimeDraft.market_type === type }" @click="setRuntimeField('market_type', type)">{{ $t(type === 'spot' ? 'chart_trade.spot' : 'chart_trade.swap') }}</button></div>
+        </div>
+        <div v-if="runtimeContract.hasTimeframe" class="runtime-timeframes">
+          <span>{{ $t('script_strategy.runtime_timeframe') }}</span>
+          <div><button v-for="timeframe in runtimeTimeframes" :key="timeframe" type="button" :class="{ active: runtimeDraft.timeframe === timeframe }" @click="setRuntimeField('timeframe', timeframe)">{{ timeframe }}</button></div>
+        </div>
+      </section>
 
       <div v-if="hasTriggerContract" class="trigger-card">
         <div class="trigger-card-icon"><van-icon name="fire-o" /></div>
@@ -99,16 +119,16 @@
       </div>
 
       <template v-if="sourceId && !contractError">
-      <div v-if="parameterDefinitions.length" class="section">
+      <div class="section parameter-risk-section">
         <div class="section-heading">
           <span class="section-index">1</span>
           <div><strong>{{ $t('script_strategy.parameters') }}</strong><small>{{ $t('script_strategy.parameters_hint') }}</small></div>
         </div>
-        <van-cell-group inset>
+        <van-cell-group v-if="parameterDefinitions.length" inset>
           <template v-for="parameter in parameterDefinitions" :key="parameter.name">
             <van-cell v-if="parameter.type === 'boolean'" :title="parameterLabel(parameter)">
               <template #right-icon>
-                <van-switch v-model="params[parameter.name]" size="22" />
+                <van-switch v-model="params[parameter.name]" size="22" :disabled="isParameterDisabled(parameter)" />
               </template>
             </van-cell>
             <van-field
@@ -141,49 +161,16 @@
             />
           </template>
         </van-cell-group>
-      </div>
-
-      <div class="section">
-        <div class="section-heading">
-          <span class="section-index">{{ parameterDefinitions.length ? 2 : 1 }}</span>
-          <div><strong>{{ $t('bot_create.base_config') }}</strong><small>{{ $t('script_strategy.runtime_hint') }}</small></div>
-        </div>
-        <van-cell-group inset>
-          <van-field
-            v-model="form.name"
-            :label="$t('bot_create.bot_name')"
-            :placeholder="$t('bot_create.bot_name_placeholder')"
-          />
-          <van-field
-            v-model.number="form.initialCapital"
-            type="number"
-            :label="capitalLabel"
-            :placeholder="$t('script_strategy.capital_placeholder')"
-          />
-          <div class="field-hint capital-hint">
-            {{ capitalHint }}
-          </div>
-        </van-cell-group>
-      </div>
-
-      <div class="section">
-        <div class="section-heading">
-          <span class="section-index">{{ parameterDefinitions.length ? 3 : 2 }}</span>
-          <div><strong>{{ $t('indicator_bot.execution_mode') }}</strong><small>{{ executionModeHint }}</small></div>
-        </div>
-        <div class="execution-mode-grid">
-          <button type="button" :class="{ active: form.executionMode === 'live', disabled: !supportsLive }" :disabled="!supportsLive" @click="form.executionMode = 'live'">
-            <van-icon name="fire-o" />
-            <span><strong>{{ $t('indicator_bot.execution_mode_live') }}</strong><small>{{ $t('script_strategy.execution_live_hint') }}</small></span>
-            <van-icon v-if="form.executionMode === 'live'" name="success" />
-          </button>
-          <button type="button" :class="{ active: form.executionMode === 'signal' }" @click="form.executionMode = 'signal'">
-            <van-icon name="bell" />
-            <span><strong>{{ $t('indicator_bot.execution_mode_signal') }}</strong><small>{{ $t('script_strategy.execution_signal_hint') }}</small></span>
-            <van-icon v-if="form.executionMode === 'signal'" name="success" />
+        <div v-if="canEditSourceDefinition && sourceDefinitionDirty" class="parameter-source-sync">
+          <span>
+            <van-icon name="info-o" />
+            <span><strong>{{ $t('script_strategy.source_changes_pending') }}</strong><small>{{ $t('script_strategy.source_changes_hint') }}</small></span>
+          </span>
+          <button type="button" :disabled="savingSourceDefinition" @click="applySourceDefinitionChanges">
+            <van-loading v-if="savingSourceDefinition" size="14" />
+            <template v-else>{{ $t('script_strategy.apply_source_changes') }}</template>
           </button>
         </div>
-
         <div class="deployment-risk-config">
           <div class="deployment-risk-head">
             <div>
@@ -235,15 +222,74 @@
             </van-field>
           </div>
         </div>
+      </div>
+
+      <div class="section">
+        <div class="section-heading">
+          <span class="section-index">2</span>
+          <div><strong>{{ $t('bot_create.base_config') }}</strong><small>{{ $t('script_strategy.runtime_hint') }}</small></div>
+        </div>
+        <van-cell-group inset>
+          <van-field
+            v-model="form.name"
+            :label="$t('bot_create.bot_name')"
+            :placeholder="$t('bot_create.bot_name_placeholder')"
+          />
+          <van-field
+            v-model.number="form.initialCapital"
+            type="number"
+            :label="capitalLabel"
+            :placeholder="$t('script_strategy.capital_placeholder')"
+          />
+          <div class="field-hint capital-hint">
+            {{ capitalHint }}
+          </div>
+        </van-cell-group>
+      </div>
+
+      <div class="section">
+        <div class="section-heading">
+          <span class="section-index">3</span>
+          <div><strong>{{ $t('indicator_bot.execution_mode') }}</strong><small>{{ executionModeHint }}</small></div>
+        </div>
+        <div class="execution-mode-grid">
+          <button type="button" :class="{ active: form.executionMode === 'live', disabled: !supportsLive }" :disabled="!supportsLive" @click="form.executionMode = 'live'">
+            <van-icon name="fire-o" />
+            <span><strong>{{ $t('indicator_bot.execution_mode_live') }}</strong><small>{{ $t('script_strategy.execution_live_hint') }}</small></span>
+            <van-icon v-if="form.executionMode === 'live'" name="success" />
+          </button>
+          <button type="button" :class="{ active: form.executionMode === 'signal' }" @click="form.executionMode = 'signal'">
+            <van-icon name="bell" />
+            <span><strong>{{ $t('indicator_bot.execution_mode_signal') }}</strong><small>{{ $t('script_strategy.execution_signal_hint') }}</small></span>
+            <van-icon v-if="form.executionMode === 'signal'" name="success" />
+          </button>
+        </div>
 
         <div v-if="form.executionMode === 'live'" class="live-config">
-          <van-cell
-            :title="$t('bot_create.exchange_account')"
-            :value="credentialLabel"
-            is-link
-            @click="openCredentialPicker"
-          />
-          <div v-if="!credentials.length" class="field-hint field-hint--warning">{{ $t('script_strategy.no_compatible_credential') }}</div>
+          <div :class="['account-config-card', { missing: !form.credentialId }]">
+            <div class="account-config-head">
+              <span class="account-config-icon"><van-icon name="exchange" /></span>
+              <div>
+                <strong>{{ $t('bot_create.exchange_account') }}</strong>
+                <small>{{ $t('script_strategy.exchange_account_hint') }}</small>
+              </div>
+              <em>{{ $t('script_strategy.required') }}</em>
+            </div>
+            <button v-if="credentials.length" type="button" class="account-config-action" @click="openCredentialPicker">
+              <span>
+                <small>{{ form.credentialId ? $t('script_strategy.exchange_account_selected') : $t('script_strategy.exchange_account_select') }}</small>
+                <strong>{{ credentialLabel }}</strong>
+              </span>
+              <van-icon name="arrow" />
+            </button>
+            <button v-else type="button" class="account-config-action account-config-action--bind" @click="goToCredentialBinding">
+              <span>
+                <small>{{ $t('script_strategy.no_compatible_credential') }}</small>
+                <strong>{{ $t('script_strategy.bind_exchange_account') }}</strong>
+              </span>
+              <van-icon name="arrow" />
+            </button>
+          </div>
           <div v-if="supportsLeverage" class="leverage-config">
             <div><strong>{{ $t('script_strategy.leverage_title') }}</strong><small>{{ $t('script_strategy.leverage_auto_hint', { value: maxLeverage }) }}</small></div>
             <van-stepper v-model="form.leverage" integer :min="1" :max="maxLeverage" />
@@ -373,9 +419,9 @@
         >{{ filter.label }}</button>
       </div>
       <van-loading v-if="loadingSources" class="source-picker-loading" vertical>{{ $t('common.loading') }}</van-loading>
-      <div v-else-if="filteredSources.length" class="source-picker-list">
+      <div v-else-if="filteredSources.length" class="source-picker-list" @scroll.passive="onSourceListScroll">
         <button
-          v-for="item in filteredSources"
+          v-for="item in visibleSources"
           :key="item.id"
           type="button"
           :class="['source-picker-item', { active: Number(item.id) === Number(sourceId) }]"
@@ -394,6 +440,9 @@
           </span>
           <van-icon :name="Number(item.id) === Number(sourceId) ? 'success' : 'arrow'" class="source-picker-state" />
         </button>
+        <div v-if="visibleSources.length < filteredSources.length" class="source-picker-more" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
       </div>
       <van-empty v-else :description="sourcePickerEmptyDescription">
         <van-button round type="primary" size="small" @click="goToStrategyMarket">
@@ -401,15 +450,34 @@
         </van-button>
       </van-empty>
     </van-popup>
+    <SymbolPicker
+      v-model:show="showRuntimeSymbolPicker"
+      :title="$t('script_strategy.runtime_symbol_picker')"
+      :auto-add="false"
+      :default-market="runtimeDraft.market_category || 'Crypto'"
+      :search-market="runtimeDraft.market_category || 'Crypto'"
+      :exchange-id="runtimeDraft.exchange_id || ''"
+      :market-type="runtimeDraft.market_type || ''"
+      :selected-symbol="runtimeDraft.symbol || ''"
+      @pick="selectRuntimeSymbol"
+    />
   </div>
 </template>
 
 <script>
 import { contractChanged } from '@/utils/strategyDisplay'
+import SymbolPicker from '@/components/SymbolPicker.vue'
 import { showToast } from 'vant'
 import { credentialsApi, scriptSourceApi, strategyApi, userApi } from '@/api'
 import { useCredentialsStore } from '@/stores'
 import { ASSET_TYPES } from '@/utils/marketRoutes'
+import {
+  applyStrategyRuntimeConfigToCode,
+  buildScriptCodeWithParamValues,
+  extractScriptParamsFromCode,
+  extractStrategyRuntimeContractFromCode,
+  sanitizeRuntimeConfigForSource
+} from '@/utils/strategyRuntimeSource'
 
 const LIVE_CRYPTO_EXCHANGES = new Set(['binance', 'okx', 'bitget', 'bybit', 'gate', 'htx'])
 const PLATFORM_MAX_LEVERAGE = 100
@@ -470,6 +538,7 @@ const directionModePositionSide = (value) => {
 
 export default {
   name: 'CreateStrategy',
+  components: { SymbolPicker },
   data() {
     return {
       loading: false,
@@ -505,7 +574,12 @@ export default {
       },
       showCredentialPicker: false,
       showSourcePicker: false,
-      loadingSources: false
+      showRuntimeSymbolPicker: false,
+      runtimeDraft: {},
+      runtimeOriginal: {},
+      loadingSources: false,
+      savingSourceDefinition: false,
+      sourcePickerRenderCount: 12
     }
   },
   computed: {
@@ -558,16 +632,21 @@ export default {
         })
         .sort((a, b) => this.recentSourceRank(a) - this.recentSourceRank(b))
     },
+    visibleSources() {
+      return this.filteredSources.slice(0, this.sourcePickerRenderCount)
+    },
     sourcePickerEmptyDescription() {
       return this.sourceSearchText || this.sourceType !== 'all'
         ? this.$t('trading.create_source_filter_empty')
         : this.$t('trading.create_source_empty')
     },
     marketCategory() {
+      if (this.canEditSourceRuntime && this.runtimeDraft.market_category) return String(this.runtimeDraft.market_category)
       const markets = Array.isArray(this.manifest?.markets) ? this.manifest.markets : []
       return markets.length === 1 ? String(markets[0]) : (markets.length ? this.$t('script_strategy.mixed_market') : '-')
     },
     manifestFrequency() {
+      if (this.canEditSourceRuntime && this.runtimeDraft.timeframe) return String(this.runtimeDraft.timeframe)
       return String(this.manifest?.primaryFrequency || this.manifest?.subscriptions?.[0]?.frequency || '-')
     },
     strategyTypeLabel() {
@@ -578,7 +657,39 @@ export default {
       return ['Crypto', 'USStock', 'HKStock'].includes(this.marketCategory)
     },
     instruments() {
+      if (this.canEditSourceRuntime && this.runtimeDraft.symbol) {
+        return [{
+          market: this.runtimeDraft.market_category,
+          symbol: this.runtimeDraft.symbol,
+          market_type: this.runtimeDraft.market_type,
+          exchange_id: this.runtimeDraft.exchange_id,
+          instrument_id: this.runtimeDraft.instrument_id
+        }]
+      }
       return Array.isArray(this.manifest?.universe?.instruments) ? this.manifest.universe.instruments : []
+    },
+    runtimeContract() { return extractStrategyRuntimeContractFromCode(this.source?.code || '') },
+    canEditSourceRuntime() {
+      return Boolean(
+        this.sourceId &&
+        this.source &&
+        !this.isPortfolioSource(this.source) &&
+        !this.source.code_hidden &&
+        String(this.source.code || '').trim() &&
+        this.runtimeContract.hasInstrument
+      )
+    },
+    runtimeDirty() {
+      if (!this.canEditSourceRuntime) return false
+      return ['market_category', 'symbol', 'market_type', 'exchange_id', 'timeframe'].some(key => String(this.runtimeDraft[key] || '') !== String(this.runtimeOriginal[key] || ''))
+    },
+    runtimeMarketLabel() {
+      const market = String(this.runtimeDraft.market_category || '')
+      const product = market === 'Crypto' ? this.$t(this.runtimeDraft.market_type === 'swap' ? 'chart_trade.swap' : 'chart_trade.spot') : ''
+      return [market, product].filter(Boolean).join(' · ')
+    },
+    runtimeTimeframes() {
+      return [...new Set(['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w', this.runtimeDraft.timeframe].filter(Boolean))]
     },
     supportsLeverage() {
       return Boolean(this.manifest?.leverageAllowed) && this.instruments.length > 0 && this.instruments.every(item => (
@@ -767,12 +878,39 @@ export default {
       if (Array.isArray(schema.params) && schema.params.length) {
         return schema.params.filter(item => item?.name)
       }
-      const values = this.parseObject(this.source?.template_params)
+      const inferred = extractScriptParamsFromCode(this.source?.code || '')
+      if (Array.isArray(inferred?.params) && inferred.params.length) return inferred.params
+      const values = this.sourceParameterValues
       return Object.keys(values).map(name => ({
         name,
-        type: Number.isInteger(values[name]) ? 'integer' : (typeof values[name] === 'number' ? 'number' : typeof values[name]),
+        type: Number.isInteger(values[name]) ? 'integer' : (typeof values[name] === 'number' ? 'number' : (typeof values[name] === 'boolean' ? 'boolean' : 'text')),
         default: values[name]
       }))
+    },
+    sourceParameterValues() {
+      const metadata = this.parseObject(this.source?.metadata)
+      const lastRunConfig = this.parseObject(metadata.last_run_config)
+      return {
+        ...this.parseObject(metadata.script_template_params),
+        ...this.parseObject(lastRunConfig.script_template_params),
+        ...this.parseObject(this.source?.template_params)
+      }
+    },
+    canEditSourceParameters() {
+      const metadata = this.parseObject(this.source?.metadata)
+      const hidden = Boolean(this.source?.code_hidden || metadata.code_hidden)
+      const running = String(this.source?.status || '').toLowerCase() === 'running'
+      return Boolean(this.sourceId && !hidden && !running && this.parameterDefinitions.length && String(this.source?.code || '').trim())
+    },
+    canEditSourceDefinition() {
+      return this.canEditSourceRuntime || this.canEditSourceParameters
+    },
+    sourceParametersDirty() {
+      if (!this.canEditSourceParameters) return false
+      return JSON.stringify(this.buildParameterValues(this.sourceParameterValues)) !== JSON.stringify(this.buildParameterValues(this.params))
+    },
+    sourceDefinitionDirty() {
+      return this.runtimeDirty || this.sourceParametersDirty
     },
     credentialColumns() {
       return this.credentials.map(item => ({
@@ -802,6 +940,13 @@ export default {
       if (!this.form.credentialId) return false
       if (this.requiresDirectionMode && !this.effectiveDirectionMode) return false
       return true
+    }
+  },
+  watch: {
+    sourceSearchText() { this.sourcePickerRenderCount = 12 },
+    sourceType() { this.sourcePickerRenderCount = 12 },
+    showSourcePicker(value) {
+      if (value) this.sourcePickerRenderCount = 12
     }
   },
   async mounted() {
@@ -846,6 +991,8 @@ export default {
       this.params = {}
       this.source = null
       this.manifest = {}
+      this.runtimeDraft = {}
+      this.runtimeOriginal = {}
       this.sourceId = id
       if (!keepsCustomName) this.form.name = ''
       this.showSourcePicker = false
@@ -898,6 +1045,13 @@ export default {
     recentSourceRank(item) {
       const index = this.recentSourceIds.indexOf(Number(item?.id))
       return index < 0 ? Number.MAX_SAFE_INTEGER : index
+    },
+    onSourceListScroll(event) {
+      const target = event?.currentTarget
+      if (!target || this.sourcePickerRenderCount >= this.filteredSources.length) return
+      if (target.scrollHeight - target.scrollTop - target.clientHeight < 180) {
+        this.sourcePickerRenderCount = Math.min(this.filteredSources.length, this.sourcePickerRenderCount + 10)
+      }
     },
     goToStrategyMarket() {
       this.showSourcePicker = false
@@ -971,11 +1125,14 @@ export default {
     async loadSource(id) {
       this.contractError = false
       try {
-        const sourceResponse = await scriptSourceApi.getDetail(id)
+        const [sourceResponse, manifestResponse] = await Promise.all([
+          scriptSourceApi.getDetail(id),
+          scriptSourceApi.compile(id)
+        ])
         this.source = sourceResponse?.data || null
         this.sourceId = Number(this.source?.id || id)
-        const manifestResponse = await scriptSourceApi.compile(id)
         this.manifest = manifestResponse?.data || {}
+        this.syncRuntimeDraft()
         if (!this.form.name) this.form.name = this.source?.name || ''
         this.applyParameterDefaults()
         if (!this.isEditMode) this.applyDeploymentRiskDefaults()
@@ -1008,8 +1165,7 @@ export default {
       return key ? this.$t(`script_strategy.${key}`) : '-'
     },
     applyParameterDefaults() {
-      const templateParams = this.parseObject(this.source?.template_params)
-      const next = { ...templateParams }
+      const next = { ...this.sourceParameterValues }
       this.parameterDefinitions.forEach(parameter => {
         if (next[parameter.name] === undefined && parameter.default !== undefined) {
           next[parameter.name] = parameter.default
@@ -1040,6 +1196,136 @@ export default {
           executor.equityTakeProfitPct,
           readCodeValue('EQUITY_TAKE_PROFIT')
         )
+      }
+    },
+    syncRuntimeDraft() {
+      const contract = extractStrategyRuntimeContractFromCode(this.source?.code || '')
+      const fallback = Array.isArray(this.manifest?.universe?.instruments) ? this.manifest.universe.instruments[0] || {} : {}
+      const next = {
+        asset_id: Number(contract.config.asset_id || fallback.asset_id || 0),
+        market_category: String(contract.config.market_category || fallback.market || this.manifest?.markets?.[0] || 'Crypto'),
+        symbol: String(contract.config.symbol || fallback.symbol || '').trim().toUpperCase(),
+        market_type: String(contract.config.market_type || fallback.market_type || 'spot').toLowerCase(),
+        exchange_id: String(contract.config.exchange_id || fallback.exchange_id || '').toLowerCase(),
+        instrument_id: String(contract.config.instrument_id || fallback.instrument_id || ''),
+        timeframe: String(contract.config.timeframe || this.manifest?.primaryFrequency || this.manifest?.subscriptions?.[0]?.frequency || '')
+      }
+      this.runtimeDraft = { ...next }
+      this.runtimeOriginal = { ...next }
+    },
+    setRuntimeField(field, value) {
+      this.runtimeDraft = { ...this.runtimeDraft, [field]: value }
+      if (
+        field === 'market_type' &&
+        String(value || '').toLowerCase() === 'spot' &&
+        Object.prototype.hasOwnProperty.call(this.params, 'allow_short')
+      ) this.params.allow_short = false
+      this.normalizeContractFields()
+    },
+    selectRuntimeSymbol(item) {
+      if (!item?.symbol) return
+      const market = String(item.market || this.runtimeDraft.market_category || 'Crypto')
+      const next = {
+        ...this.runtimeDraft,
+        asset_id: Number(item.asset_id || 0),
+        market_category: market,
+        symbol: String(item.symbol).trim().toUpperCase(),
+        instrument_id: String(item.instrument_id || ''),
+        exchange_id: market === 'Crypto' ? String(item.exchange_id || this.runtimeDraft.exchange_id || '').toLowerCase() : '',
+        market_type: market === 'Crypto' ? String(item.market_type || this.runtimeDraft.market_type || 'spot').toLowerCase() : 'spot'
+      }
+      this.runtimeDraft = next
+      this.showRuntimeSymbolPicker = false
+      this.normalizeContractFields()
+    },
+    async persistRuntimeSource() {
+      if (!this.runtimeDirty) return true
+      const sourceCode = String(this.source?.code || '')
+      const code = applyStrategyRuntimeConfigToCode(sourceCode, this.runtimeDraft)
+      if (!code || code === sourceCode) {
+        showToast({ message: this.$t('script_strategy.runtime_change_unsupported'), type: 'fail' })
+        return false
+      }
+      const metadata = this.parseObject(this.source?.metadata)
+      const description = this.source?.description || metadata.description || ''
+      const lastRunConfig = sanitizeRuntimeConfigForSource(this.parseObject(metadata.last_run_config), code)
+      await scriptSourceApi.update(this.sourceId, {
+        name: this.source?.name || this.source?.title || this.source?.strategy_name || '',
+        description,
+        code,
+        asset_type: this.source?.asset_type || 'script',
+        template_key: this.source?.template_key || '',
+        param_schema: this.parseObject(this.source?.param_schema),
+        template_params: this.parseObject(this.source?.template_params),
+        metadata: {
+          ...metadata,
+          description,
+          last_run_config: { ...lastRunConfig, ...this.runtimeDraft },
+          lifecycle_verified: false,
+          script_verified: false
+        }
+      })
+      await this.loadSource(this.sourceId)
+      showToast({ message: this.$t('script_strategy.runtime_change_saved'), type: 'success' })
+      return true
+    },
+    buildParameterValues(values = {}) {
+      const result = {}
+      this.parameterDefinitions.forEach(parameter => {
+        const value = values[parameter.name]
+        result[parameter.name] = value !== undefined ? value : parameter.default
+      })
+      return result
+    },
+    async applySourceDefinitionChanges() {
+      if (!this.canEditSourceDefinition || !this.sourceDefinitionDirty || this.savingSourceDefinition) return false
+      this.savingSourceDefinition = true
+      try {
+        const sourceCode = String(this.source?.code || '')
+        let code = sourceCode
+        if (this.runtimeDirty) {
+          code = applyStrategyRuntimeConfigToCode(code, this.runtimeDraft)
+          if (!code || code === sourceCode) throw new Error(this.$t('script_strategy.runtime_change_unsupported'))
+        }
+        const templateParams = this.sourceParametersDirty
+          ? this.buildParameterValues(this.params)
+          : this.buildParameterValues(this.sourceParameterValues)
+        if (this.sourceParametersDirty) code = buildScriptCodeWithParamValues(code, this.parameterDefinitions, templateParams)
+        const metadata = this.parseObject(this.source?.metadata)
+        const description = this.source?.description || metadata.description || ''
+        const lastRunConfig = sanitizeRuntimeConfigForSource(this.parseObject(metadata.last_run_config), code)
+        await scriptSourceApi.update(this.sourceId, {
+          name: this.source?.name || this.source?.title || this.source?.strategy_name || '',
+          description,
+          code,
+          asset_type: this.source?.asset_type || 'script',
+          template_key: this.source?.template_key || '',
+          param_schema: this.parseObject(this.source?.param_schema),
+          template_params: { ...templateParams },
+          metadata: {
+            ...metadata,
+            description,
+            last_run_config: {
+              ...lastRunConfig,
+              ...(this.runtimeDirty ? this.runtimeDraft : {}),
+              script_template_params: { ...templateParams }
+            },
+            script_template_params: { ...templateParams },
+            lifecycle_verified: false,
+            script_verified: false
+          }
+        })
+        await this.loadSource(this.sourceId)
+        showToast({ message: this.$t('script_strategy.source_changes_applied'), type: 'success' })
+        return true
+      } catch (error) {
+        showToast({
+          message: error?.localizedMessage || error?.message || this.$t('script_strategy.source_changes_failed'),
+          type: 'fail'
+        })
+        return false
+      } finally {
+        this.savingSourceDefinition = false
       }
     },
     applyDeploymentRiskDefaults() {
@@ -1079,6 +1365,13 @@ export default {
     },
     isNumericParameter(parameter) {
       return ['integer', 'number', 'float', 'percent'].includes(String(parameter?.type || '').toLowerCase())
+    },
+    isParameterDisabled(parameter) {
+      return Boolean(
+        parameter?.name === 'allow_short' &&
+        String(this.runtimeDraft.market_category || '') === 'Crypto' &&
+        String(this.runtimeDraft.market_type || '').toLowerCase() === 'spot'
+      )
     },
     isPercentParameter(parameter) {
       return String(parameter?.type || '').toLowerCase() === 'percent'
@@ -1163,11 +1456,13 @@ export default {
     },
     openCredentialPicker() {
       if (!this.credentials.length) {
-        showToast({ message: this.$t('script_strategy.no_compatible_credential'), type: 'fail' })
-        this.$router.push('/profile/credentials/new')
+        this.goToCredentialBinding()
         return
       }
       this.showCredentialPicker = true
+    },
+    goToCredentialBinding() {
+      this.$router.push('/profile/credentials/new')
     },
     onCredentialSelect(payload) {
       const selected = payload?.selectedOptions?.[0]
@@ -1245,6 +1540,7 @@ export default {
       }
       this.submitting = true
       try {
+        if (!(await this.persistRuntimeSource())) return
         if (this.isEditMode) {
           await strategyApi.update(this.editId, this.payload())
           showToast({ message: this.$t('bot_create.update_success'), type: 'success' })
@@ -1280,12 +1576,18 @@ export default {
   border: 1px solid var(--border);
 }
 .source-card { display: flex; width: calc(100% - (var(--page-gutter) * 2)); align-items: center; gap: 14px; padding: 16px; color: inherit; text-align: left; }
-.source-selector.empty { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px 14px; padding: 20px; }
-.source-empty-icon { display: inline-flex; width: 50px; height: 50px; align-items: center; justify-content: center; border-radius: 15px; color: var(--accent); background: var(--accent-soft); font-size: 23px; }
+.source-selector.empty { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 14px 12px; padding: 18px; }
+.source-empty-index { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 9px; color: var(--accent); background: var(--surface-raised); font-size: 11px; font-variant-numeric: tabular-nums; font-weight: 700; }
 .source-empty-copy { min-width: 0; }
 .source-empty-copy p { margin: 6px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.55; }
-.source-primary-action { display: inline-flex; grid-column: 1 / -1; width: 100%; min-height: 46px; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 13px; color: #16120a; background: var(--accent); font-size: 14px; font-weight: 900; }
-.source-market-action { grid-column: 1 / -1; justify-self: center; padding: 3px 8px; border: 0; color: var(--text-2); background: transparent; font-size: 11px; }
+.source-primary-action { display: flex; grid-column: 1 / -1; width: 100%; min-height: 52px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px; border: 1px solid var(--accent); border-radius: 10px; color: #fff; background: var(--accent); font-size: 13px; font-weight: 750; transition: background-color .16s ease, border-color .16s ease, transform .16s cubic-bezier(.22,1,.36,1); }
+.source-primary-action:active { transform: scale(.98); }
+.source-primary-action > span { display: inline-flex; align-items: center; gap: 9px; }
+.source-primary-action > span .van-icon,
+.source-primary-action > .van-icon { color: #fff; }
+.source-primary-action > span .van-icon { font-size: 17px; }
+.source-primary-action > .van-icon { font-size: 13px; }
+.source-market-action { display: inline-flex; grid-column: 1 / -1; justify-self: end; align-items: center; gap: 4px; padding: 2px 0; border: 0; color: var(--text-2); background: transparent; font-size: 11px; }
 .source-change-action { display: inline-flex; min-height: 36px; flex: 0 0 auto; align-items: center; gap: 5px; padding: 0 11px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 10px; color: var(--accent); background: var(--accent-soft); font-size: 11px; font-weight: 800; }
 .source-icon {
   width: 48px;
@@ -1296,11 +1598,13 @@ export default {
   justify-content: center;
   font-size: 22px;
 }
-.source-icon.script { color: #8b6cff; background: rgba(124, 92, 255, 0.16); }
-.source-icon.portfolio { color: #40a9ff; background: rgba(24, 144, 255, 0.16); }
+.source-icon.script,
+.source-icon.portfolio { color: var(--accent); background: var(--accent-soft); }
 .source-copy { flex: 1; min-width: 0; }
 .source-label { color: var(--accent); font-size: 11px; font-weight: 800; margin-bottom: 4px; }
 .source-title { color: var(--text); font-size: 17px; font-weight: 900; }
+.source-title,
+.section-heading strong { font-family: var(--font-display); font-optical-sizing: auto; }
 .source-copy p { color: var(--text-2); font-size: 12px; line-height: 1.55; margin: 6px 0 0; }
 .warning-card { padding: 12px 14px; display: flex; align-items: center; gap: 8px; color: var(--down); }
 .backtest-required-card { color: var(--c-amber); border-color: rgba(245, 158, 11, 0.26); background: var(--c-amber-soft); }
@@ -1317,6 +1621,11 @@ export default {
 .contract-card div { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
 .contract-card span { color: var(--text-3); font-size: 11px; }
 .contract-card strong { overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.runtime-source-card{margin:12px var(--page-gutter);padding:15px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-elevated)}
+.runtime-source-card>header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px}.runtime-source-card>header>div{display:flex;min-width:0;flex-direction:column;gap:4px}.runtime-source-card>header strong{font-size:14px}.runtime-source-card>header small{color:var(--text-3);font-size:10px;line-height:1.45}.runtime-source-card>header>.van-icon{color:var(--accent);font-size:18px}
+.runtime-symbol{width:100%;min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 11px;border:1px solid var(--border);border-radius:10px;background:var(--surface-raised);color:var(--text);text-align:left}.runtime-symbol>span{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:3px 9px;min-width:0;flex:1}.runtime-symbol small{grid-column:1/-1;color:var(--text-3);font-size:9px}.runtime-symbol strong{overflow:hidden;font-size:14px;text-overflow:ellipsis;white-space:nowrap}.runtime-symbol em{color:var(--text-2);font-size:10px;font-style:normal;white-space:nowrap}.runtime-symbol>.van-icon{color:var(--text-3);font-size:13px}
+.runtime-options,.runtime-timeframes{display:grid;gap:7px;margin-top:12px}.runtime-options>span,.runtime-timeframes>span{color:var(--text-3);font-size:10px}.runtime-options>div{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--border);border-radius:9px;background:var(--surface-raised)}.runtime-options button{min-height:36px;border:0;border-radius:6px;background:transparent;color:var(--text-2);font-size:12px}.runtime-options button.active{background:var(--accent-soft);color:var(--accent);box-shadow:none}
+.runtime-timeframes>div{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}.runtime-timeframes>div::-webkit-scrollbar{display:none}.runtime-timeframes button{min-width:48px;min-height:34px;flex:0 0 auto;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--text-2);font-size:11px}.runtime-timeframes button.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}.runtime-source-card>p{display:flex;align-items:flex-start;gap:6px;margin:12px 0 0;color:var(--c-amber);font-size:10px;line-height:1.5}
 .trigger-card {
   display: flex;
   gap: 11px;
@@ -1396,7 +1705,7 @@ export default {
 .execution-mode-grid button.active { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); background: var(--accent-soft); }
 .execution-mode-grid button.active > .van-icon:first-child { color: var(--accent); }
 .execution-mode-grid button.disabled { opacity: .42; }
-.deployment-risk-config { margin: 0 12px 12px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
+.deployment-risk-config { margin: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
 .deployment-risk-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid var(--border); }
 .deployment-risk-head > div { min-width: 0; }
 .deployment-risk-head strong,.deployment-risk-head small { display: block; }
@@ -1413,6 +1722,22 @@ export default {
 .deployment-risk-row :deep(.van-field__right-icon) { margin-left: 4px; color: var(--text-3); font-size: 10px; }
 .live-config { margin: 0 12px 12px; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
 .live-config :deep(.van-cell) { padding-left: 12px; padding-right: 12px; }
+.account-config-card { padding: 12px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 3%, var(--bg)); }
+.account-config-card.missing { background: color-mix(in srgb, var(--warn) 5%, var(--bg)); }
+.account-config-head { display: flex; align-items: center; gap: 9px; }
+.account-config-icon { display: inline-flex; width: 32px; height: 32px; flex: 0 0 32px; align-items: center; justify-content: center; border-radius: 9px; color: var(--accent); background: var(--accent-soft); font-size: 16px; }
+.account-config-head > div { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.account-config-head strong { color: var(--text); font-size: 12px; }
+.account-config-head small { color: var(--text-3); font-size: 9px; line-height: 1.4; }
+.account-config-head em { flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; color: var(--warn); background: color-mix(in srgb, var(--warn) 11%, transparent); font-size: 9px; font-style: normal; font-weight: 800; }
+.account-config-action { display: flex; width: 100%; min-height: 52px; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border)); border-radius: 10px; color: var(--text); background: var(--bg-elevated); text-align: left; }
+.account-config-action > span { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.account-config-action small { color: var(--text-3); font-size: 9px; line-height: 1.35; }
+.account-config-action strong { overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.account-config-action > .van-icon { flex: 0 0 auto; color: var(--accent); }
+.account-config-action--bind { border-color: color-mix(in srgb, var(--warn) 48%, var(--border)); background: color-mix(in srgb, var(--warn) 6%, var(--bg-elevated)); }
+.account-config-action--bind strong,
+.account-config-action--bind > .van-icon { color: var(--warn); }
 .live-disclaimer { display: grid; grid-template-columns: auto 1fr; gap: 9px; margin: 0 12px 12px; padding: 12px; border: 1px solid color-mix(in srgb, var(--warn) 42%, var(--border)); border-radius: 14px; color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, transparent); }
 .live-disclaimer.accepted { color: var(--up); background: color-mix(in srgb, var(--up) 8%, transparent); }
 .live-disclaimer > .van-icon { margin-top: 2px; font-size: 18px; }
@@ -1468,33 +1793,45 @@ export default {
 .notification-channel-error { display: flex; align-items: center; gap: 5px; margin-top: 10px; color: var(--down); font-size: 11px; }
 .loading { margin-top: 80px; color: var(--text-2); }
 .submit-wrap { padding: 16px var(--page-gutter); }
-.source-picker-popup { height: min(76vh, 720px); overflow: hidden; background: var(--bg-elevated); }
-.source-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 18px 8px; }
+.parameter-source-sync { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px; padding: 11px 12px; border: 1px solid color-mix(in srgb, var(--warn) 38%, var(--border)); border-radius: 12px; background: color-mix(in srgb, var(--warn) 6%, var(--bg-elevated)); }
+.parameter-source-sync > span { display: flex; min-width: 0; flex: 1; align-items: flex-start; gap: 7px; }
+.parameter-source-sync > span > .van-icon { flex: 0 0 auto; margin-top: 2px; color: var(--warn); }
+.parameter-source-sync > span > span { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.parameter-source-sync strong { color: var(--text); font-size: 11px; }
+.parameter-source-sync small { color: var(--text-3); font-size: 9px; line-height: 1.4; }
+.parameter-source-sync > button { display: inline-flex; min-height: 34px; flex: 0 0 auto; align-items: center; justify-content: center; padding: 0 11px; border: 1px solid var(--accent); border-radius: 9px; color: #fff; background: var(--accent); font-size: 10px; font-weight: 700; }
+.parameter-source-sync > button:disabled { opacity: .55; }
+.source-picker-popup { height: min(76dvh, 720px); overflow: hidden; contain: layout paint; background: var(--bg-elevated); will-change: transform; }
+.source-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 16px 6px; }
 .source-picker-head > div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .source-picker-head strong { color: var(--text); font-size: 17px; }
 .source-picker-head small { color: var(--text-3); font-size: 11px; }
 .source-picker-head button { display: inline-flex; width: 34px; height: 34px; flex: 0 0 34px; align-items: center; justify-content: center; border: 0; border-radius: 10px; color: var(--text-2); background: var(--surface-raised); font-size: 18px; }
 .source-picker-popup :deep(.van-search) { padding: 8px 16px; background: transparent; }
-.source-picker-popup :deep(.van-search__content) { border: 1px solid var(--border); background: var(--bg); }
-.source-picker-filters { display: flex; gap: 8px; padding: 4px 16px 12px; overflow-x: auto; }
-.source-picker-filters button { min-height: 34px; padding: 0 12px; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 999px; color: var(--text-2); background: var(--surface-raised); font-size: 11px; }
+.source-picker-popup :deep(.van-search__content) { border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.source-picker-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin: 2px 16px 10px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-raised); }
+.source-picker-filters button { min-width: 0; min-height: 34px; padding: 0 8px; border: 0; border-radius: 6px; color: var(--text-2); background: transparent; font-size: 11px; }
 .source-picker-filters button.active { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); color: var(--accent); background: var(--accent-soft); }
 .source-picker-loading { padding: 70px 0; color: var(--text-2); }
-.source-picker-list { height: calc(100% - 148px); padding: 0 16px calc(18px + env(safe-area-inset-bottom)); overflow-y: auto; }
-.source-picker-item { display: flex; width: 100%; min-width: 0; align-items: center; gap: 11px; margin-bottom: 9px; padding: 13px; border: 1px solid var(--border); border-radius: 14px; color: inherit; background: var(--bg); text-align: left; }
+.source-picker-list { height: calc(100% - 148px); margin: 0 16px; padding: 0 0 calc(18px + env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.source-picker-item { display: flex; width: 100%; min-width: 0; min-height: 66px; align-items: center; gap: 10px; padding: 10px 8px; border: 0; border-bottom: 1px solid var(--border); color: inherit; background: transparent; text-align: left; content-visibility: auto; contain-intrinsic-size: auto 66px; transition: background-color .16s ease, transform .16s cubic-bezier(.22,1,.36,1); }
+.source-picker-item:first-child { border-top: 1px solid var(--border); }
+.source-picker-item:active { transform: scale(.985); }
 .source-picker-item.active { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); background: var(--accent-soft); }
-.source-picker-icon { display: inline-flex; width: 40px; height: 40px; flex: 0 0 40px; align-items: center; justify-content: center; border-radius: 12px; font-size: 19px; }
-.source-picker-icon.script { color: #8b6cff; background: rgba(124, 92, 255, 0.16); }
-.source-picker-icon.portfolio { color: #40a9ff; background: rgba(24, 144, 255, 0.16); }
-.source-picker-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 5px; }
+.source-picker-icon { display: inline-flex; width: 30px; height: 30px; flex: 0 0 30px; align-items: center; justify-content: center; border-radius: 8px; font-size: 16px; }
+.source-picker-icon.script,
+.source-picker-icon.portfolio { color: var(--accent); background: var(--accent-soft); }
+.source-picker-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
 .source-picker-title { display: flex; min-width: 0; align-items: center; gap: 6px; }
 .source-picker-title strong { overflow: hidden; color: var(--text); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.source-picker-title small { flex: 0 0 auto; padding: 2px 6px; border-radius: 999px; color: var(--accent); background: var(--surface-raised); font-size: 8px; font-weight: 800; }
-.source-picker-copy > span:last-child { display: -webkit-box; overflow: hidden; color: var(--text-3); font-size: 10px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.source-picker-title small { flex: 0 0 auto; padding: 2px 5px; border-radius: 4px; color: var(--text-2); background: var(--surface-raised); font-size: 8px; font-weight: 600; }
+.source-picker-copy > span:last-child { overflow: hidden; color: var(--text-3); font-size: 10px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
 .source-picker-state { flex: 0 0 auto; color: var(--text-3); }
 .source-picker-item.active .source-picker-state { color: var(--accent); }
+.source-picker-more { display: flex; height: 32px; align-items: center; justify-content: center; gap: 4px; }
+.source-picker-more span { width: 4px; height: 4px; border-radius: 50%; background: var(--text-3); opacity: .5; }
 @media (min-width: 720px) {
-  .source-card,.warning-card,.contract-card,.trigger-card,.risk-summary-card,.section,.submit-wrap { width: calc(100% - 32px); max-width: 980px; margin-left: auto; margin-right: auto; }
+  .source-card,.warning-card,.contract-card,.runtime-source-card,.trigger-card,.risk-summary-card,.section,.submit-wrap { width: calc(100% - 32px); max-width: 980px; margin-left: auto; margin-right: auto; }
 }
 </style>
 

@@ -212,6 +212,11 @@ router.beforeEach((to, from, next) => {
   document.title = title ? `${title} | ${appName}` : appName
 
   const userStore = useUserStore()
+  if (to.name === 'Login' && userStore.isLoggedIn) {
+    const redirect = String(to.query.redirect || '')
+    next(redirect.startsWith('/') && !redirect.startsWith('//') && redirect !== '/login' ? redirect : '/market')
+    return
+  }
   if (!to.meta.public && !userStore.isLoggedIn) {
     next({ path: '/login', query: { redirect: to.fullPath } })
     return

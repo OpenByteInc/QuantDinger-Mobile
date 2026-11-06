@@ -3,15 +3,14 @@
 import { computed, onMounted, onActivated, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { init, dispose, registerIndicator, registerOverlay } from 'klinecharts'
-import { useSettingsStore } from '@/stores'
 import { createPlotRenderer } from '@/utils/pcPlotRenderer'
 import { toCandles, signalPoints, toTimestamp } from '@/utils/chartData'
 import { captureChartViewport, restoreChartViewport } from '@/utils/chartViewport'
 import { buildPriceChartData, klineCandleType, normalizePriceChartType, usesDerivedPriceBars } from '@/utils/priceChartTypes'
 const props=defineProps({data:{type:Object,default:null},main:{type:String,default:'EMA'},lower:{type:String,default:''},chartType:{type:String,default:'candle_solid'},expanded:Boolean})
-const settings=useSettingsStore();const {locale}=useI18n();const container=ref(null);const theme=computed(()=>settings.theme)
-const renderer=createPlotRenderer(theme);let chart;let observer;let overlays=[];let customPanes=[];let renderVersion=0
-const height=computed(()=>props.expanded?Math.max(500,window.innerHeight-180):340+(props.lower?88:0)+(props.data?.plots?.some(p=>p.overlay===false)?150:0))
+const {locale}=useI18n();const container=ref(null);const theme=computed(()=>'light')
+const renderer=createPlotRenderer(theme);let chart;let observer;let overlays=[];let customPanes=[];let renderVersion=0;let priceFrame=0
+const height=computed(()=>props.expanded?Math.max(500,window.innerHeight-180):306+(props.lower?84:0)+(props.data?.plots?.some(p=>p.overlay===false)?110:0))
 const withAlpha=(color,alpha)=>{const value=String(color||'').trim();if(/^#[0-9a-f]{6}$/i.test(value)){const rgb=value.slice(1).match(/.{2}/g).map(hex=>parseInt(hex,16));return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`}return value||`rgba(229, 161, 0, ${alpha})`}
 const layerColor=(color,fallback,alpha)=>{const value=String(color||'').trim(),safeAlpha=Math.max(.01,Math.min(.65,Number(alpha)||.08));if(/^#[0-9a-f]{6}$/i.test(value))return withAlpha(value,safeAlpha);const rgba=value.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i);if(rgba){const sourceAlpha=rgba[4]==null?1:Number(rgba[4]);return `rgba(${rgba[1]}, ${rgba[2]}, ${rgba[3]}, ${Math.min(Number.isFinite(sourceAlpha)?sourceAlpha:1,safeAlpha)})`}return withAlpha(fallback,safeAlpha)}
 const textWidth=(text,size,min=38,max=150)=>Math.max(min,Math.min(max,String(text||'').length*Number(size||10)*.62+18))
@@ -24,7 +23,7 @@ registerOverlay({name:'mobileZone',totalStep:2,needDefaultPointFigure:false,need
 registerOverlay({name:'mobileLine',totalStep:2,needDefaultPointFigure:false,needDefaultXAxisFigure:false,needDefaultYAxisFigure:false,createPointFigures:({coordinates,overlay,bounding})=>{
   if(coordinates.length<2)return [];const [a,b]=coordinates,d=overlay.extendData||{},color=d.color||'#e5a100',figures=[{type:'line',attrs:{coordinates:[{x:a.x,y:a.y},{x:b.x,y:b.y}]},styles:{style:'stroke',color,size:Number(d.lineWidth||1),dashedValue:d.dashed?[5,5]:[]},ignoreEvent:true}];if(d.text){const centered=d.textPosition==='center',size=Number(d.fontSize||10),width=textWidth(d.text,size,0),rawX=centered?(a.x+b.x)/2:b.x+6,x=!centered&&d.keepTextVisible&&Number.isFinite(bounding?.width)?Math.max(4,Math.min(rawX,bounding.width-width-4)):rawX,y=(centered?(a.y+b.y)/2:b.y)+(Number(d.textOffsetY)||0);figures.push({type:'text',attrs:{x,y,text:String(d.text),align:centered?'center':'left',baseline:'middle'},styles:{color:d.textColor||color,size,weight:d.fontWeight||'600',backgroundColor:'transparent'},ignoreEvent:true})}return figures
 }})
-function applyTheme(){if(!chart)return;const light=theme.value==='light',lineOnly=normalizePriceChartType(props.chartType)==='line';chart.setStyles(light?'light':'dark');chart.setStyles({candle:{type:klineCandleType(props.chartType),tooltip:{showRule:'follow_cross',showType:'rect'},bar:{upColor:'#0aa681',downColor:'#ef4444',upBorderColor:'#0aa681',downBorderColor:'#ef4444',upWickColor:'#0aa681',downWickColor:'#ef4444'},area:{lineSize:2,lineColor:light?'#2962ff':'#5b8cff',value:'close',smooth:false,backgroundColor:lineOnly?'rgba(41,98,255,0)':[ {offset:0,color:light?'rgba(41,98,255,.22)':'rgba(91,140,255,.24)'},{offset:1,color:'rgba(41,98,255,.01)'}],point:{show:false,animation:false,animationDuration:0}}},grid:{horizontal:{color:light?'#eef0f3':'#262a31'},vertical:{color:light?'#eef0f3':'#262a31'}}});chart.setLocale(locale.value.startsWith('zh')?'zh-CN':'en-US')}
+function applyTheme(){if(!chart)return;const light=theme.value==='light',lineOnly=normalizePriceChartType(props.chartType)==='line';chart.setStyles(light?'light':'dark');chart.setStyles({candle:{type:klineCandleType(props.chartType),tooltip:{showRule:'follow_cross',showType:'rect'},bar:{upColor:'#0e603f',downColor:'#8b2437',upBorderColor:'#0e603f',downBorderColor:'#8b2437',upWickColor:'#0e603f',downWickColor:'#8b2437'},area:{lineSize:2,lineColor:light?'#0e603f':'#7cb99b',value:'close',smooth:false,backgroundColor:lineOnly?'rgba(14,96,63,0)':[ {offset:0,color:light?'rgba(14,96,63,.16)':'rgba(124,185,155,.2)'},{offset:1,color:'rgba(14,96,63,.01)'}],point:{show:false,animation:false,animationDuration:0}}},indicator:{bars:[{upColor:'#0e603f',downColor:'#8b2437',noChangeColor:'#8b8479'}]},grid:{horizontal:{color:light?'#e7ded0':'#2b302d'},vertical:{color:light?'#e7ded0':'#2b302d'}}});chart.setLocale(locale.value.startsWith('zh')?'zh-CN':'en-US')}
 function render(){
  if(!chart)return
  renderVersion++
@@ -37,10 +36,10 @@ function render(){
  const viewport=captureChartViewport(chart,{defaultRightOffsetDistance:24})
  chart.applyNewData(candles,false,()=>{if(!chart||!viewport)return;if(viewport.followingLatest)chart.scrollToRealTime(0);else restoreChartViewport(chart,viewport)})
  if(!candles.length)return
- chart.createIndicator('VOL',false,{id:'volume',height:90,minHeight:80})
+ chart.createIndicator('VOL',false,{id:'volume',height:72,minHeight:64})
  if(props.main)chart.createIndicator(props.main==='EMA'?{name:'EMA',calcParams:[20,60]}:props.main,false,{id:'candle_pane'})
  const existing=chart.getIndicatorByPaneId('candle_pane');if(existing instanceof Map)for(const name of existing.keys())if(name!==props.main&&!name.startsWith('mobile_'))chart.removeIndicator('candle_pane',name)
- if(props.lower)chart.createIndicator(props.lower,false,{id:'builtin_lower',height:100,minHeight:90})
+ if(props.lower)chart.createIndicator(props.lower,false,{id:'builtin_lower',height:84,minHeight:72})
  const plots=[...(props.data?.plots||[]),...(props.data?.layers||[]).filter(p=>Array.isArray(p.data))]
  for(const overlay of [true,false]){
    const group=plots.filter(p=>(p.overlay!==false)===overlay&&Array.isArray(p.data));if(!group.length)continue
@@ -59,14 +58,24 @@ function render(){
    else if(['line','segment','level','ray'].includes(kind)){const y1=Number(layer.y1??layer.price1??layer.price??layer.level),y2=Number(layer.y2??layer.price2??layer.price??layer.level);if(Number.isFinite(y1)&&Number.isFinite(y2))overlays.push(chart.createOverlay({name:'mobileLine',lock:true,points:[{timestamp:start,value:y1},Number(layer.extendBars)>0?{dataIndex:candles.length-1+Math.min(500,Math.floor(Number(layer.extendBars))),value:y2}:{timestamp:end,value:y2}],extendData:{...layer,text:layer.text||layer.name||''}}))}
    else if(['label','tag','note'].includes(kind)){const price=Number(layer.price??layer.value??layer.y);if(Number.isFinite(price))overlays.push(chart.createOverlay({name:'mobileSignal',lock:true,points:[{timestamp:at(layer.timestamp??layer.time??layer.index,sourceCandles.length-1),value:price}],extendData:{...layer,text:layer.text||layer.name,color:layer.color||'#e5a100'}}))}
  }
- nextTick(()=>{if(chart){chart.resize();chart.setPaneOptions({id:'volume',height:90,minHeight:80})}})
+ nextTick(()=>{if(chart){chart.resize();chart.setPaneOptions({id:'volume',height:72,minHeight:64})}})
 }
 function resize(){nextTick(()=>requestAnimationFrame(()=>{if(!chart)return;chart.resize();requestAnimationFrame(()=>chart?.resize())}))}
+function refreshPriceData(){
+ if(!chart||priceFrame)return
+ priceFrame=requestAnimationFrame(()=>{
+  priceFrame=0
+  if(!chart)return
+  const candles=buildPriceChartData(toCandles(props.data?.candles||[]),props.chartType)
+  const viewport=captureChartViewport(chart,{defaultRightOffsetDistance:24})
+  chart.applyNewData(candles,false,()=>{if(!chart||!viewport)return;if(viewport.followingLatest)chart.scrollToRealTime(0);else restoreChartViewport(chart,viewport)})
+ })
+}
 onMounted(()=>{chart=init(container.value);applyTheme();chart.setBarSpace(7);chart.setOffsetRightDistance(24);observer=new ResizeObserver(()=>chart?.resize());observer.observe(container.value);render()})
 onActivated(resize)
 watch(()=>[props.data,props.main,props.lower],render,{flush:'post'});watch(()=>props.chartType,()=>{applyTheme();render()});watch(()=>[theme.value,locale.value],()=>{applyTheme();render()});watch(height,()=>nextTick(()=>chart?.resize()))
-onBeforeUnmount(()=>{observer?.disconnect();if(chart)dispose(chart);chart=null})
-function updateBar(bar){if(!chart)return;if(usesDerivedPriceBars(props.chartType))render();else chart.updateData(bar)}
+onBeforeUnmount(()=>{observer?.disconnect();if(priceFrame)cancelAnimationFrame(priceFrame);priceFrame=0;if(chart)dispose(chart);chart=null})
+function updateBar(bar){if(!chart)return;if(usesDerivedPriceBars(props.chartType))refreshPriceData();else chart.updateData(bar)}
 defineExpose({updateBar,resize})
 </script>
 <style scoped>.market-chart{width:100%;min-width:0;touch-action:pan-y}</style>

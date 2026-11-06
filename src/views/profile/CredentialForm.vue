@@ -1,5 +1,5 @@
 <template>
-  <div class="credential-form-page">
+  <div class="credential-form-page account-page">
     <van-nav-bar fixed placeholder safe-area-inset-top
       :title="$t('credentials.add_title')"
       left-arrow

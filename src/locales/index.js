@@ -17,6 +17,8 @@ import completeness from './completeness'
 import referralRewards from './referral-rewards'
 import exchangeAccountErrors from './exchange-account-errors'
 import brokerMobile, { brokerAccountMessages } from './broker-mobile'
+import mobileParity from './mobile-parity'
+import strategyLaunch from './strategy-launch'
 import {
   Locale as VantLocale
 } from 'vant'
@@ -72,17 +74,36 @@ const withExchangeAccountErrors = (base, locale) => mergeLocale(
   expandKeys(brokerAccountMessages[locale])
 )
 
+const buildLocale = (base, locale) => {
+  let result = withExchangeAccountErrors(base, locale)
+  result = mergeLocale(result, {
+    professional_report: professionalReport[locale],
+    broker_mobile: brokerMobile[locale],
+    v2: v2[locale],
+    audit: audit[locale],
+    account_ui: accountUi[locale],
+    profile_detail: profileDetail[locale],
+    referral_rewards: referralRewards[locale],
+    live_detail: liveDetail[locale],
+    appearance: appearance[locale],
+    ai_chat: { ...aiChat['en-US'], ...aiChat[locale] }
+  })
+  result = mergeLocale(result, expandKeys(strategyRuntime[locale]))
+  result = mergeLocale(result, expandKeys(mobileParity[locale]))
+  return mergeLocale(result, expandKeys(strategyLaunch[locale]))
+}
+
 const i18n = createI18n({
   legacy: false,
   globalInjection: true,
   locale: initialLocale,
   fallbackLocale: 'en-US',
   messages: {
-    'zh-CN': { ...withExchangeAccountErrors(zhCN, 'zh-CN'), professional_report: professionalReport['zh-CN'], broker_mobile: brokerMobile['zh-CN'], v2: v2['zh-CN'], audit: audit['zh-CN'], account_ui: accountUi['zh-CN'], profile_detail: profileDetail['zh-CN'], referral_rewards: referralRewards['zh-CN'], live_detail: liveDetail['zh-CN'], appearance: appearance['zh-CN'], ...expandKeys(strategyRuntime['zh-CN']), ai_chat: {...aiChat['en-US'],...aiChat['zh-CN']} },
-    'zh-TW': { ...withExchangeAccountErrors(mergeLocale(zhTW, expandKeys(completeness['zh-TW'])), 'zh-TW'), professional_report: professionalReport['zh-TW'], broker_mobile: brokerMobile['zh-TW'], v2: v2['zh-TW'], audit: audit['zh-TW'], account_ui: accountUi['zh-TW'], profile_detail: profileDetail['zh-TW'], referral_rewards: referralRewards['zh-TW'], live_detail: liveDetail['zh-TW'], appearance: appearance['zh-TW'], ...expandKeys(strategyRuntime['zh-TW']), ai_chat: {...aiChat['en-US'],...aiChat['zh-TW']} },
-    'en-US': { ...withExchangeAccountErrors(enUS, 'en-US'), professional_report: professionalReport['en-US'], broker_mobile: brokerMobile['en-US'], v2: v2['en-US'], audit: audit['en-US'], account_ui: accountUi['en-US'], profile_detail: profileDetail['en-US'], referral_rewards: referralRewards['en-US'], live_detail: liveDetail['en-US'], appearance: appearance['en-US'], ...expandKeys(strategyRuntime['en-US']), ai_chat: {...aiChat['en-US'],...aiChat['en-US']} },
-    'ja-JP': { ...withExchangeAccountErrors(mergeLocale(jaJP, expandKeys(completeness['ja-JP'])), 'ja-JP'), professional_report: professionalReport['ja-JP'], broker_mobile: brokerMobile['ja-JP'], v2: v2['ja-JP'], audit: audit['ja-JP'], account_ui: accountUi['ja-JP'], profile_detail: profileDetail['ja-JP'], referral_rewards: referralRewards['ja-JP'], live_detail: liveDetail['ja-JP'], appearance: appearance['ja-JP'], ...expandKeys(strategyRuntime['ja-JP']), ai_chat: {...aiChat['en-US'],...aiChat['ja-JP']} },
-    'ko-KR': { ...withExchangeAccountErrors(mergeLocale(koKR, expandKeys(completeness['ko-KR'])), 'ko-KR'), professional_report: professionalReport['ko-KR'], broker_mobile: brokerMobile['ko-KR'], v2: v2['ko-KR'], audit: audit['ko-KR'], account_ui: accountUi['ko-KR'], profile_detail: profileDetail['ko-KR'], referral_rewards: referralRewards['ko-KR'], live_detail: liveDetail['ko-KR'], appearance: appearance['ko-KR'], ...expandKeys(strategyRuntime['ko-KR']), ai_chat: {...aiChat['en-US'],...aiChat['ko-KR']} }
+    'zh-CN': buildLocale(zhCN, 'zh-CN'),
+    'zh-TW': buildLocale(mergeLocale(zhTW, expandKeys(completeness['zh-TW'])), 'zh-TW'),
+    'en-US': buildLocale(enUS, 'en-US'),
+    'ja-JP': buildLocale(mergeLocale(jaJP, expandKeys(completeness['ja-JP'])), 'ja-JP'),
+    'ko-KR': buildLocale(mergeLocale(koKR, expandKeys(completeness['ko-KR'])), 'ko-KR')
   }
 })
 

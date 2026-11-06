@@ -4,6 +4,7 @@ import router from './router'
 import { pinia, useSettingsStore } from './stores'
 import i18n from './locales'
 
+import '@fontsource-variable/source-serif-4'
 import 'vant/lib/index.css'
 import './styles/index.css'
 import './styles/v2.css'
@@ -27,49 +28,26 @@ const settingsStore = useSettingsStore()
 if (import.meta.env.DEV && typeof window !== 'undefined') {
   const previewParams = new URLSearchParams(window.location.search)
   if (previewParams.get('preview') === '1') {
-    const previewTheme = previewParams.get('theme')
     const previewLocale = previewParams.get('lang')
-    if (['light', 'dark'].includes(previewTheme)) settingsStore.setTheme(previewTheme)
     if (previewLocale) settingsStore.setLocale(previewLocale)
   }
 }
 const exitRoutePaths = new Set(['/market', '/trading', '/ai', '/indicators/chart', '/profile', '/login'])
 let lastBackPressedAt = 0
 
-const applyThemeAttr = (theme) => {
-  document.documentElement.setAttribute('data-theme', theme || 'dark')
-}
-
-const applyAccentAttr = (accent) => {
-  document.documentElement.setAttribute('data-accent', accent || 'gold')
-}
-
-const getNativeThemeChrome = (theme) => (
-  theme === 'light'
-    ? { statusBarStyle: Style.Light, backgroundColor: '#ffffff' }
-    : { statusBarStyle: Style.Dark, backgroundColor: '#000000' }
-)
-
-const syncStatusBar = async (theme) => {
+const syncStatusBar = async () => {
   if (!Capacitor.isNativePlatform()) return
   try {
-    const { statusBarStyle, backgroundColor } = getNativeThemeChrome(theme)
     await StatusBar.setOverlaysWebView({ overlay: false })
-    await StatusBar.setStyle({ style: statusBarStyle })
-    await StatusBar.setBackgroundColor({ color: backgroundColor })
+    await StatusBar.setStyle({ style: Style.Light })
+    await StatusBar.setBackgroundColor({ color: '#fbf7ef' })
   } catch (e) {
     console.warn('StatusBar not available:', e)
   }
 }
 
-applyThemeAttr(settingsStore.theme)
-applyAccentAttr(settingsStore.accent)
-
-settingsStore.$subscribe((_mutation, state) => {
-  applyThemeAttr(state.theme)
-  applyAccentAttr(state.accent)
-  syncStatusBar(state.theme)
-})
+localStorage.removeItem('theme')
+localStorage.removeItem('accent')
 
 const consumeOAuthDeepLink = async (rawUrl) => {
   const parsed = parseOAuthReturnUrl(rawUrl)
@@ -89,7 +67,7 @@ const consumeOAuthDeepLink = async (rawUrl) => {
 const initCapacitor = async () => {
   if (!Capacitor.isNativePlatform()) return
 
-  await syncStatusBar(settingsStore.theme)
+  await syncStatusBar()
 
   try {
     await SplashScreen.hide()

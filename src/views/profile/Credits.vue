@@ -1,5 +1,5 @@
 <template>
-  <div class="credits-page">
+  <div class="credits-page account-page">
     <van-nav-bar fixed placeholder safe-area-inset-top
       :title="$t('profile.credits_recharge')"
       :border="false"
@@ -846,6 +846,8 @@ export default {
 }
 .balance-value {
   margin-top: 6px;
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
   font-size: 36px;
   font-weight: 800;
   color: var(--c-amber);
@@ -933,7 +935,7 @@ export default {
 }
 .plan-price { margin-top: 8px; color: var(--c-amber); }
 .plan-price .currency { font-size: 12px; margin-right: 2px; }
-.plan-price .amount { font-size: 22px; font-weight: 800; }
+.plan-price .amount { font-family: var(--font-display); font-optical-sizing: auto; font-size: 22px; font-weight: 800; }
 .plan-price .unit {
   margin-left: 4px;
   font-size: 10px;
@@ -1023,6 +1025,8 @@ export default {
   color: var(--text-4);
 }
 .amount {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
   font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;

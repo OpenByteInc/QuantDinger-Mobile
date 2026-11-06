@@ -23,10 +23,13 @@
     <div :class="['copilot-body', { empty: !messages.length }]">
       <div class="chat-panel">
         <div v-if="!messages.length" class="welcome-card">
-          <div class="welcome-title-row">
-            <small>{{ text.workspaceEyebrow }}</small>
-            <span>{{ text.emptyTitle }}</span>
-            <em>{{ text.emptyDesc }}</em>
+          <div class="welcome-intro">
+            <div class="welcome-title-row">
+              <small>{{ text.workspaceEyebrow }}</small>
+              <span>{{ text.emptyTitle }}</span>
+              <em>{{ text.emptyDesc }}</em>
+            </div>
+            <QuantCat ref="quantCat" :typing="composerFocused" />
           </div>
           <button type="button" class="report-feature-card" :disabled="sending || !context.symbol" @click="confirmProfessionalAnalysis">
             <span class="report-feature-icon"><van-icon name="description" /></span>
@@ -41,7 +44,7 @@
               v-for="example in examples"
               :key="example.key"
               type="button"
-              @click="composer = example.prompt"
+              @click="selectExample(example)"
             >
               <span class="starter-icon"><van-icon :name="example.icon" /></span>
               <span>
@@ -205,7 +208,7 @@
                   type="button"
                   @click="handleCopilotAction(action)"
                 >
-                  {{ action.label || action.type }}
+                  {{ localizedActionLabel(action) }}
                 </button>
               </div>
             </div>
@@ -231,6 +234,9 @@
           autocapitalize="none"
           autocorrect="off"
           spellcheck="false"
+          @focus="composerFocused = true"
+          @click="composerFocused = true"
+          @blur="composerFocused = false"
           @compositionstart="handleComposerCompositionStart"
           @compositionend="handleComposerCompositionEnd"
           @input="handleComposerInput"
@@ -411,6 +417,7 @@ import {
 } from '@/api'
 import { useAiAnalysisStore } from '@/stores'
 import SymbolPicker from '@/components/SymbolPicker.vue'
+import QuantCat from '@/components/QuantCat.vue'
 import {
   professionalReportArtifact,
   professionalReportEnvelope,
@@ -422,7 +429,7 @@ import {
 
 export default {
   name: 'AiHub',
-  components: { SymbolPicker },
+  components: { SymbolPicker, QuantCat },
   data() {
     return {
       context: {
@@ -431,6 +438,7 @@ export default {
         timeframe: '1H'
       },
       composer: '',
+      composerFocused: false,
       messages: [],
       attachments: [],
       sending: false,
@@ -508,12 +516,20 @@ export default {
     this.startQuoteRefresh()
   },
   deactivated() {
+    this.composerFocused = false
     this.stopQuoteRefresh()
   },
   beforeUnmount() {
     this.stopQuoteRefresh()
   },
   methods: {
+    reactCat(trigger) {
+      this.$refs.quantCat?.react(trigger)
+    },
+    selectExample(example) {
+      this.composer = example.prompt
+      this.reactCat(example.key)
+    },
     applyRouteContext() {
       const query = this.$route?.query || {}
       if (query.market) this.context.market = String(query.market)
@@ -1004,6 +1020,15 @@ export default {
     visibleMessageActions(message) {
       const actions = Array.isArray(message?.actions) ? message.actions : []
       return actions.filter((action) => action?.type !== 'agent_usage')
+    },
+    localizedActionLabel(action) {
+      const type = String(action?.type || '').toLowerCase()
+      const label = String(action?.label || '').trim()
+      const normalized = `${type} ${label.toLowerCase()}`
+      if (/share|分享/.test(normalized)) return this.text.shareReport
+      if (/export|pdf|导出|匯出/.test(normalized)) return this.text.exportReport
+      if (/ask_report|follow_up|ask about report|追问报告|追問報告|询问后续|詢問後續/.test(normalized)) return this.text.askReport
+      return label || type
     },
     mobileActionRoute(action) {
       const payload = action?.payload || {}
@@ -2341,18 +2366,21 @@ export default {
 .action-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 7px;
+  gap: 5px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
 }
 
 .action-strip button {
-  padding: 5px 9px;
-  border-radius: 999px;
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
-  font-size: 11px;
-  font-weight: 800;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .agent-usage {
@@ -2967,6 +2995,28 @@ export default {
   font-weight: 800;
   letter-spacing: .08em;
   text-transform: uppercase;
+}
+
+.welcome-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 144px;
+  align-items: center;
+  gap: 16px;
+  min-height: 116px;
+  margin-bottom: 12px;
+}
+
+.welcome-intro .welcome-title-row {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+@media (max-width: 480px) {
+  .welcome-intro {
+    grid-template-columns: minmax(0, 1fr) 88px;
+    gap: 12px;
+  }
+
 }
 
 .report-feature-card {

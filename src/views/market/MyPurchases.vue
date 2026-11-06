@@ -219,7 +219,7 @@ export default {
 :deep(.van-nav-bar) { background: transparent; }
 :deep(.van-nav-bar .van-nav-bar__title),
 :deep(.van-nav-bar .van-icon) { color: var(--text); }
-.list { padding: 8px var(--page-gutter); display: flex; flex-direction: column; gap: 12px; }
+.list { margin: 8px var(--page-gutter); overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elevated); }
 .library-tabs {
   display: flex;
   gap: 8px;
@@ -271,7 +271,8 @@ export default {
   background: rgba(0, 0, 0, 0.14);
   color: var(--text-on-accent);
 }
-.card { padding: 16px; border-radius: var(--radius-lg); background: var(--bg-elevated); border: 1px solid var(--border); }
+.card { padding: 13px 12px; border-bottom: 1px solid var(--border); background: transparent; }
+.card:last-child { border-bottom: 0; }
 .row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .title { color: var(--text); font-weight: 700; font-size: 15px; }
 .pill-stack {
@@ -301,11 +302,13 @@ export default {
   font-weight: 900;
 }
 .price { color: var(--accent); font-size: 13px; font-weight: 700; }
-.desc { color: var(--text-2); font-size: 12px; line-height: 1.6; }
+.desc { overflow: hidden; margin: 5px 0 0; color: var(--text-2); font-size: 11px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
 .meta { margin-top: 8px; font-size: 11px; color: var(--text-3); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.actions { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+.actions { margin-top: 10px; padding-top: 10px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; border-top: 1px solid var(--border); }
 .actions :deep(.van-button) {
-  flex: 1 1 86px;
+  width: 100%;
   min-width: 0;
+  margin: 0;
+  border-radius: 5px;
 }
 </style>

@@ -13,8 +13,8 @@ const form={amount:'100',sell_quantity:'',price:'65000',leverage:'5',order_type:
 const order=overrides=>buildOrder({credentialId:7,symbol:'BTC/USDT',marketType:'swap',form,side:'buy',...overrides})
 const context={available:482.71,price:65000,balanceReady:true}
 test('native OAuth always opens an absolute URL after the fixed API host was removed',()=>{
- assert.equal(buildOAuthStartUrl({baseUrl:'',webOrigin:'https://m.quantdinger.com',provider:'google',redirectUri:'com.quantdinger.mobile://login'}),'https://m.quantdinger.com/api/auth/oauth/google?redirect=com.quantdinger.mobile%3A%2F%2Flogin')
- assert.equal(buildOAuthStartUrl({baseUrl:'https://api.example.com/',webOrigin:'https://m.example.com',provider:'google',redirectUri:'com.quantdinger.mobile://login'}),'https://api.example.com/api/auth/oauth/google?redirect=com.quantdinger.mobile%3A%2F%2Flogin')
+ assert.equal(buildOAuthStartUrl({baseUrl:'',webOrigin:'https://m.quantdinger.com',provider:'google',redirectUri:'com.quantdinger.mobile://login'}),'https://m.quantdinger.com/api/auth/oauth/google?redirect=com.quantdinger.mobile%3A%2F%2Flogin&client_type=mobile')
+ assert.equal(buildOAuthStartUrl({baseUrl:'https://api.example.com/',webOrigin:'https://m.example.com',provider:'google',redirectUri:'com.quantdinger.mobile://login'}),'https://api.example.com/api/auth/oauth/google?redirect=com.quantdinger.mobile%3A%2F%2Flogin&client_type=mobile')
  assert.throws(()=>buildOAuthStartUrl({provider:'google',redirectUri:'x'}),/absolute HTTP\(S\) origin/)
 })
 test('quick trade payload matches the PC contract including margin',()=>{

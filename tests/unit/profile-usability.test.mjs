@@ -15,14 +15,10 @@ test('credit history uses backend pagination instead of a fixed first-page list'
   assert.match(creditsSource, /this\.logTotal = Number\(data\.total/)
 })
 
-test('display modes use visible icons and localized mode names', () => {
-  assert.match(languageSource, /icon: 'bulb-o'/)
-  assert.match(languageSource, /icon: 'closed-eye'/)
-  assert.equal(appearance['zh-CN'].light, '白日模式')
-  assert.equal(appearance['zh-CN'].dark, '暗黑模式')
+test('language settings no longer expose obsolete appearance controls', () => {
+  assert.doesNotMatch(languageSource, /displayMode|accentColor|setTheme|setAccent/)
   for (const locale of ['zh-CN', 'zh-TW', 'en-US', 'ja-JP', 'ko-KR']) {
-    assert.ok(appearance[locale].light)
-    assert.ok(appearance[locale].dark)
+    assert.ok(appearance[locale].language)
   }
 })
 

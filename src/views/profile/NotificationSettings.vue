@@ -1,5 +1,5 @@
 <template>
-  <div class="notif-settings-page">
+  <div class="notif-settings-page account-page">
     <van-nav-bar fixed placeholder safe-area-inset-top
       :title="$t('notif_settings.title')"
       left-arrow

@@ -21,7 +21,7 @@ export function signalPoints(signals, candles) {
       const value = point && typeof point === 'object' ? point.value ?? point.y ?? point.active : point
       if (!candle || value == null || value === false || value === 0 || value === '' || value === 'false') return
       const price = typeof value === 'number' && value > candle.low * 0.7 && value < candle.high * 1.3 ? value : candle[side === 'buy' ? 'low' : 'high']
-      points.push({timestamp:candle.timestamp,value:price,side,text:signal.textData?.[index] || point?.text || signal.text || signal.name || signal.type || '',color:point?.color || signal.color || (side==='buy'?'#0aa681':'#ef4444')})
+      points.push({timestamp:candle.timestamp,value:price,side,text:signal.textData?.[index] || point?.text || signal.text || signal.name || signal.type || '',color:point?.color || signal.color || (side==='buy'?'#0e603f':'#8b2437')})
     })
   }
   return points

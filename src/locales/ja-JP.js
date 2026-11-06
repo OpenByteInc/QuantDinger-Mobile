@@ -47,6 +47,7 @@ export default {
     fill_price: '平均約定価格', filled_quantity: '約定数量', trade_value: '約定金額', realized_pnl: '実現損益', live_order: '実注文', live_warning_short: '確認すると実取引口座へ直ちに送信されます。内容を再確認してください。',
     fee: '取引手数料', position_history: '決済履歴', closed_quantity: '決済数量', entry_exit: '建値 / 決済', net_pnl: '純損益', no_position_history: '決済済みポジションはありません', position_history_unsupported: 'この取引所では決済履歴を利用できません',
     manage_protection: '利確 / 損切', take_profit_short: '利確', stop_loss_short: '損切', trigger_price: 'トリガー価格', no_protection_orders: '利確・損切注文はありません', protection_unsupported: 'この取引所ではポジション保護を利用できません', protection_saved: '利確・損切を更新しました', confirm_close: '決済を確認',
+    liquidity_title: '板情報', best_bid: '最良買気配', best_ask: '最良売気配', spread: 'スプレッド', depth_price: '価格', depth_size: '数量', depth_total: '累計', buy_pressure: '買い {value}%', sell_pressure: '売り {value}%', liquidity_loading: '板情報を読み込み中…', liquidity_unavailable: '板情報を一時的に取得できません',
     chart_risk_hint: 'チャートシグナルは判断補助です。実注文には確認が必要です。'
   },
   api_errors: {
@@ -188,6 +189,8 @@ export default {
     market_moex: 'MOEX',
     removed: 'お気に入りから削除しました',
     added: 'お気に入りに追加しました',
+    remove_confirm_title: 'お気に入りから削除',
+    remove_confirm: '{symbol} をお気に入りから削除しますか？',
     manage: 'お気に入りを管理',
     tap_to_select: 'タップして銘柄を選択',
     change_symbol: '銘柄を変更',

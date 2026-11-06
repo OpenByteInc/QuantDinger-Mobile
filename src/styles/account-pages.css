@@ -8,7 +8,7 @@
   --van-button-primary-border-color: var(--v2-brand); --van-button-primary-color: var(--v2-on-brand);
   --van-background-2: var(--v2-surface); --van-text-color: var(--v2-text);
   width: 100%; max-width: 520px; margin: 0 auto; min-height: 100%;
-  background: var(--v2-bg); color: var(--v2-text); font-family: -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  background: var(--v2-bg); color: var(--v2-text); font-family: var(--font-sans);
 }
 .account-page .van-nav-bar { background: var(--v2-bg); border-bottom: 1px solid var(--v2-line); }
 .account-page .van-nav-bar__title { font-size: 16px; font-weight: 600; color: var(--v2-text); }
@@ -145,7 +145,6 @@
 .app-main .van-nav-bar--fixed .van-nav-bar__title {color:var(--v2-text)}
 .app-main .van-nav-bar--fixed .van-icon {color:var(--v2-text)}
 .account-page {--purchase-paid:#9b6300;--purchase-vip:#7049b8}
-[data-theme="dark"] .account-page {--purchase-paid:#efbd55;--purchase-vip:#c2a5ff}
 .account-page.page .price.is-paid {color:var(--purchase-paid)}
 .account-page.page .price.is-free {color:var(--v2-green)}
 .account-page.page .vip-free {color:var(--purchase-vip);background:color-mix(in srgb,var(--purchase-vip) 12%,var(--v2-surface))}
@@ -169,3 +168,87 @@
 .account-page.login-logs-page .meta-item .val {white-space:normal;overflow-wrap:anywhere}
 
 .account-page.login-logs-page .lab {color:var(--v2-muted)}
+
+.account-page.account-page.account-page {
+  --page-gutter: 16px;
+  background: #fbf7ef;
+}
+.account-page .van-nav-bar { border-bottom-color: var(--v2-line); }
+.account-page .van-nav-bar__title { font-family: var(--font-display); font-optical-sizing: auto; font-size: 19px; font-weight: 650; }
+.account-page .van-button, .account-page .van-field__body, .account-page .van-search__content { border-radius: 0; }
+.account-page :is(
+  .card,
+  .form-card,
+  .status-card,
+  .feature-card,
+  .hint-card,
+  .stats-row,
+  .signup-card,
+  .list-card,
+  .egress-card,
+  .hero,
+  .balance-card,
+  .log-list,
+  .log-card,
+  .reward-summary,
+  .invite-card,
+  .records-section
+) { border-radius: 0 !important; box-shadow: none !important; }
+.account-page :is(
+  .card,
+  .form-card,
+  .status-card,
+  .feature-card,
+  .signup-card,
+  .list-card,
+  .egress-card,
+  .hero,
+  .balance-card,
+  .log-list,
+  .log-card,
+  .reward-summary,
+  .invite-card,
+  .records-section
+) {
+  background: transparent !important;
+  border-left-color: transparent !important;
+  border-right-color: transparent !important;
+}
+.account-page :is(.balance-card,.hero)::before { background: transparent !important; }
+.account-page .van-cell-group--inset {
+  background: transparent !important;
+  border-left-color: transparent !important;
+  border-right-color: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.account-page.notif-settings-page .card {
+  margin-block: 0;
+  padding: 18px 0;
+  border-top: 0;
+  border-bottom: 1px solid var(--v2-line);
+}
+.account-page.referral-page :is(.reward-summary,.invite-card,.records-section) {
+  border-top: 0;
+  border-bottom: 1px solid var(--v2-line);
+}
+.account-page.login-logs-page .log-card {
+  border-top: 0;
+  border-bottom: 1px solid var(--v2-line);
+}
+.account-page.page .list {
+  background: transparent !important;
+  border-left-color: transparent !important;
+  border-right-color: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.account-page :is(h1,h2,h3,.detail-title,.status-title,.feature-title) { font-family: var(--font-display); font-optical-sizing: auto; }
+.account-page .plain-tabs button.active { border-bottom-color: #b08a42; }
+.account-page .page-intro { padding-left: 10px; border-left: 3px solid #b08a42; }
+.account-page.notifications-page .notification-filters,
+.account-page.page .library-tabs { border: 1px solid var(--v2-line); border-radius: 0; background: transparent; }
+.account-page.notifications-page .notification-filters button,
+.account-page.page .library-tab { border-radius: 0; }
+.account-page.credentials-page .credential-tag,
+.account-page.login-logs-page .flags span { border-radius: 0; }

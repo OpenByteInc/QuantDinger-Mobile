@@ -1,7 +1,7 @@
 <template>
   <div class="v2-page profile-page">
     <van-button v-if="failed" block @click="loadData">{{ t('audit.loadFailed') }}</van-button>
-    <header class="profile-top"><button class="profile-notifications" :aria-label="t('profile.notifications')" @click="router.push('/profile/notifications')"><van-icon name="bell"/><span v-if="notificationStore.unreadCount">{{ notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount }}</span></button></header>
+    <header class="profile-top"><button class="profile-notifications" :aria-label="t('profile.notifications')" @click="router.push('/profile/notifications')"><van-icon name="envelop-o"/><span v-if="notificationStore.unreadCount">{{ notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount }}</span></button></header>
     <section class="identity">
       <button class="identity-avatar" type="button" @click="router.push('/profile/account')"><img :src="avatarUrl" :alt="displayName" @error="onAvatarError"></button>
       <div class="identity-copy">
@@ -38,8 +38,8 @@ const userInfo=computed(()=>userStore.userInfo); const displayName=computed(()=>
 const avatarUrl=computed(()=>{const raw=String(userInfo.value?.avatar||'').trim();if(!raw)return logoUrl;if(/^(https?:|data:|blob:)/i.test(raw))return raw;const base=getBaseUrl().replace(/\/$/,'');return raw.startsWith('/')?`${base}${raw}`:`${base}/${raw}`})
 const menuGroups=computed(()=>[
   {title:t('v2.profile.assetsServices'),items:[{label:t('v2.profile.myPurchases'),icon:'cart-o',path:'/market/my-purchases'},{label:t('v2.profile.pointsMember'),icon:'gem-o',path:'/profile/credits'},{label:t('profile.credits_recharge'),icon:'balance-pay',path:'/profile/credits'}]},
-  {title:t('v2.profile.security'),items:[{label:t('v2.profile.accountSecurity'),icon:'shield-o',path:'/profile/security'},{label:t('v2.profile.mfa'),icon:'lock',path:'/profile/mfa',meta:mfa.value===null?'—':t(mfa.value?'profile.enabled':'profile.disabled')},{label:t('v2.profile.loginLog'),icon:'records-o',path:'/profile/login-logs'}]},
-  {title:t('v2.profile.preferenceSupport'),items:[{label:t('v2.profile.notification'),icon:'bell',path:'/profile/notification-settings'},{label:t('v2.profile.languageTheme'),icon:'setting-o',path:'/profile/language',meta:languageLabel.value},{label:t('profile.referral'),icon:'friends-o',path:'/profile/referral'},{label:t('v2.profile.about'),icon:'info-o',path:'/profile/about'}]}
+  {title:t('v2.profile.security'),items:[{label:t('v2.profile.accountSecurity'),icon:'shield-o',path:'/profile/security'},{label:t('v2.profile.mfa'),icon:'scan',path:'/profile/mfa',meta:mfa.value===null?'—':t(mfa.value?'profile.enabled':'profile.disabled')},{label:t('v2.profile.loginLog'),icon:'records-o',path:'/profile/login-logs'}]},
+  {title:t('v2.profile.preferenceSupport'),items:[{label:t('v2.profile.notification'),icon:'envelop-o',path:'/profile/notification-settings'},{label:t('v2.profile.languageTheme'),icon:'setting-o',path:'/profile/language',meta:languageLabel.value},{label:t('profile.referral'),icon:'friends-o',path:'/profile/referral'},{label:t('v2.profile.about'),icon:'info-o',path:'/profile/about'}]}
 ])
 onActivated(loadData)
 async function loadData(){failed.value=false;const r=await Promise.allSettled([userApi.getProfile(),credentialsApi.list(),loadPurchases(),strategyApi.getUnreadNotificationCount(),userApi.getMfaStatus()]);failed.value=r.some(x=>x.status==='rejected');if(r[0].status==='fulfilled'){const p=r[0].value.data;userStore.setUserInfo(p);Object.assign(billing,p?.billing||{})}if(r[1].status==='fulfilled'){credentials.value=r[1].value.data||[];credentialCount.value=credentials.value.length};if(r[2].status==='fulfilled'){const data=r[2].value.data;purchaseCount.value=(data?.items||[]).filter(x=>getAssetType(x)==='script_template').length;indicatorCount.value=(data?.items||[]).filter(x=>getAssetType(x)==='indicator').length}if(r[3].status==='fulfilled')notificationStore.setUnreadCount(r[3].value.data);if(r[4].status==='fulfilled')mfa.value=Boolean(r[4].value.data?.enabled)}
@@ -53,5 +53,72 @@ function handleMenu(item){router.push(item.path)} function formatNumber(v){retur
 </style>
 
 <style scoped>
+.profile-page.profile-page { padding: calc(16px + var(--safe-area-top)) 16px 34px; }
+.profile-page .profile-top { top: calc(16px + var(--safe-area-top)); right: 16px; }
+.profile-page .profile-notifications { border: 0; border-radius: 0; }
+.profile-page .identity { margin-bottom: 24px; }
+.profile-page .identity-avatar, .profile-page .identity img { border-radius: 50%; }
+.profile-page .identity-avatar { border-color: #b08a42; }
+.profile-page .identity h2 { font-family: var(--font-sans); font-size: 22px; font-weight: 680; }
+.identity h2 span { border-color: #b08a42; color: #8b6526; }
+.stats { padding: 16px 0; border-block: 1px solid var(--v2-line); border-inline: 0; border-radius: 0; }
+.stats strong { font-family: var(--font-sans); color: var(--v2-text); }
+.account { min-height: 86px; margin-top: 22px; padding: 15px 0; border: 0; border-block: 1px solid var(--v2-line); border-radius: 0; box-shadow: none; }
+.account strong { font-family: var(--font-sans); font-size: 17px; }
+.menu-block h2 { margin: 28px 0 8px; padding-left: 10px; border-left: 3px solid #b08a42; color: var(--v2-text); font-size: 15px; }
+.menu-list { border: 0; border-top: 1px solid var(--v2-line); border-radius: 0; }
+.menu-list button { height: 56px; padding: 0; border-bottom-color: var(--v2-line); }
+.menu-icon { color: #8b6526; }
+.profile-page .logout-button { margin-top: 32px; border-radius: 0; border-color: var(--v2-line); color: var(--v2-red); background: transparent; }
+</style>
+
+<style scoped>
+.profile-page.profile-page { padding: calc(16px + var(--safe-area-top)) 12px 32px; }
+.profile-page .profile-top { top: calc(12px + var(--safe-area-top)); right: 12px; }
+.profile-page .profile-notifications { width: 40px; height: 40px; border: 1px solid var(--v2-line); border-radius: 10px; color: var(--v2-muted); font-size: 20px; }
+.profile-page .identity { min-height: 56px; grid-template-columns: 56px minmax(0, 1fr); gap: 12px; margin: 0 52px 20px 0; }
+.profile-page .identity-avatar, .profile-page .identity img { width: 56px; height: 56px; }
+.profile-page .identity-avatar { border: 1px solid var(--v2-line); }
+.profile-page .identity h2 { font-size: 21px; font-weight: 500; letter-spacing: -.01em; }
+.identity h2 span { padding: 3px 6px; border: 1px solid var(--v2-line); border-radius: 5px; background: transparent; font-size: 10px; font-weight: 500; }
+.identity-email { font-size: 13px; }
+.stats { padding: 12px 0; border-radius: 14px; }
+.stats button { min-height: 60px; }
+.stats span { font-size: 11px; }
+.stats strong { margin-top: 6px; font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.account { min-height: 80px; grid-template-columns: 44px 1fr auto; margin-top: 12px; padding: 16px; border-radius: 14px; box-shadow: none; }
+.account :deep(.exchange-logo) { width: 44px; height: 44px; }
+.account strong { font-size: 15px; font-weight: 500; }
+.account b { margin-top: 4px; font-size: 12px; font-weight: 400; }
+.menu-block h2 { margin: 24px 2px 8px; font-size: 12px; font-weight: 500; }
+.menu-list { border-radius: 14px; }
+.menu-list button { height: 52px; grid-template-columns: 24px 1fr auto 16px; gap: 10px; padding: 0 14px; }
+.menu-icon { width: 24px; height: 24px; border-radius: 0; background: transparent; color: var(--v2-muted); font-size: 17px; }
+.menu-list span { font-size: 14px; }
+.profile-page .logout-button { height: 44px; margin-top: 28px; border-radius: 9px; }
+</style>
+
+<style scoped>
 .profile-top{position:absolute;top:calc(16px + var(--safe-area-top));right:16px;display:flex;justify-content:flex-end}.profile-page{position:relative;padding-top:calc(16px + var(--safe-area-top))}.identity{min-height:58px;margin:0 54px 18px 2px;grid-template-columns:58px minmax(0,1fr);gap:13px}.identity-avatar,.identity-name,.identity-email{padding:0;border:0;background:transparent;color:var(--v2-text);text-align:left}.identity-avatar{width:58px;height:58px;border-radius:50%}.identity-copy{min-width:0;align-self:center}.identity-name{display:block;max-width:100%}.identity h2{overflow-wrap:anywhere}.identity-email-line{min-width:0;display:flex;align-items:center;gap:5px;margin-top:3px}.identity-email{min-width:0;max-width:100%;overflow:hidden;color:var(--v2-muted);font-size:14px;text-overflow:ellipsis;white-space:nowrap}.email-visibility{width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;padding:0;border:0;border-radius:8px;background:transparent;color:var(--v2-muted);font-size:17px}.profile-notifications{position:relative;display:grid;place-items:center;width:42px;height:42px;border:0;border-radius:12px;background:transparent;color:var(--v2-text);font-size:23px}.profile-notifications span{position:absolute;top:-3px;right:-3px;min-width:17px;padding:1px 4px;border-radius:10px;background:var(--v2-brand);color:var(--v2-on-brand);font-size:10px}.logout-button{margin-top:24px;border-radius:10px;height:46px}
+</style>
+
+<style scoped>
+.profile-page.profile-page { padding: calc(16px + var(--safe-area-top)) 16px 34px; }
+.profile-page .profile-top { top: calc(16px + var(--safe-area-top)); right: 16px; }
+.profile-page .profile-notifications { border: 0; border-radius: 0; }
+.profile-page .identity { margin: 0 52px 24px 0; }
+.profile-page .identity-avatar { border-color: #b08a42; }
+.profile-page .identity h2 { font-family: var(--font-sans); font-size: 22px; font-weight: 680; }
+.identity h2 span { border-color: #b08a42; color: #8b6526; }
+.stats { padding: 16px 0; border-block: 1px solid var(--v2-line); border-inline: 0; border-radius: 0; }
+.stats strong { font-family: var(--font-sans); }
+.account { min-height: 86px; margin-top: 22px; padding: 15px 0; border: 0; border-block: 1px solid var(--v2-line); border-radius: 0; box-shadow: none; }
+.account strong { font-family: var(--font-sans); font-size: 17px; }
+.menu-block h2 { margin: 28px 0 8px; padding-left: 10px; border-left: 3px solid #b08a42; color: var(--v2-text); font-size: 15px; }
+.menu-list { border: 0; border-top: 1px solid var(--v2-line); border-radius: 0; }
+.menu-list button { height: 56px; padding: 0; }
+.menu-list button > em { grid-column: 3; justify-self: end; }
+.menu-list button > .van-icon:last-child { grid-column: 4; justify-self: end; }
+.menu-icon { color: #8b6526; }
+.profile-page .logout-button { margin-top: 32px; border-radius: 0; border-color: var(--v2-line); color: var(--v2-red); background: transparent; }
 </style>

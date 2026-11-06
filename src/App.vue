@@ -1,5 +1,5 @@
 <template>
-  <div class="app-container" :style="!showBottomNav ? {'--shell-tabbar-height':'var(--safe-area-bottom)'} : undefined">
+  <div class="app-container" :class="{ 'ivory-shell': isIvoryShell }" :style="!showBottomNav ? {'--shell-tabbar-height':'var(--safe-area-bottom)'} : undefined">
     <main ref="main" class="app-main" :class="{ 'with-bottom-nav': showBottomNav }">
       <router-view v-slot="{ Component }">
         <keep-alive :include="['StrategyHubV2', 'LiveOverviewV2', 'AiResearchV2', 'ProfileV2', 'IndicatorChart']">
@@ -41,6 +41,7 @@ const main=ref(null)
 watch(()=>route.fullPath,async()=>{await nextTick();main.value?.scrollTo({top:0})})
 const unreadCount = computed(() => notificationStore.unreadCount)
 const showBottomNav = computed(() => !route.meta.public && ['/market','/trading','/ai','/indicators/chart','/profile'].includes(route.path))
+const isIvoryShell = computed(() => !route.meta.public)
 const tabs = computed(() => [
   { key: 'strategy', label: t('v2.nav.strategy'), icon: 'wap-home', path: '/market' },
   { key: 'live', label: t('v2.nav.live'), icon: 'play-circle', path: '/trading' },
@@ -145,5 +146,110 @@ const goTab = (item) => {
   background: var(--down);
   color: #fff;
   font-size: 8px;
+}
+</style>
+
+<style scoped>
+.app-container {
+  --shell-tabbar-height: calc(64px + var(--safe-area-bottom));
+}
+
+.shell-tabbar {
+  padding: 4px 8px var(--safe-area-bottom);
+  border-top-color: var(--v2-line);
+  background: var(--v2-surface);
+}
+
+.shell-tab {
+  position: relative;
+  gap: 3px;
+  color: var(--v2-soft);
+  font-size: 11px;
+  font-weight: 400;
+  transition: color 160ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.tab-icon {
+  width: 32px;
+  height: 28px;
+}
+
+.tab-icon .van-icon { font-size: 20px; }
+.shell-tab.active { color: var(--v2-brand-strong); font-weight: 600; }
+.shell-tab.active .tab-icon { color: var(--v2-brand); }
+
+@media (min-width: 560px) {
+  .shell-tabbar {
+    right: auto;
+    left: 50%;
+    width: 520px;
+    border-right: 1px solid var(--v2-line);
+    border-left: 1px solid var(--v2-line);
+    transform: translateX(-50%);
+  }
+}
+
+.app-container.ivory-shell,
+.app-container.ivory-shell .app-main {
+  background: #faf8f3;
+}
+
+.app-container.ivory-shell {
+  --v2-bg: #faf8f3;
+  --v2-surface: #f6f4ef;
+  --v2-surface-2: #ece9e2;
+  --v2-line: rgba(24, 25, 29, .11);
+  --v2-text: #18191d;
+  --v2-muted: #69645c;
+  --v2-soft: #8b8479;
+  --v2-brand: #0e603f;
+  --v2-brand-strong: #0e603f;
+  --v2-on-brand: #fffdf8;
+  --v2-green: #0e603f;
+  --v2-red: #8b2437;
+  --v2-orange: #a87821;
+  --bg: #faf8f3;
+  --bg-page: #faf8f3;
+  --bg-elevated: #f6f4ef;
+  --bg-elevated-2: #ece9e2;
+  --surface-flat: #f6f4ef;
+  --surface-raised: rgba(24, 25, 29, .035);
+  --surface-raised-2: rgba(24, 25, 29, .06);
+  --border: rgba(24, 25, 29, .11);
+  --border-strong: rgba(24, 25, 29, .18);
+  --hairline: rgba(24, 25, 29, .08);
+  --text: #18191d;
+  --text-2: #69645c;
+  --text-3: #8b8479;
+  --accent: #0e603f;
+  --accent-light: #187553;
+  --accent-dark: #0a4c32;
+  --accent-soft: rgba(14, 96, 63, .1);
+  --accent-gold: #b08a42;
+  --up: #0e603f;
+  --down: #8b2437;
+  --primary-color: #0e603f;
+  --text-on-accent: #fffdf8;
+}
+
+.app-container.ivory-shell .shell-tabbar {
+  border-top-color: rgba(127, 95, 39, .28);
+  background: #fbf7ef;
+}
+
+.app-container.ivory-shell .shell-tab {
+  color: #7a756d;
+}
+
+.app-container.ivory-shell .shell-tab.active {
+  color: #0e603f;
+}
+
+.app-container.ivory-shell .shell-tab.active .tab-icon {
+  color: #0e603f;
+}
+
+.app-container.ivory-shell .shell-tab.active .tab-icon::before {
+  background: #b08a42;
 }
 </style>
