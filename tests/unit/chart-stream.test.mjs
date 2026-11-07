@@ -135,7 +135,7 @@ test('all six exchanges expose venue-scoped spot and swap endpoints', () => {
   const spot = { marketType: 'spot', instrumentId: '' }
   const swap = { marketType: 'swap', instrumentId: '' }
 
-  assert.equal(EXCHANGE_WS.binance.buildUrl('BTC/USDT', '1m', spot), 'wss://stream.binance.com:9443/ws/btcusdt@kline_1m')
+  assert.equal(EXCHANGE_WS.binance.buildUrl('BTC/USDT', '1m', spot), 'wss://data-stream.binance.vision/ws/btcusdt@kline_1m')
   assert.equal(EXCHANGE_WS.binance.buildUrl('BTC/USDT', '1m', swap), 'wss://fstream.binance.com/ws/btcusdt@kline_1m')
   assert.equal(EXCHANGE_WS.okx.buildUrl('BTC/USDT', '1m', spot), 'wss://ws.okx.com/ws/v5/business')
   assert.equal(EXCHANGE_WS.bybit.buildUrl('BTC/USDT', '1', spot), 'wss://stream.bybit.com/v5/public/spot')
@@ -331,4 +331,25 @@ test('successful subscription acknowledgements do not produce fallback', async (
     assert.equal(errors, 0, exchange)
     assert.equal(client._closed, false, exchange)
   }
+})
+
+test('live ticks preserve the native candle close state for chart reconciliation', async () => {
+  let tick = null
+  let newBar = null
+  const client = new ExchangeKlineWs()
+  client._closed = false
+  client._exchangeId = 'binance'
+  client._exchangeConf = EXCHANGE_WS.binance
+  client._onTick = (bar) => { tick = bar }
+  client._onNewBar = (bar) => { newBar = bar }
+
+  await client._handleMessage({
+    data: JSON.stringify({
+      e: 'kline',
+      k: { t: 1784505600000, o: '1', h: '2', l: '0.5', c: '1.5', v: '12', x: true }
+    })
+  })
+
+  assert.equal(tick.isClosed, true)
+  assert.equal(newBar.isClosed, true)
 })

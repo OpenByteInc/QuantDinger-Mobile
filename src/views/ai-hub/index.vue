@@ -164,6 +164,11 @@
                 <div v-if="msg.content" class="markdown-body">
                   <template v-for="(block, idx) in renderMarkdown(msg.content)" :key="idx">
                     <div v-if="block.type === 'html'" v-html="block.html"></div>
+                    <ResearchChart
+                      v-else-if="block.type === 'chart'"
+                      :spec="block.spec"
+                      :label="text.statisticalChart"
+                    />
                     <div v-else class="code-block">
                       <div class="code-head">
                         <span>{{ block.lang || 'code' }}</span>
@@ -418,6 +423,8 @@ import {
 import { useAiAnalysisStore } from '@/stores'
 import SymbolPicker from '@/components/SymbolPicker.vue'
 import QuantCat from '@/components/QuantCat.vue'
+import ResearchChart from '@/components/ResearchChart.vue'
+import { renderMobileMarkdown } from '@/utils/mobileMarkdown.mjs'
 import {
   professionalReportArtifact,
   professionalReportEnvelope,
@@ -429,7 +436,7 @@ import {
 
 export default {
   name: 'AiHub',
-  components: { SymbolPicker, QuantCat },
+  components: { SymbolPicker, QuantCat, ResearchChart },
   data() {
     return {
       context: {
@@ -565,111 +572,12 @@ export default {
       return number.toLocaleString(undefined, { maximumFractionDigits: digits })
     },
     newChat() { if (this.sending) return; this.sessionId = null; this.messages = []; this.composer = ''; this.attachments = []; this.composerTask = null; this.draftReferencedReportId = null; this.sessionMemory = null; this.contextUsage = null; this.sessionLoadToken++ },
-    escapeHtml(value) {
-      return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
-    },
     renderMarkdown(content) {
-      const text = String(content || '')
-      const blocks = []
-      const fence = /```(\w+)?\n([\s\S]*?)```/g
-      let lastIndex = 0
-      let match
-      while ((match = fence.exec(text))) {
-        if (match.index > lastIndex) {
-          blocks.push({ type: 'html', html: this.renderMarkdownText(text.slice(lastIndex, match.index)) })
-        }
-        blocks.push({ type: 'code', lang: match[1] || '', code: match[2].replace(/\n$/, '') })
-        lastIndex = fence.lastIndex
-      }
-      if (lastIndex < text.length) {
-        blocks.push({ type: 'html', html: this.renderMarkdownText(text.slice(lastIndex)) })
-      }
-      return blocks.filter((block) => block.type === 'code' || block.html)
-    },
-    renderMarkdownText(text) {
-      const lines = String(text || '').replace(/\r\n/g, '\n').split('\n')
-      const html = []
-      let listType = ''
-      let quoteLines = []
-      let paragraph = []
-      const flushParagraph = () => {
-        if (!paragraph.length) return
-        html.push(`<p>${paragraph.map((line) => this.renderInlineMarkdown(line)).join('<br>')}</p>`)
-        paragraph = []
-      }
-      const flushList = () => {
-        if (!listType) return
-        html.push(`</${listType}>`)
-        listType = ''
-      }
-      const flushQuote = () => {
-        if (!quoteLines.length) return
-        html.push(`<blockquote>${quoteLines.map((line) => this.renderInlineMarkdown(line)).join('<br>')}</blockquote>`)
-        quoteLines = []
-      }
-
-      lines.forEach((raw) => {
-        const line = raw.trimEnd()
-        if (!line.trim()) {
-          flushParagraph()
-          flushList()
-          flushQuote()
-          return
-        }
-
-        const heading = line.match(/^(#{1,3})\s+(.+)$/)
-        if (heading) {
-          flushParagraph()
-          flushList()
-          flushQuote()
-          const level = heading[1].length + 2
-          html.push(`<h${level}>${this.renderInlineMarkdown(heading[2])}</h${level}>`)
-          return
-        }
-
-        const quote = line.match(/^>\s?(.*)$/)
-        if (quote) {
-          flushParagraph()
-          flushList()
-          quoteLines.push(quote[1])
-          return
-        }
-
-        const ordered = line.match(/^\d+[.)]\s+(.+)$/)
-        const unordered = line.match(/^[-*]\s+(.+)$/)
-        if (ordered || unordered) {
-          flushParagraph()
-          flushQuote()
-          const nextType = ordered ? 'ol' : 'ul'
-          if (listType !== nextType) {
-            flushList()
-            listType = nextType
-            html.push(`<${listType}>`)
-          }
-          html.push(`<li>${this.renderInlineMarkdown((ordered || unordered)[1])}</li>`)
-          return
-        }
-
-        flushList()
-        flushQuote()
-        paragraph.push(line)
+      return renderMobileMarkdown(content, {
+        series: this.text.chartSeries,
+        line: this.text.chartLine,
+        bar: this.text.chartBar
       })
-
-      flushParagraph()
-      flushList()
-      flushQuote()
-      return html.join('')
-    },
-    renderInlineMarkdown(value) {
-      return this.escapeHtml(value)
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/__([^_]+)__/g, '<strong>$1</strong>')
     },
     async copyText(text) {
       const value = String(text || '')
@@ -1099,6 +1007,13 @@ export default {
         symbol: ctx.symbol || this.context.symbol,
         timeframe: ctx.timeframe || this.context.timeframe,
         mobile: true,
+        markdown_capabilities: [
+          'gfm_tables',
+          'chart_json',
+          'mermaid_xychart',
+          'mermaid_pie',
+          'mermaid_flowchart'
+        ],
         unsupported_mobile_workflows: ['code_editing', 'backtest']
       }
     },
@@ -2257,6 +2172,78 @@ export default {
   background: rgba(251, 191, 36, 0.12);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
+}
+
+.markdown-body :deep(a) {
+  color: var(--accent);
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 38%, transparent);
+  text-underline-offset: 3px;
+}
+
+.markdown-body :deep(hr) {
+  height: 1px;
+  margin: 13px 0;
+  border: 0;
+  background: var(--border);
+}
+
+.markdown-body :deep(.md-table-wrap) {
+  width: 100%;
+  margin: 10px 0 12px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.markdown-body :deep(.md-table) {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.markdown-body :deep(.md-table th),
+.markdown-body :deep(.md-table td) {
+  min-width: 112px;
+  max-width: 220px;
+  padding: 9px 10px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.markdown-body :deep(.md-table th) {
+  color: var(--text);
+  background: var(--surface-deep);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.markdown-body :deep(.md-table tr:last-child td) {
+  border-bottom: 0;
+}
+
+.markdown-body :deep(.md-table th:last-child),
+.markdown-body :deep(.md-table td:last-child) {
+  border-right: 0;
+}
+
+.markdown-body :deep(.md-align-center) {
+  text-align: center;
+}
+
+.markdown-body :deep(.md-align-right) {
+  text-align: right;
 }
 
 .code-block {

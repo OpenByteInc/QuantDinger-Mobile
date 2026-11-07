@@ -1676,7 +1676,7 @@ export default {
 .risk-summary-card p { margin: 10px 2px 0; color: var(--text-3); font-size: 11px; line-height: 1.55; }
 .section { padding: 14px 0 4px; }
 .section-heading { display: flex; align-items: center; gap: 10px; padding: 0 16px 13px; }
-.section-index { display: inline-flex; width: 25px; height: 25px; flex: 0 0 25px; align-items: center; justify-content: center; border-radius: 8px; color: #141414; background: var(--accent); font-size: 11px; font-weight: 900; }
+.section-index { display: inline-flex; width: 25px; height: 25px; flex: 0 0 25px; align-items: center; justify-content: center; border-radius: 8px; color: var(--text-on-accent); background: var(--accent); font-size: 11px; font-weight: 900; }
 .section-heading > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .section-heading strong { color: var(--text); font-size: 14px; }
 .section-heading small { color: var(--text-3); font-size: 10px; line-height: 1.4; }
@@ -1836,4 +1836,75 @@ export default {
 }
 </style>
 
-<style scoped>.source-change{display:block;line-height:1.6}.source-change p{margin:0 0 12px}.source-copy p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}</style>
+<style scoped>
+.source-change { display: block; line-height: 1.6; }
+.source-change p { margin: 0 0 12px; }
+.source-copy p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+
+.source-card,
+.warning-card,
+.section {
+  margin-top: 16px;
+  margin-bottom: 16px;
+  border-radius: 2px;
+  background: transparent;
+}
+.source-card { padding: 18px; }
+.source-icon { width: 42px; height: 42px; border-radius: 2px; }
+.source-title { font-size: 18px; font-weight: 680; letter-spacing: -.01em; }
+.source-change-action { border-radius: 2px; background: transparent; font-weight: 750; }
+.contract-card {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding: 14px 2px;
+  border: 0;
+  border-block: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+.contract-card div { padding: 0 12px; border-right: 1px solid var(--border); }
+.contract-card div:last-child { border-right: 0; }
+.runtime-source-card { margin-top: 16px; margin-bottom: 16px; padding: 18px; border-radius: 2px; background: transparent; }
+.runtime-symbol { border-radius: 2px; background: var(--bg-elevated); }
+.runtime-options > div { gap: 0; padding: 0; border-radius: 2px; background: transparent; }
+.runtime-options button { min-height: 38px; border-right: 1px solid var(--border); border-radius: 0; }
+.runtime-options button:last-child { border-right: 0; }
+.runtime-timeframes button { border-radius: 2px; }
+.section { padding: 18px 0 0; }
+.section-heading { gap: 16px; padding: 0 18px 16px; }
+.section-heading strong { font-size: 17px; font-weight: 680; letter-spacing: -.01em; }
+:deep(.van-cell-group--inset) { border-top: 1px solid var(--border); background: var(--bg-elevated); }
+:deep(.van-cell) { min-height: 52px; padding-inline: 18px; }
+.execution-mode-grid { gap: 10px; padding: 0 18px 18px; }
+.execution-mode-grid button { min-height: 88px; padding: 14px; border-radius: 2px; background: transparent; }
+.deployment-risk-config { margin: 16px 18px 18px; padding: 16px 0 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: transparent; }
+.deployment-risk-row { padding: 12px; border-radius: 2px; }
+.live-config { margin: 0 18px 18px; border: 0; border-block: 1px solid var(--border); border-radius: 0; background: transparent; }
+.account-config-card,
+.account-config-card.missing { padding: 14px 0; background: transparent; }
+.account-config-action { border-radius: 2px; }
+.direction-config { margin: 0 0 14px; padding: 14px 0; border: 0; border-block: 1px solid var(--border); border-radius: 0; background: transparent; }
+.notification-config { margin: 0 18px 18px; padding: 16px 0 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: transparent; }
+.notification-channel-grid :deep(.van-checkbox) { padding: 10px; border-radius: 2px; background: var(--bg-elevated); }
+.notification-channel-grid :deep(.notification-channel--selected) { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--accent-softer); }
+.notification-channel-icon,
+.notification-channel-icon.browser,
+.notification-channel-icon.email,
+.notification-channel-icon.telegram,
+.notification-channel-icon.phone,
+.notification-channel-icon.discord,
+.notification-channel-icon.webhook { border-radius: 2px; color: var(--accent); background: var(--accent-soft); }
+.live-disclaimer { margin: 0 18px 18px; border-radius: 2px; }
+.submit-wrap { padding: 8px var(--page-gutter) 24px; }
+.submit-wrap :deep(.van-button) { min-height: 52px; border-radius: 2px; font-size: 14px; font-weight: 700; }
+@media (min-width: 720px) {
+  .source-card,
+  .warning-card,
+  .contract-card,
+  .runtime-source-card,
+  .trigger-card,
+  .risk-summary-card,
+  .section,
+  .submit-wrap { max-width: 720px; }
+}
+</style>

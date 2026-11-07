@@ -107,7 +107,7 @@ const EXCHANGE_WS = {
       const s = normalizedSymbol(context.instrumentId || symbol).toLowerCase()
       const base = normalizedMarketType(context.marketType) === 'swap'
         ? 'wss://fstream.binance.com/ws'
-        : 'wss://stream.binance.com:9443/ws'
+        : 'wss://data-stream.binance.vision/ws'
       return `${base}/${s}@kline_${interval}`
     },
     parseBar (data, context) {
@@ -587,7 +587,8 @@ export default class ExchangeKlineWs {
       high: parsed.high,
       low: parsed.low,
       close: parsed.close,
-      volume: parsed.volume
+      volume: parsed.volume,
+      isClosed: Boolean(parsed.isClosed)
     }
 
     if (this._onTick) {

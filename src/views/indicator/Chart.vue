@@ -91,7 +91,7 @@ const selectedInstrumentId=computed(()=>{
  return String(product.instrument_id||'').trim()
 })
 const streamContext=computed(()=>JSON.stringify([form.market,form.symbol,form.timeframe,form.exchangeId,form.marketType,selectedInstrumentId.value]))
-let stream=null,streamGeneration=0,lastTick=0,lastRecovery=0,pendingBar=null,pageActive=false,warmRequest=0
+let stream=null,streamGeneration=0,lastTick=0,lastRecovery=0,pendingBar=null,pendingChartBar=null,chartFrame=null,streamFallbackTimer=null,pageActive=false,warmRequest=0
 const chartData=ref(initialSnapshot?.data||null),displayedChartContext=ref(initialSnapshot?.context||''),loading=ref(false),chartRefreshing=ref(false),error=ref(''),indicators=ref([]),parameters=ref([]),updated=ref(Number(initialSnapshot?.updated||0)),indicatorSheetOpen=ref(false),indicatorQuery=ref(''),symbolPickerOpen=ref(false),paramsOpen=ref(false),expanded=ref(false),mainIndicator=ref('EMA'),lowerIndicator=ref('')
 const chartType=ref(normalizePriceChartType(localStorage.getItem('quantdinger.mobile.chartType')||'candle_solid')),chartTypeSheetOpen=ref(false)
 const chartTypeActions=computed(()=>PRICE_CHART_TYPES.map(value=>({name:t(`indicator_chart.chart_type_${value}`),value,color:value===chartType.value?'var(--v2-brand)':undefined})))
@@ -160,7 +160,10 @@ function selectSymbol(item){form.market=item.market||'Crypto';form.symbol=item.s
 function onTradeContextChange(context){if(!context.exchangeId)return;if(context.exchangeId===form.exchangeId&&context.marketType===form.marketType)return;form.exchangeId=context.exchangeId;form.marketType=context.marketType;loadChart()}
 function openAi(){router.push({path:'/ai',query:{symbol:form.symbol,market:form.market,timeframe:form.timeframe}})}
 async function bootstrap(){void warmBaseChart();try{const loaded=await indicatorApi.getList();indicators.value=loaded.data||[];const id=Number(route.query.indicator_id||route.query.local_copy_id||0);const preferred=indicators.value.find(x=>Number(x.id)===id)||indicators.value[0];if(preferred)await selectIndicator({indicatorId:Number(preferred.id)});else await loadChart()}catch(e){if(!chartData.value?.candles?.length){error.value=e?.localizedMessage||e?.message||t('audit.loadFailed');await warmBaseChart()}}}
-function stopStream(){streamGeneration++;stream?.disconnect();stream=null;lastTick=0;pendingBar=null}
+function clearStreamFallback(){clearTimeout(streamFallbackTimer);streamFallbackTimer=null}
+function flushChartBar(){chartFrame=null;const bar=pendingChartBar;pendingChartBar=null;if(bar)marketChart.value?.updateBar(bar)}
+function scheduleChartBar(bar){pendingChartBar=bar;if(chartFrame===null)chartFrame=requestAnimationFrame(flushChartBar)}
+function stopStream(){streamGeneration++;stream?.disconnect();stream=null;clearStreamFallback();if(chartFrame!==null)cancelAnimationFrame(chartFrame);chartFrame=null;pendingChartBar=null;lastTick=0;pendingBar=null}
 function startStream(){
  stopStream()
  if(!pageActive||document.hidden||form.market.toLowerCase()!=='crypto')return
@@ -171,19 +174,20 @@ function startStream(){
    if(generation!==streamGeneration||!pageActive||document.hidden)return
    pendingBar=bar
    const candles=chartData.value?.candles
-   if(!candles?.length){lastTick=Date.now();return}
+   if(!candles?.length){lastTick=Date.now();clearStreamFallback();return}
    const result=mergeStreamBar(candles,bar,form.timeframe)
    if(result==='gap'){lastTick=0;loadChart(true);return}
    if(result==='ignored')return
-   lastTick=Date.now();updated.value=lastTick
-   marketChart.value?.updateBar(bar)
+   lastTick=Date.now();updated.value=lastTick;clearStreamFallback()
+   scheduleChartBar(bar)
    if(bar.isClosed)void loadChart(true)
   },
    onError(){if(generation===streamGeneration){lastTick=0;requestRecovery()}},
    onReconnecting(){if(generation===streamGeneration)lastTick=0},
    onReconnected(){if(generation===streamGeneration)requestRecovery()}
   },form.exchangeId,{marketType:form.marketType,instrumentId:selectedInstrumentId.value})
- if(!connecting)stream=null
+ if(!connecting){stream=null;requestRecovery();return}
+ streamFallbackTimer=setTimeout(()=>{if(generation===streamGeneration&&!streamIsFresh(lastTick))requestRecovery()},2500)
 }
 function requestRecovery(){const now=Date.now();if(now-lastRecovery<5000)return;lastRecovery=now;void loadChart(true)}
 function resizeChartAfterActivation(){nextTick(()=>{marketChart.value?.resize();requestAnimationFrame(()=>marketChart.value?.resize());clearTimeout(layoutTimer);layoutTimer=setTimeout(()=>marketChart.value?.resize(),180)})}

@@ -12,6 +12,9 @@ test('indicator chart avoids repeated full previews while the stream is healthy'
   assert.match(chartView,/if\(!healthy\)requestRecovery\(\)/)
   assert.match(chartView,/if\(bar\.isClosed\)void loadChart\(true\)/)
   assert.match(chartView,/silent&&nextContext===activeChartRequestContext/)
+  assert.match(chartView,/streamFallbackTimer=setTimeout\(\(\)=>\{if\(generation===streamGeneration&&!streamIsFresh\(lastTick\)\)requestRecovery\(\)\},2500\)/)
+  assert.match(chartView,/chartFrame=requestAnimationFrame\(flushChartBar\)/)
+  assert.match(chartView,/cancelAnimationFrame\(chartFrame\)/)
 })
 
 test('indicator chart warms from fast candles and suppresses transient empty-data toasts',()=>{
