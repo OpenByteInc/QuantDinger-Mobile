@@ -38,6 +38,7 @@ test('the mobile product supports persistent Global Ivory light and editorial da
   assert.match(settings, /toggleTheme\(\)/)
   assert.doesNotMatch(settings, /setAccent|accent:/)
   assert.doesNotMatch(languagePage, /displayMode|accentColor|setTheme|setAccent/)
+  assert.match(entry, /dark \? Style\.Dark : Style\.Light/)
   assert.match(entry, /void syncStatusBar\(\)/)
 })
 

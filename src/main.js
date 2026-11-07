@@ -41,7 +41,7 @@ const syncStatusBar = async () => {
   try {
     await StatusBar.setOverlaysWebView({ overlay: false })
     const dark = settingsStore.theme === 'dark'
-    await StatusBar.setStyle({ style: dark ? Style.Light : Style.Dark })
+    await StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light })
     await StatusBar.setBackgroundColor({ color: dark ? '#111713' : '#fbf7ef' })
   } catch (e) {
     console.warn('StatusBar not available:', e)
