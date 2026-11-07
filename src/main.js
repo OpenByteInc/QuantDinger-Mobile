@@ -52,7 +52,7 @@ localStorage.removeItem('accent')
 
 settingsStore.$subscribe((_mutation, state) => {
   settingsStore.setTheme(state.theme)
-  syncStatusBar()
+  void syncStatusBar()
 })
 
 const consumeOAuthDeepLink = async (rawUrl) => {

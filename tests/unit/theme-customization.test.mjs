@@ -5,13 +5,14 @@ import test from 'node:test'
 const read = (path) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8')
 
 test('the mobile product supports persistent Global Ivory light and editorial dark appearances', async () => {
-  const [baseStyles, v2Styles, accountStyles, appShell, settings, languagePage] = await Promise.all([
+  const [baseStyles, v2Styles, accountStyles, appShell, settings, languagePage, entry] = await Promise.all([
     read('src/styles/index.css'),
     read('src/styles/v2.css'),
     read('src/styles/account-pages.css'),
     read('src/App.vue'),
     read('src/stores/index.js'),
-    read('src/views/profile/Language.vue')
+    read('src/views/profile/Language.vue'),
+    read('src/main.js')
   ])
 
   assert.match(baseStyles, /--bg: #fbf7ef/)
@@ -37,6 +38,7 @@ test('the mobile product supports persistent Global Ivory light and editorial da
   assert.match(settings, /toggleTheme\(\)/)
   assert.doesNotMatch(settings, /setAccent|accent:/)
   assert.doesNotMatch(languagePage, /displayMode|accentColor|setTheme|setAccent/)
+  assert.match(entry, /void syncStatusBar\(\)/)
 })
 
 test('login initializes the settings store before rendering locale controls', async () => {
