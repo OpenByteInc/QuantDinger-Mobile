@@ -25,6 +25,7 @@ app.use(i18n)
 app.use(router)
 
 const settingsStore = useSettingsStore()
+settingsStore.setTheme(settingsStore.theme)
 if (import.meta.env.DEV && typeof window !== 'undefined') {
   const previewParams = new URLSearchParams(window.location.search)
   if (previewParams.get('preview') === '1') {
@@ -39,15 +40,20 @@ const syncStatusBar = async () => {
   if (!Capacitor.isNativePlatform()) return
   try {
     await StatusBar.setOverlaysWebView({ overlay: false })
-    await StatusBar.setStyle({ style: Style.Light })
-    await StatusBar.setBackgroundColor({ color: '#fbf7ef' })
+    const dark = settingsStore.theme === 'dark'
+    await StatusBar.setStyle({ style: dark ? Style.Light : Style.Dark })
+    await StatusBar.setBackgroundColor({ color: dark ? '#111713' : '#fbf7ef' })
   } catch (e) {
     console.warn('StatusBar not available:', e)
   }
 }
 
-localStorage.removeItem('theme')
 localStorage.removeItem('accent')
+
+settingsStore.$subscribe((_mutation, state) => {
+  settingsStore.setTheme(state.theme)
+  syncStatusBar()
+})
 
 const consumeOAuthDeepLink = async (rawUrl) => {
   const parsed = parseOAuthReturnUrl(rawUrl)

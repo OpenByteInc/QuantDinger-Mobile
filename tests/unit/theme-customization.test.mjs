@@ -4,7 +4,7 @@ import test from 'node:test'
 
 const read = (path) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8')
 
-test('the mobile product uses one fixed Global Ivory appearance', async () => {
+test('the mobile product supports persistent Global Ivory light and editorial dark appearances', async () => {
   const [baseStyles, v2Styles, accountStyles, appShell, settings, languagePage] = await Promise.all([
     read('src/styles/index.css'),
     read('src/styles/v2.css'),
@@ -20,18 +20,22 @@ test('the mobile product uses one fixed Global Ivory appearance', async () => {
   assert.match(v2Styles, /--v2-bg: #fbf7ef/)
   assert.match(v2Styles, /--v2-surface: #f6f4ef/)
   assert.match(v2Styles, /--v2-line: rgba\(24,25,29,\.11\)/)
-  assert.match(appShell, /\.app-container\.ivory-shell,[\s\S]*background: #fbf7ef/)
-  assert.match(appShell, /\.app-container\.ivory-shell[\s\S]*--v2-bg: #fbf7ef/)
-  assert.match(appShell, /\.app-container\.ivory-shell[\s\S]*--v2-surface: #f6f4ef/)
-  assert.match(appShell, /\.app-container\.ivory-shell[\s\S]*--bg-elevated: #f6f4ef/)
+  assert.match(appShell, /\.app-container\.ivory-shell,[\s\S]*background: var\(--bg\)/)
+  assert.match(appShell, /\.app-container\.ivory-shell[\s\S]*--v2-bg: var\(--bg\)/)
+  assert.match(appShell, /\.app-container\.ivory-shell[\s\S]*--v2-surface: var\(--bg-elevated\)/)
   assert.doesNotMatch(`${baseStyles}${v2Styles}${appShell}`, /#(?:f2e7d7|eadbc6)/i)
   assert.doesNotMatch(appShell, /\.app-container\.ivory-shell[\s\S]*--(?:v2-surface|bg-elevated): #fffdf8/)
   assert.match(v2Styles, /--v2-brand: #0e603f/)
   assert.match(v2Styles, /\.v2-card[^}]*background: transparent/)
   assert.match(accountStyles, /background: transparent !important/)
   assert.match(accountStyles, /\.account-page \.van-cell-group--inset/)
-  assert.doesNotMatch(`${baseStyles}${v2Styles}`, /data-(?:theme|accent)/)
-  assert.doesNotMatch(settings, /setTheme|setAccent|theme:|accent:/)
+  assert.match(baseStyles, /html\[data-theme='dark'\]/)
+  assert.match(baseStyles, /--bg: #111713/)
+  assert.match(v2Styles, /html\[data-theme='dark'\]/)
+  assert.match(settings, /theme: readInitialTheme\(\)/)
+  assert.match(settings, /setTheme\(theme\)/)
+  assert.match(settings, /toggleTheme\(\)/)
+  assert.doesNotMatch(settings, /setAccent|accent:/)
   assert.doesNotMatch(languagePage, /displayMode|accentColor|setTheme|setAccent/)
 })
 
@@ -102,6 +106,22 @@ test('primary mobile screens use a restrained sans and editorial serif type syst
   assert.match(baseStyles, /:where\(h1, h2, h3\)[\s\S]*font-family: var\(--font-display\)/)
   assert.match(baseStyles, /button\[aria-selected='true'\]/)
   assert.doesNotMatch(primaryScreens, /Times New Roman/)
+})
+
+test('dark mode keeps the profile toggle accessible and the AI mark visible', async () => {
+  const [profile, baseStyles, quantCat] = await Promise.all([
+    read('src/views/v2/ProfileHub.vue'),
+    read('src/styles/index.css'),
+    read('src/components/QuantCat.vue')
+  ])
+
+  assert.match(profile, /t\('sidebar\.theme_toggle'\)/)
+  assert.match(profile, /settingsStore\.toggleTheme\(\)/)
+  assert.match(profile, /class="theme-icon theme-icon-sun"/)
+  assert.match(profile, /class="theme-icon theme-icon-moon"/)
+  assert.doesNotMatch(profile, /profile-theme-toggle[^>]*>[\s\S]{0,220}profile\.theme_(?:light|dark)/)
+  assert.match(baseStyles, /html\[data-theme='dark'\] \.quant-cat \.cat-art[\s\S]*filter: invert/)
+  assert.doesNotMatch(quantCat, /:global\(html\[data-theme='dark'\]\)/)
 })
 
 test('phone layouts use compact spacing without sparse metric cells', async () => {

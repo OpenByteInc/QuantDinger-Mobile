@@ -125,6 +125,7 @@ onBeforeUnmount(() => {
   left: -23.42%;
   top: -64.96%;
   pointer-events: none;
+  transition: filter 180ms ease;
 }
 
 .cat-ears {

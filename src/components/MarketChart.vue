@@ -7,8 +7,9 @@ import { createPlotRenderer } from '@/utils/pcPlotRenderer'
 import { toCandles, signalPoints, toTimestamp } from '@/utils/chartData'
 import { captureChartViewport, restoreChartViewport } from '@/utils/chartViewport'
 import { buildPriceChartData, klineCandleType, normalizePriceChartType, usesDerivedPriceBars } from '@/utils/priceChartTypes'
+import { useSettingsStore } from '@/stores'
 const props=defineProps({data:{type:Object,default:null},main:{type:String,default:'EMA'},lower:{type:String,default:''},chartType:{type:String,default:'candle_solid'},expanded:Boolean})
-const {locale}=useI18n();const container=ref(null);const theme=computed(()=>'light')
+const {locale}=useI18n();const settingsStore=useSettingsStore();const container=ref(null);const theme=computed(()=>settingsStore.theme)
 const renderer=createPlotRenderer(theme);let chart;let observer;let overlays=[];let customPanes=[];let renderVersion=0;let priceFrame=0
 const height=computed(()=>props.expanded?Math.max(500,window.innerHeight-180):306+(props.lower?84:0)+(props.data?.plots?.some(p=>p.overlay===false)?110:0))
 const withAlpha=(color,alpha)=>{const value=String(color||'').trim();if(/^#[0-9a-f]{6}$/i.test(value)){const rgb=value.slice(1).match(/.{2}/g).map(hex=>parseInt(hex,16));return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`}return value||`rgba(229, 161, 0, ${alpha})`}

@@ -394,12 +394,12 @@ button { color: inherit; }
 .market-pulse-head small { flex: 0 0 auto; color: var(--muted); font-size: 9px; }
 .index-strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(124px, 42%); gap: 8px; margin-top: 13px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
 .index-strip::-webkit-scrollbar { display: none; }
-.index-strip article { min-width: 0; padding: 10px 11px; border: 1px solid rgba(127,95,39,.18); border-radius: 9px; background: rgba(255,253,248,.56); }
+.index-strip article { min-width: 0; padding: 10px 11px; border: 1px solid rgba(127,95,39,.18); border-radius: 9px; background: color-mix(in srgb, var(--ink) 4%, var(--ivory)); }
 .index-strip span,.index-strip strong,.index-strip b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .index-strip span { color: var(--muted); font-size: 9px; }
 .index-strip strong { margin-top: 5px; font-family: var(--font-display); font-size: 16px; font-optical-sizing: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
 .index-strip b { margin-top: 3px; color: var(--muted); font-size: 10px; font-weight: 650; font-variant-numeric: tabular-nums; }
-.index-skeleton i { height: 70px; border-radius: 9px; background: linear-gradient(90deg, rgba(127,95,39,.06), rgba(255,255,255,.55), rgba(127,95,39,.06)); background-size: 200% 100%; animation: home-shimmer 1.25s linear infinite; }
+.index-skeleton i { height: 70px; border-radius: 9px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 8%, transparent), transparent); background-size: 200% 100%; animation: home-shimmer 1.25s linear infinite; }
 .indices-empty { min-height: 46px; display: grid; place-items: center; }
 @keyframes home-shimmer { to { background-position: -200% 0; } }
 .portfolio-section { padding: 18px 2px 20px; border-bottom: 1px solid var(--hairline); }

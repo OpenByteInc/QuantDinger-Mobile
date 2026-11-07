@@ -9,6 +9,12 @@
   --primary-color: #0e603f; --primary-light: #187553; --primary-dark: #0a4c32;
   --text-on-accent: #fffdf8;
 }
+html[data-theme='dark'] {
+  --v2-bg: var(--bg); --v2-surface: var(--bg-elevated); --v2-surface-2: var(--bg-elevated-2);
+  --v2-line: var(--border); --v2-text: var(--text); --v2-muted: var(--text-2);
+  --v2-soft: var(--text-3); --v2-brand: var(--accent); --v2-brand-strong: var(--accent-light);
+  --v2-on-brand: var(--text-on-accent); --v2-green: var(--up); --v2-red: var(--down); --v2-orange: var(--warn);
+}
 .v2-page { min-height: 100%; padding: calc(20px + var(--safe-area-top)) 16px 32px; background: var(--v2-bg); color: var(--v2-text); }
 .v2-card { border: 1px solid var(--v2-line); border-radius: 2px; background: transparent; box-shadow: none; }
 .v2-title { margin: 0; color: var(--v2-text); font-size: var(--type-title); font-weight: 680; line-height: 1.12; letter-spacing: -.025em; }

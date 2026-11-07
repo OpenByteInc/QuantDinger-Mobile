@@ -191,65 +191,43 @@ const goTab = (item) => {
 
 .app-container.ivory-shell,
 .app-container.ivory-shell .app-main {
-  background: #fbf7ef;
+  background: var(--bg);
 }
 
 .app-container.ivory-shell {
-  --v2-bg: #fbf7ef;
-  --v2-surface: #f6f4ef;
-  --v2-surface-2: #ece9e2;
-  --v2-line: rgba(24, 25, 29, .11);
-  --v2-text: #18191d;
-  --v2-muted: #69645c;
-  --v2-soft: #8b8479;
-  --v2-brand: #0e603f;
-  --v2-brand-strong: #0e603f;
-  --v2-on-brand: #fffdf8;
-  --v2-green: #0e603f;
-  --v2-red: #8b2437;
-  --v2-orange: #a87821;
-  --bg: #fbf7ef;
-  --bg-page: #fbf7ef;
-  --bg-elevated: #f6f4ef;
-  --bg-elevated-2: #ece9e2;
-  --surface-flat: #f6f4ef;
-  --surface-raised: rgba(24, 25, 29, .035);
-  --surface-raised-2: rgba(24, 25, 29, .06);
-  --border: rgba(24, 25, 29, .11);
-  --border-strong: rgba(24, 25, 29, .18);
-  --hairline: rgba(24, 25, 29, .08);
-  --text: #18191d;
-  --text-2: #69645c;
-  --text-3: #8b8479;
-  --accent: #0e603f;
-  --accent-light: #187553;
-  --accent-dark: #0a4c32;
-  --accent-soft: rgba(14, 96, 63, .1);
-  --accent-gold: #b08a42;
-  --up: #0e603f;
-  --down: #8b2437;
-  --primary-color: #0e603f;
-  --text-on-accent: #fffdf8;
+  --v2-bg: var(--bg);
+  --v2-surface: var(--bg-elevated);
+  --v2-surface-2: var(--bg-elevated-2);
+  --v2-line: var(--border);
+  --v2-text: var(--text);
+  --v2-muted: var(--text-2);
+  --v2-soft: var(--text-3);
+  --v2-brand: var(--accent);
+  --v2-brand-strong: var(--accent-light);
+  --v2-on-brand: var(--text-on-accent);
+  --v2-green: var(--up);
+  --v2-red: var(--down);
+  --v2-orange: var(--warn);
 }
 
 .app-container.ivory-shell .shell-tabbar {
-  border-top-color: rgba(127, 95, 39, .28);
-  background: #fbf7ef;
+  border-top-color: var(--border-strong);
+  background: var(--bg);
 }
 
 .app-container.ivory-shell .shell-tab {
-  color: #7a756d;
+  color: var(--text-3);
 }
 
 .app-container.ivory-shell .shell-tab.active {
-  color: #0e603f;
+  color: var(--accent-light);
 }
 
 .app-container.ivory-shell .shell-tab.active .tab-icon {
-  color: #0e603f;
+  color: var(--accent-light);
 }
 
 .app-container.ivory-shell .shell-tab.active .tab-icon::before {
-  background: #b08a42;
+  background: var(--accent-gold);
 }
 </style>

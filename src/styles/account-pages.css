@@ -171,7 +171,7 @@
 
 .account-page.account-page.account-page {
   --page-gutter: 16px;
-  background: #fbf7ef;
+  background: var(--v2-bg);
 }
 .account-page .van-nav-bar { border-bottom-color: var(--v2-line); }
 .account-page .van-nav-bar__title { font-family: var(--font-display); font-optical-sizing: auto; font-size: 19px; font-weight: 650; }

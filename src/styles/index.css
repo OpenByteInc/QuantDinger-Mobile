@@ -6,6 +6,7 @@
   --bg-elevated: #f6f4ef;
   --bg-elevated-2: #ece9e2;
   --surface-flat: #f6f4ef;
+  --surface: var(--bg-elevated);
   --surface-raised: rgba(24, 25, 29, 0.035);
   --surface-raised-2: rgba(24, 25, 29, 0.06);
   --surface-deep: rgba(24, 25, 29, 0.045);
@@ -100,6 +101,108 @@
   --type-body: 14px;
   --type-section: 20px;
   --type-title: 28px;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #111713;
+  --bg-page: #111713;
+  --bg-elevated: #18201a;
+  --bg-elevated-2: #202922;
+  --surface-flat: #18201a;
+  --surface-raised: rgba(242, 235, 221, 0.045);
+  --surface-raised-2: rgba(242, 235, 221, 0.075);
+  --surface-deep: rgba(0, 0, 0, 0.18);
+  --surface-glass: rgba(24, 32, 26, 0.96);
+  --surface-glass-strong: #202922;
+  --border: rgba(242, 235, 221, 0.13);
+  --border-strong: rgba(242, 235, 221, 0.22);
+  --hairline: rgba(242, 235, 221, 0.09);
+  --text: #f2ebdd;
+  --text-2: #b9b4aa;
+  --text-3: #918e86;
+  --text-4: #6f726d;
+  --text-on-accent: #f8fff9;
+  --text-on-dark: #f8fff9;
+  --text-on-light: #101512;
+  --accent: #2f9f70;
+  --accent-light: #65d2a0;
+  --accent-dark: #247c58;
+  --accent-soft: rgba(59, 185, 132, 0.16);
+  --accent-softer: rgba(59, 185, 132, 0.08);
+  --signature: #e06e78;
+  --signature-soft: rgba(224, 110, 120, 0.15);
+  --accent-gold: #c6a35b;
+  --accent-gold-soft: rgba(198, 163, 91, 0.16);
+  --up: #46c38b;
+  --up-soft: rgba(70, 195, 139, 0.15);
+  --down: #e06e78;
+  --down-soft: rgba(224, 110, 120, 0.15);
+  --warn: #e0a95a;
+  --warn-soft: rgba(224, 169, 90, 0.16);
+  --shadow-card: 0 2px 14px rgba(0, 0, 0, 0.22);
+  --shadow-pop: 0 18px 58px rgba(0, 0, 0, 0.42);
+  --shadow-glow: 0 10px 30px -12px rgba(59, 185, 132, 0.42);
+  --van-overlay-background: rgba(0, 0, 0, 0.68);
+}
+
+html[data-theme='dark'] .app-container.ivory-shell .strategy-page {
+  --ivory: var(--bg);
+  --ink: var(--text);
+  --muted: var(--text-2);
+  --forest: var(--up);
+  --gold: var(--accent-gold);
+  --burgundy: var(--down);
+  --hairline: var(--border-strong);
+}
+
+html[data-theme='dark'] .app-container.ivory-shell .login-page {
+  --bg: #111713;
+  --bg-elevated: #18201a;
+  --bg-elevated-2: #202922;
+  --surface-raised: rgba(242, 235, 221, 0.045);
+  --surface-raised-2: rgba(242, 235, 221, 0.075);
+  --border: rgba(242, 235, 221, 0.13);
+  --border-strong: rgba(242, 235, 221, 0.22);
+  --text: #f2ebdd;
+  --text-2: #b9b4aa;
+  --text-3: #918e86;
+  --accent: #2f9f70;
+  --accent-soft: rgba(59, 185, 132, 0.16);
+  --text-on-accent: #f8fff9;
+}
+
+html[data-theme='dark'] .ivory-shell :where(.van-dialog, .van-popup, .van-picker, .van-action-sheet, .van-dropdown-menu__bar, .van-dropdown-item__content) {
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+html[data-theme='dark'] .ivory-shell :where(input, textarea, select) {
+  color: var(--text);
+  caret-color: var(--accent-light);
+}
+
+html[data-theme='dark'] .ivory-shell :where(input, textarea)::placeholder {
+  color: var(--text-3);
+}
+
+html[data-theme='dark'] .ivory-shell :where(.card, .content-card, .metric-card, .record-card, .panel, .list, .form-card, .summary-card) {
+  border-color: var(--border);
+  background-color: var(--bg-elevated);
+  color: var(--text);
+}
+
+html[data-theme='dark'] img {
+  color-scheme: normal;
+}
+
+html[data-theme='dark'] .quant-cat .cat-art {
+  filter: invert(94%) sepia(10%) saturate(420%) hue-rotate(345deg) brightness(103%);
+}
+
+html[data-theme='dark'] .quant-cat .cat-blink::before,
+html[data-theme='dark'] .quant-cat .cat-blink::after {
+  background: var(--text);
 }
 
 /* ================================================================
@@ -395,8 +498,8 @@ textarea {
 }
 :where(.van-picker__mask) {
   background-image:
-    linear-gradient(180deg, var(--bg-elevated), rgba(255, 253, 248, 0)),
-    linear-gradient(0deg, var(--bg-elevated), rgba(255, 253, 248, 0)) !important;
+    linear-gradient(180deg, var(--bg-elevated), transparent),
+    linear-gradient(0deg, var(--bg-elevated), transparent) !important;
 }
 :where(.van-picker__frame) {
   border-color: var(--hairline) !important;

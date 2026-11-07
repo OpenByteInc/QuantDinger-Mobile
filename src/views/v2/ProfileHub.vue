@@ -1,7 +1,18 @@
 <template>
   <div class="v2-page profile-page">
     <van-button v-if="failed" block @click="loadData">{{ t('audit.loadFailed') }}</van-button>
-    <header class="profile-top"><button class="profile-notifications" :aria-label="t('profile.notifications')" @click="router.push('/profile/notifications')"><van-icon name="envelop-o"/><span v-if="notificationStore.unreadCount">{{ notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount }}</span></button></header>
+    <header class="profile-top">
+      <button class="profile-theme-toggle" type="button" :aria-label="t('sidebar.theme_toggle')" @click="settingsStore.toggleTheme()">
+        <svg v-if="settingsStore.theme === 'dark'" class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/>
+        </svg>
+        <svg v-else class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/>
+        </svg>
+      </button>
+      <button class="profile-notifications" type="button" :aria-label="t('profile.notifications')" @click="router.push('/profile/notifications')"><van-icon name="envelop-o"/><span v-if="notificationStore.unreadCount">{{ notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount }}</span></button>
+    </header>
     <section class="identity">
       <button class="identity-avatar" type="button" @click="router.push('/profile/account')"><img :src="avatarUrl" :alt="displayName" @error="onAvatarError"></button>
       <div class="identity-copy">
@@ -136,5 +147,19 @@ function handleMenu(item){router.push(item.path)} function formatNumber(v){retur
   .account b, .account small { margin-top: 2px; }
   .menu-block h2 { margin-top: 20px; }
   .menu-list button { height: 50px; }
+}
+</style>
+
+<style scoped>
+.profile-page .profile-top { align-items: center; gap: 7px; }
+.profile-page .profile-theme-toggle { width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 1px solid var(--v2-line); border-radius: 50%; background: var(--v2-surface); color: var(--accent-gold); }
+.profile-page .profile-theme-toggle:active { background: var(--accent-gold-soft); transform: scale(.96); }
+.profile-page .theme-icon { width: 20px; height: 20px; overflow: visible; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.profile-page .theme-icon-moon { fill: color-mix(in srgb, var(--accent-gold) 18%, transparent); }
+.profile-page .identity { margin-right: 100px; }
+@media (max-width: 430px) {
+  .profile-page .identity { margin-right: 96px; }
+  .profile-page .profile-theme-toggle { width: 38px; height: 38px; }
+  .profile-page .profile-notifications { width: 38px; height: 38px; }
 }
 </style>

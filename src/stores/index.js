@@ -3,6 +3,23 @@ import { initialLocale, setLocale as applyLocale } from '@/locales'
 
 export const pinia = createPinia()
 
+const normalizeTheme = (theme) => (theme === 'dark' ? 'dark' : 'light')
+
+const readInitialTheme = () => {
+  if (typeof window === 'undefined') return 'light'
+  return normalizeTheme(window.localStorage.getItem('theme'))
+}
+
+const applyTheme = (theme) => {
+  const nextTheme = normalizeTheme(theme)
+  if (typeof document !== 'undefined') {
+    document.documentElement.dataset.theme = nextTheme
+    document.documentElement.style.colorScheme = nextTheme
+  }
+  if (typeof window !== 'undefined') window.localStorage.setItem('theme', nextTheme)
+  return nextTheme
+}
+
 const CRYPTO_EXCHANGE_IDS = new Set([
   'binance',
   'okx',
@@ -155,13 +172,22 @@ export const useDashboardStore = defineStore('dashboard', {
 
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
-    locale: initialLocale
+    locale: initialLocale,
+    theme: readInitialTheme()
   }),
 
   actions: {
     setLocale(locale) {
       this.locale = locale
       applyLocale(locale)
+    },
+
+    setTheme(theme) {
+      this.theme = applyTheme(theme)
+    },
+
+    toggleTheme() {
+      this.setTheme(this.theme === 'dark' ? 'light' : 'dark')
     }
   }
 })
