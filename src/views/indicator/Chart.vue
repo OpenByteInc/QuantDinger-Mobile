@@ -34,7 +34,7 @@
       </div>
       <button type="button" class="browse-indicators" @click="router.push('/market/all?asset_type=indicator');indicatorSheetOpen=false">{{ t('audit.browseIndicators') }} <van-icon name="arrow"/></button>
     </van-popup>
-    <van-popup v-model:show="paramsOpen" position="bottom" round :style="{maxHeight:'80%'}"><div class="params"><h3>{{ t('indicator_chart.parameters') }}</h3><label v-for="param in parameters" :key="param.name"><span>{{ parameterLabel(param) }}</span><van-switch v-if="param.type==='bool'" v-model="form.params[param.name]" size="22"/><input v-else v-model="form.params[param.name]" :type="isNumeric(param)?'number':'text'" :min="param.min" :max="param.max" :step="param.step || 'any'"/></label><van-button block type="primary" @click="paramsOpen=false;loadChart()">{{ t('common.confirm') }}</van-button></div></van-popup>
+    <van-popup v-model:show="paramsOpen" position="bottom" round :style="{maxHeight:'80%'}"><div class="params"><h3>{{ t('indicator_chart.parameters') }}</h3><label v-for="param in parameters" :key="param.name"><span>{{ parameterLabel(param) }}</span><van-switch v-if="param.type==='bool'" v-model="form.params[param.name]" size="22"/><select v-else-if="parameterOptions(param).length" v-model="form.params[param.name]"><option v-for="option in parameterOptions(param)" :key="option.value" :value="option.value">{{ option.label }}</option></select><input v-else v-model="form.params[param.name]" :type="isNumeric(param)?'number':'text'" :min="param.min" :max="param.max" :step="param.step || 'any'"/></label><van-button block type="primary" @click="paramsOpen=false;loadChart()">{{ t('common.confirm') }}</van-button></div></van-popup>
     <van-action-sheet v-model:show="sourceOpen" :title="t('audit.source')" :actions="sourceActions" :cancel-text="t('common.cancel')" @select="selectSource"/>
     <van-action-sheet v-model:show="chartTypeSheetOpen" :title="t('indicator_chart.chart_type')" :actions="chartTypeActions" :cancel-text="t('common.cancel')" @select="selectChartType"/>
     <SymbolPicker v-model:show="symbolPickerOpen" :title="t('indicator_chart.choose_symbol')" :auto-add="false" :default-market="form.market" :exchange-id="form.exchangeId" :market-type="form.marketType" :selected-symbol="form.symbol" @pick="selectSymbol"/>
@@ -98,7 +98,7 @@ const chartTypeActions=computed(()=>PRICE_CHART_TYPES.map(value=>({name:t(`indic
 const selectedChartTypeLabel=computed(()=>t(`indicator_chart.chart_type_${chartType.value}`))
 function selectChartType(item){chartTypeSheetOpen.value=false;chartType.value=normalizePriceChartType(item.value);localStorage.setItem('quantdinger.mobile.chartType',chartType.value)}
 const sourceOpen=ref(false);const sourceActions=computed(()=>['binance','gate','okx','bybit','bitget','htx'].flatMap(id=>['spot','swap'].map(type=>({name:EXCHANGE_BRANDS[id]?.name+' · '+t(type==='swap'?'chart_trade.swap':'chart_trade.spot'),exchangeId:id,marketType:type}))));function selectSource(item){sourceOpen.value=false;form.exchangeId=item.exchangeId;form.marketType=item.marketType;loadChart()}
-const timeframes=['1m','5m','15m','30m','1H','4H','1D','1W'];let request=0,paramsRequest=0,timer,layoutTimer,queuedChartLoad=false,queuedChartLoadSilent=true,activeChartRequestContext=''
+const timeframes=['1m','3m','5m','15m','30m','1H','2H','4H','6H','8H','12H','1D','1W'];let request=0,paramsRequest=0,timer,layoutTimer,queuedChartLoad=false,queuedChartLoadSilent=true,activeChartRequestContext=''
 const selectedIndicator=computed(()=>indicators.value.find(x=>Number(x.id)===form.indicatorId))
 const filteredIndicators=computed(()=>{const keyword=indicatorQuery.value.trim().toLowerCase();if(!keyword)return indicators.value;return indicators.value.filter(item=>`${item.name||''} ${item.description||''}`.toLowerCase().includes(keyword))})
 const latestPrice=computed(()=>{const value=chartData.value?.candles?.at(-1)?.close;return value==null?null:Number(value)})
@@ -106,6 +106,12 @@ const change=computed(()=>{const open=Number(chartData.value?.candles?.at(-1)?.o
 const price=value=>value==null?'—':Number(value).toLocaleString(undefined,{maximumFractionDigits:Number(value)>=100?2:6})
 const isNumeric=p=>['int','integer','float','number'].includes(p.type)
 const parameterLabel=p=>p.label_key&&te(p.label_key)?t(p.label_key):p.label||p.name
+const parameterOptions=p=>{
+ const source=[p.options,p.values,p.choices,p.enum].find(Array.isArray)
+ if(source)return source.map(item=>item&&typeof item==='object'?{value:item.value??item.key??item.name,label:String(item.label??item.name??item.value??item.key)}:{value:item,label:String(item)})
+ const name=String(p.name||'').toLowerCase(),type=String(p.type||'').toLowerCase()
+ return type==='timeframe'||/(^|_)(timeframe|frequency|interval)($|_)/.test(name)?timeframes.map(value=>({value,label:value})):[]
+}
 const chartContextSignature=()=>JSON.stringify([streamContext.value,form.indicatorId,form.params])
 function applyChartData(data,context=snapshotContext()){
  chartData.value=data;displayedChartContext.value=context;updated.value=Date.now();writeChartSnapshot(context,data,updated.value)
@@ -280,6 +286,15 @@ watch(indicatorSheetOpen,value=>{if(!value)indicatorQuery.value=''})
 </style>
 
 <style scoped>
+.params select {
+  width: 130px;
+  min-height: 40px;
+  border: 1px solid var(--v2-line);
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--v2-surface-2);
+  color: var(--v2-text);
+}
 @media (max-width: 430px) {
   .signal-summary { margin: 8px 12px 0; padding: 9px 0; }
   .updated { padding: 5px 12px 0; font-size: 9px; }

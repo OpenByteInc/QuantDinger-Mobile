@@ -15,13 +15,27 @@ export function toCandles(rows = []) {
 export function signalPoints(signals, candles) {
   const points = []
   for (const signal of signals || []) {
-    const side = /sell|short|exit_long/.test(String(signal.type || signal.action || signal.side)) ? 'sell' : 'buy'
+    const signalSide = /sell|short|exit_long/.test(String(signal.type || signal.action || signal.side)) ? 'sell' : 'buy'
     ;(signal.data || []).forEach((point, index) => {
       const candle = candles[index]
       const value = point && typeof point === 'object' ? point.value ?? point.y ?? point.active : point
       if (!candle || value == null || value === false || value === 0 || value === '' || value === 'false') return
-      const price = typeof value === 'number' && value > candle.low * 0.7 && value < candle.high * 1.3 ? value : candle[side === 'buy' ? 'low' : 'high']
-      points.push({timestamp:candle.timestamp,value:price,side,text:signal.textData?.[index] || point?.text || signal.text || signal.name || signal.type || '',color:point?.color || signal.color || (side==='buy'?'#0e603f':'#8b2437')})
+      const rawAnchor = point && typeof point === 'object' ? (point.anchor || point.side) : null
+      const anchor = rawAnchor || signal.anchor || signal.side || signalSide
+      const price = typeof value === 'number' && value > candle.low * 0.7 && value < candle.high * 1.3 ? value : candle[signalSide === 'buy' ? 'low' : 'high']
+      points.push({
+        timestamp: candle.timestamp,
+        dataIndex: index,
+        value: price,
+        side: signalSide,
+        anchor,
+        text: signal.textData?.[index] || point?.text || signal.text || signal.name || signal.type || '',
+        color: point?.color || signal.color || (signalSide === 'buy' ? '#0e603f' : '#8b2437'),
+        textColor: point?.textColor || signal.textColor,
+        fillColor: point?.fillColor || signal.fillColor,
+        borderColor: point?.borderColor || signal.borderColor,
+        fontSize: point?.fontSize || signal.fontSize
+      })
     })
   }
   return points

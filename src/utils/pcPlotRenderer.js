@@ -1,4 +1,6 @@
-// Shared rendering behavior ported from the PC KlineChart r14 implementation.
+import { isIndicatorLampPlot, resolveIndicatorPlotTitle } from './indicatorOutputProtocol.js'
+
+// Shared rendering behavior ported from the PC KlineChart implementation.
 export function createPlotRenderer(chartTheme) {
 const LAMP_FIGURE_TYPES = ['lamp', 'dot', 'point', 'scatter', 'circle']
 const CLOUD_FIGURE_TYPES = ['cloud', 'band', 'fill_between', 'fill-between']
@@ -8,7 +10,7 @@ const getIndicatorColor = index => ['#e5a100','#3e7bfa','#a278e8','#0cad88'][ind
       if (LAMP_FIGURE_TYPES.includes(rawType)) return 'circle'
       if (CLOUD_FIGURE_TYPES.includes(rawType)) return 'cloud'
       if (['histogram', 'column'].includes(rawType)) return 'bar'
-      if (['circle', 'bar', 'line'].includes(rawType)) return rawType
+      if (['circle', 'bar', 'line', 'candlestick', 'background'].includes(rawType)) return rawType
       return 'line'
     }
 
@@ -134,21 +136,7 @@ const getIndicatorColor = index => ['#e5a100','#3e7bfa','#a278e8','#0cad88'][ind
 
     const isLampType = (type) => LAMP_FIGURE_TYPES.includes(String(type || '').toLowerCase())
 
-    const looksLikeLampPlot = (plot) => {
-      if (!plot) return false
-      if (isLampType(plot.type)) return true
-      const name = String(plot.name || plot.title || '').toLowerCase()
-      const lampNamePattern = /(lamp|light|red|green|on|off|bull|bear|signal|state|trend)/
-      if (!lampNamePattern.test(name)) return false
-      const data = Array.isArray(plot.data) ? plot.data : []
-      const sample = data.map(getPlotPointValue).filter(value => value != null).slice(0, 80)
-      if (!sample.length) return true
-      const numericSample = sample.map(Number).filter(Number.isFinite)
-      if (!numericSample.length) return true
-      const uniqueValues = new Set(numericSample.map(value => Number(value.toFixed(6))))
-      const integerish = numericSample.every(value => Math.abs(value - Math.round(value)) < 1e-6)
-      return integerish && uniqueValues.size <= 8
-    }
+    const looksLikeLampPlot = (plot) => isIndicatorLampPlot(plot)
 
     // Legacy lane parser kept for compatibility reference while v2 handles current lamp belts.
     // eslint-disable-next-line no-unused-vars
@@ -249,7 +237,7 @@ const getIndicatorColor = index => ['#e5a100','#3e7bfa','#a278e8','#0cad88'][ind
 
       const figure = {
         key: figureKey,
-        title: options.forceLamp ? '' : (plot.title === false ? '' : (plot.title || plot.name || plotName)),
+        title: resolveIndicatorPlotTitle(plot, plotName, options.forceLamp),
         type: figureType,
         lamp: options.forceLamp
           ? {
@@ -370,6 +358,137 @@ const getIndicatorColor = index => ['#e5a100','#3e7bfa','#a278e8','#0cad88'][ind
       }
 
       return { figureKey, figure, colorKey, sizeKey, lowerKey, figureType }
+    }
+
+    const customPlotKeyBase = (plot, plotIdx, fallbackName) => {
+      const raw = plot?.name || fallbackName || `PLOT_${plotIdx}`
+      return String(raw)
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_]/g, '_')
+        .replace(/^_+|_+$/g, '') || `plot_${plotIdx}`
+    }
+
+    const buildCandlestickPlotBundle = (plot, plotIdx, fallbackName) => {
+      const key = customPlotKeyBase(plot, plotIdx, fallbackName)
+      const bodyKey = `${key}__body`
+      const wickKey = `${key}__wick`
+      const openKey = `${key}__open`
+      const highKey = `${key}__high`
+      const lowKey = `${key}__low`
+      const closeKey = `${key}__close`
+      const colorKey = `${key}__color`
+      const fillColorKey = `${key}__fill_color`
+      const borderColorKey = `${key}__border_color`
+      const wickColorKey = `${key}__wick_color`
+      const data = Array.isArray(plot.data) ? plot.data : []
+      const pointFallbackColor = (point) => {
+        const open = Number(point && point.open)
+        const close = Number(point && point.close)
+        if (Number.isFinite(open) && Number.isFinite(close)) return close >= open ? '#0e603f' : '#8b2437'
+        return plot.color || '#64748b'
+      }
+      const shouldRenderPoint = (point) => {
+        if (!plot.skipNullColor) return true
+        return Boolean(point && (point.color || point.fillColor || point.borderColor || point.wickColor))
+      }
+      const numberField = (point, field) => {
+        if (!point || typeof point !== 'object' || point[field] == null || !shouldRenderPoint(point)) return null
+        const numeric = Number(point && point[field])
+        return Number.isFinite(numeric) ? numeric : null
+      }
+      const colorField = (point, field, fallback) => {
+        if (!point || typeof point !== 'object') return fallback
+        return point[field] || fallback
+      }
+      const plotDataMap = {
+        [bodyKey]: data.map(point => numberField(point, 'close')),
+        [wickKey]: data.map(point => numberField(point, 'high')),
+        [openKey]: data.map(point => numberField(point, 'open')),
+        [highKey]: data.map(point => numberField(point, 'high')),
+        [lowKey]: data.map(point => numberField(point, 'low')),
+        [closeKey]: data.map(point => numberField(point, 'close')),
+        [colorKey]: data.map(point => colorField(point, 'color', pointFallbackColor(point))),
+        [fillColorKey]: data.map(point => colorField(point, 'fillColor', colorField(point, 'color', pointFallbackColor(point)))),
+        [borderColorKey]: data.map(point => colorField(point, 'borderColor', colorField(point, 'color', pointFallbackColor(point)))),
+        [wickColorKey]: data.map(point => colorField(point, 'wickColor', colorField(point, 'color', pointFallbackColor(point))))
+      }
+      const figures = [
+        {
+          key: wickKey,
+          title: undefined,
+          type: 'line',
+          attrs: ({ coordinate, data: figureData, yAxis }) => {
+            const current = coordinate?.current || {}
+            const indicatorData = figureData?.current || {}
+            const x = Number(current.x)
+            const highY = Number(yAxis?.convertToPixel?.(indicatorData[highKey]))
+            const lowY = Number(yAxis?.convertToPixel?.(indicatorData[lowKey]))
+            if (![x, highY, lowY].every(Number.isFinite)) return { coordinates: [] }
+            return { coordinates: [{ x, y: highY }, { x, y: lowY }] }
+          },
+          styles: (styleData) => {
+            const current = styleData?.current?.indicatorData || {}
+            return { color: current[wickColorKey] || '#64748b', size: Math.max(1, Number(plot.wickWidth) || 1), style: 'solid' }
+          }
+        },
+        {
+          key: bodyKey,
+          title: resolveIndicatorPlotTitle(plot),
+          type: 'rect',
+          attrs: ({ coordinate, data: figureData, barSpace, yAxis }) => {
+            const current = coordinate?.current || {}
+            const indicatorData = figureData?.current || {}
+            const x = Number(current.x)
+            const openY = Number(yAxis?.convertToPixel?.(indicatorData[openKey]))
+            const closeY = Number(yAxis?.convertToPixel?.(indicatorData[closeKey]))
+            if (![x, openY, closeY].every(Number.isFinite)) return { x: -9999, y: -9999, width: 0, height: 0 }
+            const baseWidth = Number(barSpace?.bar ?? barSpace?.gapBar ?? 8)
+            const width = Math.max(1, (Number.isFinite(baseWidth) ? baseWidth : 8) * 0.72)
+            return { x: x - width / 2, y: Math.min(openY, closeY), width, height: Math.max(1, Math.abs(closeY - openY)) }
+          },
+          styles: (styleData) => {
+            const current = styleData?.current?.indicatorData || {}
+            const color = current[fillColorKey] || current[colorKey] || '#64748b'
+            const borderColor = current[borderColorKey] || current[colorKey] || '#64748b'
+            return { style: 'stroke_fill', color, borderColor, borderSize: Math.max(0, Number(plot.borderSize) || 1) }
+          }
+        }
+      ]
+      return { figures, plotDataMap }
+    }
+
+    const buildBackgroundPlotBundle = (plot, plotIdx, fallbackName) => {
+      const key = customPlotKeyBase(plot, plotIdx, fallbackName)
+      const figureKey = `${key}__background`
+      const colorKey = `${key}__background_color`
+      const data = Array.isArray(plot.data) ? plot.data : []
+      const fallbackColor = plot.color || '#64748b'
+      return {
+        figures: [{
+          key: figureKey,
+          title: undefined,
+          type: 'rect',
+          attrs: ({ coordinate, bounding, barSpace }) => {
+            const x = Number(coordinate?.current?.x)
+            if (!Number.isFinite(x)) return { x: -9999, y: -9999, width: 0, height: 0 }
+            const baseWidth = Number(barSpace?.bar ?? barSpace?.gapBar ?? 8)
+            const width = Math.max(1, (Number.isFinite(baseWidth) ? baseWidth : 8) + 1)
+            return { x: x - width / 2, y: Number(bounding?.top || 0), width, height: Math.max(0, Number(bounding?.height || 0)) }
+          },
+          styles: (styleData) => {
+            const current = styleData?.current?.indicatorData || {}
+            const color = current[colorKey]
+            const requestedOpacity = Number(plot.opacity)
+            const opacity = Number.isFinite(requestedOpacity) ? Math.min(0.45, Math.max(0.02, requestedOpacity)) : 0.12
+            return { style: 'fill', color: color ? resolveLayerColor(color, fallbackColor, opacity) : 'rgba(0,0,0,0)', borderSize: 0 }
+          }
+        }],
+        plotDataMap: {
+          [figureKey]: data.map(getPlotPointValue),
+          [colorKey]: data.map(getPlotPointColor)
+        }
+      }
     }
 
     const hasLampStylePlots = (plots, lampBeltMeta = null) => {
@@ -767,6 +886,19 @@ return { buildAlignedPlotRows, getCustomPaneOptions, build(dataLength, plots, na
           const fallbackName = typeof fallbackNameForIndex === 'function'
             ? fallbackNameForIndex(plotIdx)
             : `PLOT_${plotIdx}`
+          const normalizedType = normalizeCustomFigureType(plot.type)
+          if (!forceLamp && normalizedType === 'candlestick') {
+            const candleBundle = buildCandlestickPlotBundle(plot, plotIdx, fallbackName)
+            figures.push(...candleBundle.figures)
+            Object.assign(plotDataMap, candleBundle.plotDataMap)
+            continue
+          }
+          if (!forceLamp && normalizedType === 'background') {
+            const backgroundBundle = buildBackgroundPlotBundle(plot, plotIdx, fallbackName)
+            figures.push(...backgroundBundle.figures)
+            Object.assign(plotDataMap, backgroundBundle.plotDataMap)
+            continue
+          }
           const { figureKey, figure, colorKey, sizeKey, lowerKey, figureType } = buildCustomPlotFigure(plot, plotIdx, fallbackName, {
             forceLamp,
             lampLane
