@@ -76,3 +76,27 @@ test('AI research entry points and memory controls are localized in Japanese and
     }
   }
 })
+
+test('Protection V2 parameters and exit reasons are localized on mobile', () => {
+  const protectionParams = [
+    'stop_loss_price',
+    'take_profit_price',
+    'trailing_stop_points',
+    'trailing_activation_points',
+    'exit_fraction',
+    'stop_loss_exit_fraction',
+    'take_profit_exit_fraction',
+    'trailing_exit_fraction',
+    'time_limit_exit_fraction'
+  ]
+
+  for (const locale of locales) {
+    for (const name of protectionParams) {
+      assert.equal(typeof audit[locale].params[name], 'string', `${locale}.${name} label`)
+      assert.equal(typeof audit[locale].paramDescriptions[name], 'string', `${locale}.${name} description`)
+    }
+    for (const key of ['exitReason', 'reasonStopLoss', 'reasonTakeProfit', 'reasonTrailingStop', 'reasonTimeLimit']) {
+      assert.equal(typeof liveDetail[locale][key], 'string', `${locale}.${key}`)
+    }
+  }
+})

@@ -394,3 +394,14 @@ test('signal chart supports mobile timeframe navigation and direct order context
   assert.match(chart, /limit:\s*360/)
   assert.doesNotMatch(chart, /strategyApi|orderApi|backtestApi/)
 })
+
+test('mobile strategy setup and live records expose Protection V2 semantics', () => {
+  const createStrategy = read('src/views/trading/CreateStrategy.vue')
+  const strategyDetail = read('src/views/trading/StrategyDetail.vue')
+
+  assert.match(createStrategy, /audit\.paramDescriptions\.\$\{parameter\?\.name\}/)
+  assert.match(strategyDetail, /tradeReasonText\(item\)/)
+  assert.match(strategyDetail, /stop_loss: 'reasonStopLoss'/)
+  assert.match(strategyDetail, /take_profit: 'reasonTakeProfit'/)
+  assert.match(strategyDetail, /trailing_stop: 'reasonTrailingStop'/)
+})

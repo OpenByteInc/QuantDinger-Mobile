@@ -1414,6 +1414,8 @@ export default {
       if (keyed && this.$te(keyed)) return this.$t(keyed)
       const standard = `strategyBuilder.params.${parameter?.name}.description`
       if (this.$te(standard)) return this.$t(standard)
+      const mobile = `audit.paramDescriptions.${parameter?.name}`
+      if (this.$te(mobile)) return this.$t(mobile)
       return String(this.$i18n?.locale || '').toLowerCase().startsWith('en') ? (parameter?.description || '') : ''
     },
     parameterOptions(parameter) {

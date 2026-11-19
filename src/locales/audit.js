@@ -6,13 +6,30 @@ const rows = {
   'ja-JP': ['読み込みに失敗しました。再試行してください','未提供','未約定注文','注文取消','この注文を取り消しますか？','データなし','すべての戦略','確定損益','評価損益','更新 {time}','価格配信元','全画面チャート','全画面を終了','利用可能な指標がありません','指標を見る','口座または銘柄が変更されました。注文を再確認してください','利確・損切価格と売買方向を確認してください','利用可能残高を超えています','{account}\n{symbol} · {market}\n{side} · {type}\n金額：{amount} USDT\n価格：{price}\nレバレッジ：{leverage}x · {margin}\n利確：{tp} · 損切：{sl}','リスクデータなし','過去の収益','シグナル','実取引','デモ','買い','売り','読み込み中','分析レポート','取引口座を接続','更新','全ポジション','クイック取引のみ','クイック取引の約定記録から決済数量を推定します。取引所での手動売買により差が生じます。','データが古いため更新してください','次のページ','前のページ',"戦略の設定が変更されています。稼働時：{before}、現在：{after}。保存すると現在の設定が適用されます。","変更を確認し、現在の設定を使用します","実取引戦略はまだありません"],
   'ko-KR': ['불러오지 못했습니다. 다시 시도하세요','제공되지 않음','미체결 주문','주문 취소','이 주문을 취소할까요?','데이터 없음','모든 전략','실현 손익','미실현 손익','업데이트 {time}','시세 제공처','전체 화면 차트','전체 화면 종료','사용 가능한 지표가 없습니다','지표 둘러보기','계좌 또는 종목이 변경되었습니다. 주문을 다시 확인하세요','익절·손절 가격과 주문 방향을 확인하세요','사용 가능한 잔액을 초과했습니다','{account}\n{symbol} · {market}\n{side} · {type}\n금액: {amount} USDT\n가격: {price}\n레버리지: {leverage}x · {margin}\n익절: {tp} · 손절: {sl}','위험 데이터 없음','과거 수익','신호','실거래','모의','매수','매도','불러오는 중','분석 보고서','거래 계좌 연결','새로고침','전체 포지션','빠른 거래 기록만','빠른 거래 체결 기록으로 청산 수량을 추정합니다. 거래소 수동 거래의 영향을 받을 수 있습니다.','데이터가 오래되었습니다. 새로고침하세요','다음 페이지','이전 페이지',"전략 설정이 변경되었습니다. 배포 시: {before}, 현재: {after}. 저장하면 현재 설정이 적용됩니다.","변경을 확인하고 현재 설정을 적용합니다","실거래 전략이 없습니다"]
 }
-const parameterNames = ['target_pct','allow_short','fast_period','slow_period','stop_loss_pct','take_profit_pct']
+const parameterNames = ['target_pct','allow_short','fast_period','slow_period','stop_loss_pct','take_profit_pct','stop_loss_price','take_profit_price','trailing_stop_points','trailing_activation_points','exit_fraction','stop_loss_exit_fraction','take_profit_exit_fraction','trailing_exit_fraction','time_limit_exit_fraction']
 const parameterLabels = {
-  'zh-CN': ['目标仓位比例','允许做空','快线周期','慢线周期','止损比例','止盈比例'],
-  'zh-TW': ['目標倉位比例','允許做空','快線週期','慢線週期','停損比例','停利比例'],
-  'en-US': ['Target position ratio','Allow short selling','Fast period','Slow period','Stop-loss ratio','Take-profit ratio'],
-  'ja-JP': ['目標ポジション比率','空売りを許可','短期の期間','長期の期間','損切り比率','利確比率'],
-  'ko-KR': ['목표 포지션 비율','공매도 허용','단기 기간','장기 기간','손절 비율','익절 비율']
+  'zh-CN': ['目标仓位比例','允许做空','快线周期','慢线周期','止损比例','止盈比例','止损价格','止盈价格','移动止损点数','移动止损启动点数','保护退出比例','止损退出比例','止盈退出比例','移动止损退出比例','到期退出比例'],
+  'zh-TW': ['目標倉位比例','允許做空','快線週期','慢線週期','停損比例','停利比例','停損價格','停利價格','移動停損點數','移動停損啟動點數','保護退出比例','停損退出比例','停利退出比例','移動停損退出比例','到期退出比例'],
+  'en-US': ['Target position ratio','Allow short selling','Fast period','Slow period','Stop-loss ratio','Take-profit ratio','Stop-loss price','Take-profit price','Trailing-stop points','Trailing activation points','Protection exit fraction','Stop-loss exit fraction','Take-profit exit fraction','Trailing-stop exit fraction','Time-limit exit fraction'],
+  'ja-JP': ['目標ポジション比率','空売りを許可','短期の期間','長期の期間','損切り比率','利確比率','損切り価格','利確価格','トレーリング幅（ポイント）','トレーリング開始ポイント','保護決済比率','損切り決済比率','利確決済比率','トレーリング決済比率','時間制限決済比率'],
+  'ko-KR': ['목표 포지션 비율','공매도 허용','단기 기간','장기 기간','손절 비율','익절 비율','손절 가격','익절 가격','트레일링 스톱 포인트','트레일링 시작 포인트','보호 청산 비율','손절 청산 비율','익절 청산 비율','트레일링 청산 비율','시간 제한 청산 비율']
+}
+const parameterDescriptions = {
+  'zh-CN': {
+    stop_loss_price: '价格达到该绝对价位时触发止损。', take_profit_price: '价格达到该绝对价位时触发止盈。', trailing_stop_points: '移动止损与最优价格之间的绝对价差。', trailing_activation_points: '价格向盈利方向移动该点数后开始跟踪。', exit_fraction: '保护触发时默认退出的仓位比例，例如 0.4 表示退出 40%。', stop_loss_exit_fraction: '止损触发时退出的仓位比例，0 表示继承默认值。', take_profit_exit_fraction: '止盈触发时退出的仓位比例，0 表示继承默认值。', trailing_exit_fraction: '移动止损触发时退出的仓位比例，0 表示继承默认值。', time_limit_exit_fraction: '持仓到期时退出的仓位比例，0 表示继承默认值。'
+  },
+  'zh-TW': {
+    stop_loss_price: '價格達到此絕對價位時觸發停損。', take_profit_price: '價格達到此絕對價位時觸發停利。', trailing_stop_points: '移動停損與最佳價格之間的絕對價差。', trailing_activation_points: '價格向獲利方向移動此點數後開始追蹤。', exit_fraction: '保護觸發時預設退出的倉位比例，例如 0.4 表示退出 40%。', stop_loss_exit_fraction: '停損觸發時退出的倉位比例，0 表示沿用預設值。', take_profit_exit_fraction: '停利觸發時退出的倉位比例，0 表示沿用預設值。', trailing_exit_fraction: '移動停損觸發時退出的倉位比例，0 表示沿用預設值。', time_limit_exit_fraction: '持倉到期時退出的倉位比例，0 表示沿用預設值。'
+  },
+  'en-US': {
+    stop_loss_price: 'Trigger stop loss at this absolute price.', take_profit_price: 'Trigger take profit at this absolute price.', trailing_stop_points: 'Absolute distance from the best price used by the trailing stop.', trailing_activation_points: 'Favorable price movement required before trailing starts.', exit_fraction: 'Default position fraction closed by protection; 0.4 closes 40%.', stop_loss_exit_fraction: 'Position fraction closed by stop loss; 0 inherits the default.', take_profit_exit_fraction: 'Position fraction closed by take profit; 0 inherits the default.', trailing_exit_fraction: 'Position fraction closed by trailing stop; 0 inherits the default.', time_limit_exit_fraction: 'Position fraction closed by the time limit; 0 inherits the default.'
+  },
+  'ja-JP': {
+    stop_loss_price: 'この絶対価格で損切りを発動します。', take_profit_price: 'この絶対価格で利確を発動します。', trailing_stop_points: '最良価格からの絶対価格幅です。', trailing_activation_points: '追跡開始に必要な有利方向の価格変動です。', exit_fraction: '保護発動時の既定決済比率です。0.4 は 40% を決済します。', stop_loss_exit_fraction: '損切り時の決済比率。0 は既定値を継承します。', take_profit_exit_fraction: '利確時の決済比率。0 は既定値を継承します。', trailing_exit_fraction: 'トレーリング時の決済比率。0 は既定値を継承します。', time_limit_exit_fraction: '時間制限時の決済比率。0 は既定値を継承します。'
+  },
+  'ko-KR': {
+    stop_loss_price: '이 절대 가격에서 손절을 실행합니다.', take_profit_price: '이 절대 가격에서 익절을 실행합니다.', trailing_stop_points: '최적 가격과 트레일링 스톱 사이의 절대 가격 거리입니다.', trailing_activation_points: '트레일링 시작에 필요한 유리한 가격 움직임입니다.', exit_fraction: '보호 실행 시 기본 청산 비율입니다. 0.4는 40%를 청산합니다.', stop_loss_exit_fraction: '손절 시 청산 비율이며 0은 기본값을 사용합니다.', take_profit_exit_fraction: '익절 시 청산 비율이며 0은 기본값을 사용합니다.', trailing_exit_fraction: '트레일링 스톱 시 청산 비율이며 0은 기본값을 사용합니다.', time_limit_exit_fraction: '시간 제한 시 청산 비율이며 0은 기본값을 사용합니다.'
+  }
 }
 const featureNames = ['backtest','ai_review','ai_analysis','ai_code_gen','ai_copilot_chat','ai_copilot_image','ai_decision_filter']
 const featureLabels = {
@@ -22,4 +39,4 @@ const featureLabels = {
   'ja-JP': ['戦略バックテスト','AI 戦略レビュー','AI 市場分析','AI 戦略生成','AI チャット','AI 画像分析','AI 判断フィルター'],
   'ko-KR': ['전략 백테스트','AI 전략 검토','AI 시장 분석','AI 전략 생성','AI 채팅','AI 이미지 분석','AI 판단 필터']
 }
-export default Object.fromEntries(Object.entries(rows).map(([locale, values]) => [locale, {...Object.fromEntries(keys.map((key, index) => [key, values[index]])),features:Object.fromEntries(featureNames.map((name,index)=>[name,featureLabels[locale][index]])),params:Object.fromEntries(parameterNames.map((name,index)=>[name,parameterLabels[locale][index]]))}]))
+export default Object.fromEntries(Object.entries(rows).map(([locale, values]) => [locale, {...Object.fromEntries(keys.map((key, index) => [key, values[index]])),features:Object.fromEntries(featureNames.map((name,index)=>[name,featureLabels[locale][index]])),params:Object.fromEntries(parameterNames.map((name,index)=>[name,parameterLabels[locale][index]])),paramDescriptions:parameterDescriptions[locale]}]))
