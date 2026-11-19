@@ -65,7 +65,7 @@
             <strong>{{ $t('broker_mobile.monitoringChecklist') }}</strong>
             <ul class="monitoring-list">
               <li v-for="(item, index) in monitoringItems" :key="`${item.kind || 'watch'}-${item.case || index}-${index}`">
-                <span>{{ researchNarrative(item) }}</span>
+                <span>{{ item.kind === 'scenario' ? scenarioText({ ...item, trigger: item.text }) : researchNarrative(item) }}</span>
                 <small v-if="item.invalidation != null">
                   {{ $t('professional_report.invalidation') }}: {{ invalidationText(item.invalidation) }}
                 </small>
@@ -115,6 +115,7 @@
             <div><span>{{ $t('professional_report.conclusion_strength') }}</span><strong>{{ strengthLabel(quality.max_conclusion_strength) }}</strong></div>
           </div>
         </div>
+        <p class="quality-scope"><strong>{{ $t('professional_report.quality_scope') }}:</strong> {{ $t('professional_report.quality_scope_note') }}</p>
         <div class="quality-meta">
           <span>{{ $t('professional_report.data_as_of') }}: {{ formatTime(safeDataAsOf) }}</span>
           <span>{{ instrument.timezone || 'UTC' }}</span>
@@ -475,7 +476,10 @@ export default {
       const generatedDefaults = {
         'price and evidence confirm the upside thesis.': 'bull',
         'current evidence remains mixed or follows the central path.': 'base',
-        'downside catalyst or technical breakdown is confirmed.': 'bear'
+        'downside catalyst or technical breakdown is confirmed.': 'bear',
+        '价格走势与支持证据共同确认乐观情景。': 'bull',
+        '当前证据仍然分化，维持基准路径。': 'base',
+        '下行催化因素出现，或技术形态确认破位。': 'bear'
       }
       if (generatedDefaults[normalized]) return this.$t(`professional_report.scenario_trigger.${generatedDefaults[normalized]}`)
       if (direct) return this.cleanText(direct)
@@ -578,6 +582,7 @@ export default {
 .quality-grid span, .risk-grid span { color: var(--text-3); font-size: 10px; }
 .quality-grid strong, .risk-grid strong { color: var(--text); font-size: 12px; overflow-wrap: anywhere; }
 .quality-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; color: var(--text-3); font-size: 10px; }
+.quality-scope { margin: 12px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .quality-gate { display: flex; gap: 10px; padding: 13px; border: 1px solid rgb(245 158 11 / 35%); border-radius: 12px; color: #f59e0b; background: rgb(245 158 11 / 9%); }
 .candidate-notice { display: flex; gap: 7px; margin-bottom: 10px; padding: 9px; border-radius: 10px; color: #60a5fa; background: rgb(96 165 250 / 10%); font-size: 11px; line-height: 1.5; }
 .quality-gate p { margin: 4px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.5; }
