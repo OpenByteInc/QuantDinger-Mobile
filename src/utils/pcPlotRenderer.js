@@ -366,7 +366,8 @@ const getIndicatorColor = index => ['#e5a100','#3e7bfa','#a278e8','#0cad88'][ind
         .toLowerCase()
         .replace(/\s+/g, '_')
         .replace(/[^a-z0-9_]/g, '_')
-        .replace(/^_+|_+$/g, '') || `plot_${plotIdx}`
+        .replace(/^_+/, '')
+        .replace(/_+$/, '') || `plot_${plotIdx}`
     }
 
     const buildCandlestickPlotBundle = (plot, plotIdx, fallbackName) => {
