@@ -150,9 +150,26 @@
           <section v-for="item in dimensions" :key="item.key" class="dimension-item">
             <div class="item-head">
               <strong>{{ labelFor(item.key, 'dimension') }}</strong>
-              <span :class="scoreTone(item.score)">{{ item.status === 'available' ? formatNumber(item.score, 0) : $t('professional_report.insufficient') }}</span>
+              <span :class="item.status === 'available' && !['capability_coverage', 'evidence_coverage'].includes(item.score_kind) ? scoreTone(item.score) : 'score-neutral'">
+                <template v-if="item.status === 'partial'">{{ $t('professional_report.partial') }}</template>
+                <template v-else-if="item.status !== 'available'">{{ $t('professional_report.insufficient') }}</template>
+                <template v-else-if="item.score_kind === 'capability_coverage'">{{ $t('professional_report.capability_coverage', { value: formatNumber(item.score, 0) }) }}</template>
+                <template v-else-if="item.score_kind === 'evidence_coverage'">{{ $t('professional_report.events.available') }}</template>
+                <template v-else>{{ formatNumber(item.score, 0) }}</template>
+              </span>
             </div>
             <p>{{ cleanText(item.narrative) || $t('professional_report.no_narrative') }}</p>
+            <div v-if="item.news_status" class="event-status">
+              <span>{{ $t('professional_report.events.news') }} · {{ eventStatus(item.news_status) }}</span>
+              <span>{{ $t('professional_report.events.positioning') }} · {{ eventStatus(item.sentiment_status) }}</span>
+            </div>
+            <ul v-if="item.events?.length" class="event-list">
+              <li v-for="event in item.events" :key="event.evidence_id">
+                <a v-if="safeUrl(event.url)" :href="safeUrl(event.url)" target="_blank" rel="noopener noreferrer">{{ event.title }}</a>
+                <span v-else>{{ event.title }}</span>
+                <small>{{ event.source }} · {{ event.published_at ? formatTime(event.published_at) : $t('professional_report.events.date_unknown') }} · {{ $t('professional_report.events.' + (event.evidence_depth || 'headline')) }}</small>
+              </li>
+            </ul>
             <div v-if="item.missing_data?.length" class="tag-list compact">
               <span v-for="missing in item.missing_data" :key="missing" class="data-tag">{{ labelFor(missing, 'capability') }}</span>
             </div>
@@ -457,6 +474,10 @@ export default {
       if (number >= 50) return 'score-neutral'
       return 'score-weak'
     },
+    eventStatus(status) {
+      const key = ['available', 'headline_only', 'fetch_failed', 'checked_empty'].includes(status) ? status : 'not_checked'
+      return this.$t('professional_report.events.' + key)
+    },
     cleanText(value) {
       return String(value || '')
         .replace(/\s*\[(?:ev_[a-f0-9]+(?:\s*,\s*)?)+\]/gi, '')
@@ -587,6 +608,10 @@ export default {
 .candidate-notice { display: flex; gap: 7px; margin-bottom: 10px; padding: 9px; border-radius: 10px; color: #60a5fa; background: rgb(96 165 250 / 10%); font-size: 11px; line-height: 1.5; }
 .quality-gate p { margin: 4px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.5; }
 .dimension-list, .scenario-list { display: grid; gap: 9px; }
+.event-status { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 12px; color: var(--text-2); font-size: 11px; }
+.event-list { margin: 12px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.event-list li { padding: 9px 0; line-height: 1.5; }
+.event-list small { display: block; margin-top: 3px; color: var(--text-2); font-size: 10px; }
 .dimension-item, .scenario-item, .claim-item, .evidence-item { padding: 11px; border: 1px solid var(--border); border-radius: 11px; background: var(--bg); }
 .item-head { display: flex; justify-content: space-between; gap: 10px; align-items: start; }
 .item-head strong { color: var(--text); font-size: 13px; }

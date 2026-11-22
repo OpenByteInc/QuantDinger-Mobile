@@ -1121,4 +1121,99 @@ const koKR = {
   target: '목표가'
 }
 
-export default { 'en-US': en, 'zh-CN': zhCN, 'zh-TW': zhTW, 'ja-JP': jaJP, 'ko-KR': koKR }
+const messages = { 'en-US': en, 'zh-CN': zhCN, 'zh-TW': zhTW, 'ja-JP': jaJP, 'ko-KR': koKR }
+const dimensionCoverageCopy = {
+  'en-US': ['Partial data', 'Coverage {value}%'],
+  'zh-CN': ['部分数据可用', '覆盖率 {value}%'],
+  'zh-TW': ['部分資料可用', '覆蓋率 {value}%'],
+  'ja-JP': ['一部のデータあり', 'カバー率 {value}%'],
+  'ko-KR': ['일부 데이터 사용 가능', '커버리지 {value}%']
+}
+for (const [language, [partial, coverage]] of Object.entries(dimensionCoverageCopy)) {
+  messages[language].partial = partial
+  messages[language].capability_coverage = coverage
+}
+const eventCopy = {
+  "en-US": {
+    "news": "News & disclosures",
+    "positioning": "Sentiment & positioning",
+    "available": "Evidence available",
+    "headline_only": "Headline leads only",
+    "fetch_failed": "Collection failed",
+    "checked_empty": "No matches in queried scope",
+    "not_checked": "No evidence collected",
+    "date_unknown": "Publication date unavailable",
+    "headline": "Headline only",
+    "snippet": "Summary excerpt",
+    "document_excerpt": "Disclosure excerpt"
+  },
+  "zh-CN": {
+    "news": "新闻与公告",
+    "positioning": "情绪与持仓证据",
+    "available": "已取得证据",
+    "headline_only": "仅有标题线索",
+    "fetch_failed": "采集失败",
+    "checked_empty": "查询范围内无匹配",
+    "not_checked": "未取得证据",
+    "date_unknown": "发布时间未提供",
+    "headline": "仅标题",
+    "snippet": "摘要片段",
+    "document_excerpt": "公告正文摘录"
+  },
+  "zh-TW": {
+    "news": "新聞與公告",
+    "positioning": "情緒與持倉證據",
+    "available": "已取得證據",
+    "headline_only": "僅有標題線索",
+    "fetch_failed": "擷取失敗",
+    "checked_empty": "查詢範圍內無符合結果",
+    "not_checked": "未取得證據",
+    "date_unknown": "未提供發布時間",
+    "headline": "僅標題",
+    "snippet": "摘要片段",
+    "document_excerpt": "公告正文摘錄"
+  },
+  "ja-JP": {
+    "news": "ニュースと開示",
+    "positioning": "センチメントと保有状況",
+    "available": "証拠を取得済み",
+    "headline_only": "見出し情報のみ",
+    "fetch_failed": "取得失敗",
+    "checked_empty": "検索範囲内に該当なし",
+    "not_checked": "証拠未取得",
+    "date_unknown": "公開日時不明",
+    "headline": "見出しのみ",
+    "snippet": "要約抜粋",
+    "document_excerpt": "開示本文の抜粋"
+  },
+  "ko-KR": {
+    "news": "뉴스 및 공시",
+    "positioning": "심리 및 포지션 근거",
+    "available": "근거 확보",
+    "headline_only": "제목 단서만 있음",
+    "fetch_failed": "수집 실패",
+    "checked_empty": "조회 범위 내 일치 없음",
+    "not_checked": "근거 미확보",
+    "date_unknown": "게시 일시 미제공",
+    "headline": "제목만",
+    "snippet": "요약 발췌",
+    "document_excerpt": "공시 본문 발췌"
+  }
+}
+const newsWarningCopy = {
+  "en-US": "News collection failed; event risk remains unverified",
+  "zh-CN": "新闻采集失败，事件风险尚未核实",
+  "zh-TW": "新聞擷取失敗，事件風險尚未核實",
+  "ja-JP": "ニュース取得失敗、イベントリスクは未検証",
+  "ko-KR": "뉴스 수집 실패: 이벤트 위험 미검증"
+}
+for (const [language, copy] of Object.entries(eventCopy)) {
+  messages[language].events = copy
+  messages[language].warning.news_collection_failed = newsWarningCopy[language]
+}
+messages['zh-CN'].warning.news_content_limited = '新闻仅有标题线索，尚未核实正文'
+messages['zh-TW'].warning.news_content_limited = '新聞僅有標題線索，尚未核實正文'
+messages['en-US'].warning.news_content_limited = 'Only news headlines collected; article content unverified'
+messages['ja-JP'].warning.news_content_limited = 'ニュースは見出しのみで、本文は未検証'
+messages['ko-KR'].warning.news_content_limited = '뉴스 제목만 수집됨: 본문 미검증'
+export default messages

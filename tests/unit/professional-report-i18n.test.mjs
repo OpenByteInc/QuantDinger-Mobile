@@ -5,6 +5,15 @@ import test from 'node:test'
 import messages from '../../src/locales/professional-report.js'
 
 const source = readFileSync(new URL('../../src/components/ProfessionalAnalysisReport.vue', import.meta.url), 'utf8')
+
+test('partial market coverage is localized independently of directional scores', () => {
+  for (const [language, copy] of Object.entries(messages)) {
+    assert.ok(copy.partial, language)
+    assert.match(copy.capability_coverage, /\{value\}/, language)
+  }
+  assert.match(source, /item.status === 'partial'/)
+  assert.match(source, /item.score_kind === 'capability_coverage'/)
+})
 const script = source.match(/<script>([\s\S]*?)<\/script>/)[1]
   .replace(/^import\s+[\s\S]*?\s+from\s+['"][^'"]+['"]\s*$/gm, '')
 const scope = {}
@@ -22,6 +31,19 @@ function reportView(locale) {
   for (const [key, method] of Object.entries(component.methods)) view[key] = method.bind(view)
   return view
 }
+
+test('event status distinguishes failed collection, no matches and title-only evidence', () => {
+  for (const locale of Object.keys(messages)) {
+    const view = reportView(locale)
+    for (const status of ['available', 'headline_only', 'fetch_failed', 'checked_empty', 'not_checked']) {
+      assert.equal(view.eventStatus(status), messages[locale].events[status])
+    }
+    assert.equal(view.eventStatus('unexpected'), messages[locale].events.not_checked)
+    assert.ok(messages[locale].warning.news_content_limited)
+  }
+  assert.match(source, /safeUrl\(event.url\)/)
+  assert.match(source, /formatTime\(event.published_at\)/)
+})
 
 test('report copy is complete and translated in all five mobile languages', () => {
   const english = flatten(messages['en-US'])
