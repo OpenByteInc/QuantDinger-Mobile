@@ -408,7 +408,8 @@ export const strategyApi = {
   },
   getGridRestingOrders: async (id, sync = false) => {
     const res = await http.get('/api/strategies/grid-resting-orders', {
-      params: { id, sync: sync ? '1' : undefined }
+      params: { id, status: '', limit: 500, sync: sync ? '1' : undefined },
+      suppressErrorToast: true
     })
     return {
       ...res,

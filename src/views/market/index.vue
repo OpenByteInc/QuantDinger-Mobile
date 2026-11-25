@@ -272,7 +272,7 @@ export default {
       items: [], keyword: '', pricing: '', codeVisibility: '',
       assetType: ASSET_TYPES.SCRIPT_TEMPLATE,
       assetCounts: { indicator: 0, script_template: 0 },
-      sort: 'score', page: 1, pageSize: 10, total: 0, totalPages: 0,
+      sort: 'recommended', page: 1, pageSize: 10, total: 0, totalPages: 0,
       loading: false, loadFailed: false,
       showSortPicker: false, showPricingPicker: false, showCodePicker: false,
       showStrategyFilters: false, focusedFilterGroup: '',
@@ -293,6 +293,7 @@ export default {
     pageCount() { return Math.max(1, this.totalPages || Math.ceil(this.total / this.pageSize)) },
     strategyQuickSorts() {
       return [
+        { value: 'recommended', label: this.$t('market.sort_recommended') },
         { value: 'score', label: this.$t('market.sort_score_short') },
         { value: 'hot', label: this.$t('market.sort_hot') },
         { value: 'newest', label: this.$t('market.sort_newest') }
@@ -300,6 +301,7 @@ export default {
     },
     sortColumns() {
       const common = [
+        { value: 'recommended', text: this.$t('market.sort_recommended') },
         { value: 'newest', text: this.$t('market.sort_newest') },
         { value: 'hot', text: this.$t('market.sort_hot') },
         { value: 'rating', text: this.$t('market.sort_rating') },
@@ -309,7 +311,7 @@ export default {
       return this.isStrategyAsset ? [{ value: 'score', text: this.$t('market.sort_score') }, ...common] : common
     },
     sortLabel() {
-      return this.sortColumns.find((entry) => entry.value === this.sort)?.text || this.$t('market.sort_hot')
+      return this.sortColumns.find((entry) => entry.value === this.sort)?.text || this.$t('market.sort_recommended')
     },
     pricingColumns() {
       return [
@@ -369,7 +371,7 @@ export default {
     this.reload()
   },
   methods: {
-    defaultSortFor(assetType) { return assetType === ASSET_TYPES.INDICATOR ? 'hot' : 'score' },
+    defaultSortFor() { return 'recommended' },
     async reload() {
       this.page = 1; this.totalPages = 0; this.items = []; this.imageErrors = {}; this.loadFailed = false
       await this.loadPage()
@@ -560,7 +562,8 @@ export default {
 :deep(.van-search__content){min-height:40px;border:1px solid var(--v2-line);border-radius:7px;background:var(--v2-surface)}
 .filter-rail{gap:6px}.filter-chip{min-height:32px;padding:0 10px;border-color:var(--v2-line);border-radius:6px;background:transparent}
 .filter-chip.active{color:var(--v2-brand);border-color:color-mix(in srgb,var(--v2-brand) 26%,var(--v2-line));background:color-mix(in srgb,var(--v2-brand) 6%,var(--v2-surface))}
-.quick-sort{padding:2px;border:1px solid var(--v2-line);border-radius:6px;background:transparent}.quick-sort button{border-radius:4px}.quick-sort button.active{color:var(--v2-brand);background:color-mix(in srgb,var(--v2-brand) 7%,var(--v2-surface))}
+.quick-sort{padding:2px;border:1px solid var(--v2-line);border-radius:6px;background:transparent}.quick-sort button{border-radius:4px;white-space:nowrap}.quick-sort button.active{color:var(--v2-brand);background:color-mix(in srgb,var(--v2-brand) 7%,var(--v2-surface))}
+.strategy-heading{flex-wrap:wrap}.strategy-heading>div:first-child{flex:1 1 140px}.strategy-heading .quick-sort{flex:0 0 auto;max-width:100%;overflow-x:auto}
 .strategy-results,.featured-section,.indicator-results{padding-inline:16px}
 .strategy-list{display:grid;gap:10px}
 .strategy-row{padding:12px;border:1px solid var(--v2-line);border-radius:10px;background:var(--v2-surface)}

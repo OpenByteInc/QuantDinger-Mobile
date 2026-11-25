@@ -39,9 +39,30 @@
 
       <van-tabs v-model:active="activeTab" sticky :offset-top="46" swipe-threshold="4">
         <van-tab v-if="isGridStrategy" :title="$t(isLiveStrategy ? 'live_detail.tabGridOrders' : 'live_detail.tabVirtualOrders')" name="grid-orders">
-          <section class="tab-panel"><div class="section-title-row"><div><h3>{{ $t(isLiveStrategy ? 'live_detail.tabGridOrders' : 'live_detail.tabVirtualOrders') }}</h3><p>{{ $t('trading.grid_orders_hint') }}</p></div><van-button size="small" plain :loading="gridOrdersLoading" @click="loadGridOrders(true)">{{ $t('trading.grid_orders_sync') }}</van-button></div>
-            <div class="mini-kpis"><div><span>{{ $t('trading.grid_orders_open') }}</span><strong>{{ gridOrderSummary.total || gridOrders.length }}</strong></div><div><span>{{ $t('trading.grid_orders_verified') }}</span><strong>{{ gridOrderSummary.verified_exchange_orders || 0 }}</strong></div><div :class="{ loss: Number(gridOrderSummary.unverified_orders || 0) > 0 }"><span>{{ $t('trading.grid_orders_unverified') }}</span><strong>{{ gridOrderSummary.unverified_orders || 0 }}</strong></div></div>
-            <div v-if="gridOrders.length" class="record-list"><article v-for="order in gridOrders" :key="order.id" class="record-card"><div class="record-head"><strong>#{{ order.cell_index }} · {{ order.purpose_label || order.purpose }}</strong><span>{{ order.status }}</span></div><dl><div><dt>{{ $t('trading.grid_orders_side') }}</dt><dd>{{ order.side }}</dd></div><div><dt>{{ $t('trading.grid_orders_price') }}</dt><dd>{{ number(order.price) }}</dd></div><div><dt>{{ $t('trading.grid_orders_quantity') }}</dt><dd>{{ number(order.quantity) }}</dd></div><div><dt>{{ $t('live_detail.executionId') }}</dt><dd class="mono">{{ order.exchange_order_id || '-' }}</dd></div></dl><time>{{ time(order.updated_at) }}</time></article></div><van-empty v-else :description="$t('trading.grid_orders_empty')" />
+          <section class="tab-panel grid-orders-panel">
+            <div class="section-title-row"><div><h3>{{ $t(isLiveStrategy ? 'live_detail.tabGridOrders' : 'live_detail.tabVirtualOrders') }}</h3><p>{{ $t(isLiveStrategy ? 'trading.grid_orders_hint' : 'gridAudit.virtualHint') }}</p></div><van-button size="small" plain :loading="gridOrdersLoading" @click="loadGridOrders(true)">{{ $t(isLiveStrategy ? 'trading.grid_orders_sync' : 'live_detail.refresh') }}</van-button></div>
+            <p v-if="gridOrdersFailed" class="inline-warning" role="status">{{ $t('gridAudit.loadFailed') }}</p>
+            <p v-else-if="gridOrderSummary.sync_pending" class="grid-audit-info" role="status">{{ $t('gridAudit.queued') }}</p>
+            <p v-else-if="isLiveStrategy && gridOrderSummary.sync_ok === false" class="inline-warning" role="status">{{ gridAuditWarning }}</p>
+            <div class="mini-kpis"><div><span>{{ $t('gridAudit.total') }}</span><strong>{{ gridOrderSummary.total ?? gridOrders.length }}</strong></div><template v-if="isLiveStrategy"><div><span>{{ $t('trading.grid_orders_verified') }}</span><strong>{{ gridOrderSummary.verified_exchange_orders || 0 }}</strong></div><div :class="{ loss: Number(gridOrderSummary.unverified_orders || 0) > 0 }"><span>{{ $t('trading.grid_orders_unverified') }}</span><strong>{{ gridOrderSummary.unverified_orders || 0 }}</strong></div></template></div>
+            <p v-if="isLiveStrategy" class="grid-audit-time">{{ $t('gridAudit.lastChecked') }} · {{ time(gridOrderSummary.last_reconciled_at) || '—' }}</p>
+            <div v-if="gridOrders.length" class="record-list">
+              <article v-for="order in gridOrders" :key="order.id" class="record-card">
+                <div class="record-head"><strong>#{{ order.cell_index }} · {{ order.purpose_label || order.purpose }}</strong></div>
+                <dl>
+                  <div><dt>{{ $t('gridAudit.localStatus') }}</dt><dd>{{ gridStatusLabel(order.status) }}</dd></div>
+                  <div v-if="isLiveStrategy"><dt>{{ $t('gridAudit.exchangeStatus') }}</dt><dd>{{ gridStatusLabel(order.exchange_status) }}</dd></div>
+                  <div><dt>{{ $t('trading.grid_orders_side') }}</dt><dd>{{ order.side }}</dd></div><div><dt>{{ $t('trading.grid_orders_price') }}</dt><dd>{{ number(order.price) }}</dd></div>
+                  <div><dt>{{ $t('trading.grid_orders_quantity') }}</dt><dd>{{ number(order.quantity) }}</dd></div>
+                  <div><dt>{{ $t(isLiveStrategy ? 'gridAudit.exchangeFilled' : 'gridAudit.virtualFilled') }}</dt><dd>{{ number(isLiveStrategy ? order.exchange_filled_quantity : order.filled_quantity) }}</dd></div>
+                  <div class="grid-order-id"><dt>{{ $t(isLiveStrategy ? 'live_detail.executionId' : 'gridAudit.virtualId') }}</dt><dd class="mono">{{ order.exchange_order_id || '-' }}</dd></div>
+                </dl>
+                <p v-if="isLiveStrategy && order.reconciliation_pending" class="inline-warning">{{ $t('gridAudit.reconciliationPending') }}</p>
+                <time>{{ time(order.updated_at) }}</time>
+              </article>
+            </div>
+            <van-loading v-else-if="gridOrdersLoading" class="section-loading" vertical>{{ $t('common.loading') }}</van-loading>
+            <van-empty v-else-if="!gridOrdersFailed" :description="$t(isLiveStrategy ? 'trading.grid_orders_empty' : 'gridAudit.virtualEmpty')" />
           </section>
         </van-tab>
 
@@ -93,8 +114,13 @@ const EXIT_TYPES = ['close_long', 'close_short', 'reduce_long', 'reduce_short', 
 
 export default {
   name: 'StrategyDetail',
-  data() { return { strategy: null, positions: [], trades: [], tradePage: 1, logs: [], logFilter: 'all', logPage: 1, pageSize: 10, equityCurve: [], performance: {}, costSummary: {}, aiDecisions: [], gridOrders: [], gridOrderSummary: {}, ownership: { items: [], status: 'ok', advanced_coexistence_available: false }, review: null, reviewHistory: [], selectedReviewId: null, activeTab: 'overview', loading: false, detailFailed: false, exposureReady: false, actionLoading: false, ownershipLoading: false, gridOrdersLoading: false, ownershipRepairKey: '', reviewLoading: false, reviewHistoryLoaded: false, showReviewHistory: false, showOwnershipRepair: false, stopCommandTrackers: new Set(), componentActive: true } },
+  data() { return { strategy: null, positions: [], trades: [], tradePage: 1, logs: [], logFilter: 'all', logPage: 1, pageSize: 10, equityCurve: [], performance: {}, costSummary: {}, aiDecisions: [], gridOrders: [], gridOrderSummary: {}, ownership: { items: [], status: 'ok', advanced_coexistence_available: false }, review: null, reviewHistory: [], selectedReviewId: null, activeTab: 'overview', loading: false, detailFailed: false, exposureReady: false, actionLoading: false, ownershipLoading: false, gridOrdersLoading: false, gridOrdersFailed: false, gridOrdersTimer: null, gridOrdersRequestId: 0, ownershipRepairKey: '', reviewLoading: false, reviewHistoryLoaded: false, showReviewHistory: false, showOwnershipRepair: false, stopCommandTrackers: new Set(), componentActive: true } },
   computed: {
+    gridAuditWarning() {
+      if (this.gridOrderSummary.sync_error === 'grid_exchange_reconciliation_pending') return this.$t('gridAudit.reconciliationHint')
+      if (this.gridOrderSummary.sync_error === 'grid_exchange_orders_unverified') return this.$t('gridAudit.unverifiedHint')
+      return this.$t('trading.grid_orders_sync_failed')
+    },
     strategyId() { return Number(this.$route.params.id) },
     runtimeHealth() { return this.strategy?.runtime_health && typeof this.strategy.runtime_health === 'object' ? this.strategy.runtime_health : {} },
     isRunning() { return String(this.strategy?.status || '').toLowerCase() === 'running' },
@@ -147,13 +173,60 @@ export default {
     reviewAi() { return this.review?.ai && typeof this.review.ai === 'object' ? this.review.ai : {} }, reviewMetrics() { return this.review?.metrics && typeof this.review.metrics === 'object' ? this.review.metrics : {} }, reviewDiagnostics() { return Array.isArray(this.review?.diagnostics) ? this.review.diagnostics : [] }, reviewRecommendations() { return Array.isArray(this.review?.recommendations) ? this.review.recommendations : [] },
     reviewMetricItems() { const m = this.reviewMetrics; return [{ key: 'net', label: this.$t('live_detail.cumulativeNetPnl'), value: this.signedMoney(m.window_net_pnl ?? m.total_net_pnl), tone: this.pnlClass(m.window_net_pnl ?? m.total_net_pnl) }, { key: 'return', label: this.$t('live_detail.totalReturn'), value: this.signedPercent(m.performance_total_return_pct ?? m.total_return_pct), tone: this.pnlClass(m.performance_total_return_pct ?? m.total_return_pct) }, { key: 'win', label: this.$t('live_detail.winRate'), value: this.percent(m.win_rate), tone: '', hint: `${m.winning_trades || 0}/${m.closed_trades_with_pnl || 0}` }, { key: 'factor', label: this.$t('live_detail.profitFactor'), value: this.number(m.profit_factor, 2), tone: '' }, { key: 'drawdown', label: this.$t('live_detail.maxDrawdown'), value: this.percent(m.performance_max_drawdown_pct ?? m.max_drawdown_pct), tone: 'warning-value' }, { key: 'fees', label: this.$t('live_detail.totalFees'), value: this.money(m.total_commission), tone: '' }, { key: 'open', label: this.$t('live_detail.openPositions'), value: String(m.open_position_count || 0), tone: '', hint: this.signedMoney(m.unrealized_pnl) }] }
   },
-  watch: { activeTab(value) { if (value === 'review' && !this.reviewHistoryLoaded) this.loadReviewHistory() }, logFilter() { this.logPage = 1 } },
-  mounted() { this.componentActive = true; this.load() },
-  beforeUnmount() { this.componentActive = false; this.stopCommandTrackers.clear() },
+  watch: {
+    activeTab(value) { if (value === 'review' && !this.reviewHistoryLoaded) this.loadReviewHistory(); this.syncGridOrderPolling() },
+    strategyId() { this.stopGridOrderPolling(); this.gridOrders = []; this.gridOrderSummary = {}; this.gridOrdersFailed = false; this.syncGridOrderPolling() },
+    logFilter() { this.logPage = 1 }
+  },
+  mounted() { this.componentActive = true; document.addEventListener('visibilitychange', this.syncGridOrderPolling); this.load() },
+  beforeUnmount() { this.componentActive = false; this.stopGridOrderPolling(); document.removeEventListener('visibilitychange', this.syncGridOrderPolling); this.stopCommandTrackers.clear() },
   methods: {
     async load() { if (this.loading) return; this.loading = true; this.exposureReady = false; this.detailFailed = false; try { const [detail, positions, ledger, logs, performance, curve, decisions] = await Promise.allSettled([strategyApi.getDetail(this.strategyId), strategyApi.getPositions(this.strategyId), strategyApi.getTradeLedger(this.strategyId), strategyApi.getLogs(this.strategyId, 1000), strategyApi.getPerformance(this.strategyId), strategyApi.getEquityCurve(this.strategyId), strategyApi.getAiDecisions(this.strategyId)]); this.exposureReady = detail.status === 'fulfilled' && positions.status === 'fulfilled'; this.detailFailed = [detail, positions, ledger, logs, performance, curve].some(result => result.status === 'rejected'); if (detail.status === 'fulfilled') this.strategy = detail.value.data; this.positions = positions.status === 'fulfilled' ? positions.value.data || [] : []; const ledgerData = ledger.status === 'fulfilled' ? ledger.value.data || {} : {}; this.trades = ledgerData.items || []; this.tradePage = Math.min(this.tradePage, Math.max(1, Math.ceil(this.trades.length / this.pageSize))); this.costSummary = ledgerData.cost_summary || {}; this.logs = logs.status === 'fulfilled' ? logs.value.data || [] : []; this.logPage = Math.min(this.logPage, Math.max(1, Math.ceil(this.filteredLogs.length / this.pageSize))); this.performance = performance.status === 'fulfilled' ? performance.value.data || {} : {}; this.equityCurve = curve.status === 'fulfilled' ? curve.value.data || [] : []; this.aiDecisions = decisions.status === 'fulfilled' ? decisions.value.data || [] : []; if (this.isLiveStrategy) await this.loadOwnership(false); else this.ownership = { items: [], status: 'ok', advanced_coexistence_available: false }; if (this.isGridStrategy) await this.loadGridOrders(false); else { this.gridOrders = []; this.gridOrderSummary = {} } } finally { this.loading = false } },
     async loadOwnership(showFailure = true) { this.ownershipLoading = true; try { const response = await strategyApi.getPositionOwnership(this.strategyId); this.ownership = response?.data || { items: [], status: 'ok', advanced_coexistence_available: false } } catch { if (showFailure) showToast({ message: this.$t('trading.position_ownership_load_failed'), type: 'fail' }) } finally { this.ownershipLoading = false } },
-    async loadGridOrders(sync = false) { this.gridOrdersLoading = true; try { const response = await strategyApi.getGridRestingOrders(this.strategyId, sync); const data = response?.data || {}; this.gridOrders = data.orders || data.items || []; this.gridOrderSummary = data.summary || {}; if (sync && this.gridOrderSummary.sync_ok === false) showToast({ message: this.$t('trading.grid_orders_sync_failed'), type: 'fail' }) } catch { if (sync) showToast({ message: this.$t('trading.grid_orders_sync_failed'), type: 'fail' }) } finally { this.gridOrdersLoading = false } },
+    canPollGridOrders() { return this.componentActive && this.isGridStrategy && this.activeTab === 'grid-orders' && !document.hidden },
+    stopGridOrderPolling() {
+      clearTimeout(this.gridOrdersTimer)
+      this.gridOrdersTimer = null
+      this.gridOrdersRequestId++
+      this.gridOrdersLoading = false
+    },
+    syncGridOrderPolling() {
+      this.stopGridOrderPolling()
+      if (this.canPollGridOrders()) this.loadGridOrders(true)
+    },
+    async loadGridOrders(sync = false) {
+      if (!this.strategyId || !this.componentActive || document.hidden || this.gridOrdersLoading) return
+      clearTimeout(this.gridOrdersTimer)
+      this.gridOrdersTimer = null
+      const requestId = ++this.gridOrdersRequestId
+      const strategyId = this.strategyId
+      this.gridOrdersLoading = true
+      try {
+        const response = await strategyApi.getGridRestingOrders(strategyId, sync && this.isLiveStrategy)
+        if (requestId !== this.gridOrdersRequestId || strategyId !== this.strategyId || !this.componentActive) return
+        if (response?.code !== 1) throw new Error('grid_order_fetch_failed')
+        const data = response.data || {}
+        this.gridOrders = data.orders || data.items || []
+        this.gridOrderSummary = data.summary || {}
+        this.gridOrdersFailed = false
+      } catch {
+        if (requestId !== this.gridOrdersRequestId || strategyId !== this.strategyId || !this.componentActive) return
+        this.gridOrdersFailed = true
+      } finally {
+        if (requestId === this.gridOrdersRequestId) {
+          this.gridOrdersLoading = false
+          if (this.canPollGridOrders()) {
+            this.gridOrdersTimer = setTimeout(() => this.loadGridOrders(true), this.gridOrderSummary.sync_pending && !this.gridOrdersFailed ? 5000 : 15000)
+          }
+        }
+      }
+    },
+    gridStatusLabel(value) {
+      const status = String(value || 'unverified').toLowerCase()
+      const normalized = { canceled: 'cancelled', partially_filled: 'partial', new: 'pending' }[status] || status
+      const known = ['open', 'partial', 'filled', 'cancelled', 'not_open', 'unverified', 'pending', 'submitted', 'cancel_pending', 'rejected', 'failed']
+      return this.$t(`gridAudit.status.${known.includes(normalized) ? normalized : 'unverified'}`)
+    },
     async loadReviewHistory() { this.reviewHistoryLoaded = true; try { const response = await strategyApi.getReviewHistory(this.strategyId, { limit: 20 }); this.reviewHistory = response?.data || []; if (!this.review && this.reviewHistory.length) await this.loadReview(this.reviewHistory[0].id) } catch { this.reviewHistory = [] } },
     async loadReview(reportId) { if (!reportId) return; this.reviewLoading = true; try { const response = await strategyApi.getReviewHistory(this.strategyId, { report_id: reportId }); this.review = response?.data || null; this.selectedReviewId = reportId } catch { showToast({ message: this.$t('live_detail.reviewFailed'), type: 'fail' }) } finally { this.reviewLoading = false } },
     async generateReview() { try { await showConfirmDialog({ title: this.$t('live_detail.reviewConfirmTitle'), message: this.$t('live_detail.reviewConfirmMessage') }) } catch { return } this.reviewLoading = true; try { const response = await strategyApi.generateReview(this.strategyId, { lookback_days: 30, include_ai: true, language: this.$i18n.locale }); this.review = response?.data || null; this.selectedReviewId = this.review?.history_id || null; await this.loadReviewHistory() } catch { showToast({ message: this.$t('live_detail.reviewFailed'), type: 'fail' }) } finally { this.reviewLoading = false } },
@@ -258,6 +331,10 @@ export default {
 </style>
 
 <style scoped>
+.grid-orders-panel .section-title-row>div{min-width:0}.grid-orders-panel .section-title-row :deep(.van-button){flex-shrink:0;min-height:36px}
+.grid-audit-info{margin:10px 0;padding:10px;border-radius:7px;background:var(--accent-soft);color:var(--accent);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.grid-audit-time{margin:10px 0;color:var(--text-3);font-size:11px;overflow-wrap:anywhere}
+.grid-orders-panel .record-head strong,.grid-orders-panel dd{overflow-wrap:anywhere}.grid-orders-panel .grid-order-id{grid-column:1/-1}.grid-orders-panel .inline-warning{font-size:11px;line-height:1.5;overflow-wrap:anywhere}
 .page{--detail-gutter:18px;background:var(--v2-bg)}
 :deep(.van-nav-bar){border-bottom:1px solid var(--v2-line);background:var(--v2-bg)!important}
 :deep(.van-nav-bar__title){font-size:16px;font-weight:650}
