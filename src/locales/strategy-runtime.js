@@ -1,5 +1,6 @@
 export default {
   "zh-CN": {
+    "strategyV2.rebalanceReplaySkipped": "本次调仓已有记录，已跳过重复提交；已有订单继续对账。如上次执行中断，请核查尚未入队的部分。",
     "strategyRuntime.fillContractMetadataUnavailable": "合约规格暂不可用，成交入账将重试，不会猜测成交数量。",
     "strategyRuntime.unsupportedFillContract": "当前入账模型不支持此合约单位。",
     "strategyRuntime.invalidFillQuantity": "交易所成交数量无效，已暂缓入账。",
@@ -70,6 +71,7 @@ export default {
     "strategyV2.commandStatusUnavailable": "暂时无法确认暂停指令的最终状态，请刷新后核查。"
   },
   "zh-TW": {
+    "strategyV2.rebalanceReplaySkipped": "本次調倉已有記錄，已跳過重複提交；已有訂單繼續對帳。如上次執行中斷，請核查尚未入隊的部分。",
     "strategyRuntime.fillContractMetadataUnavailable": "合約規格暫不可用，成交入帳將重試，不會猜測成交數量。",
     "strategyRuntime.unsupportedFillContract": "目前入帳模型不支援此合約單位。",
     "strategyRuntime.invalidFillQuantity": "交易所成交數量無效，已暫緩入帳。",
@@ -140,6 +142,7 @@ export default {
     "strategyV2.commandStatusUnavailable": "暫時無法確認暫停指令的最終狀態，請重新整理後核查。"
   },
   "en-US": {
+    "strategyV2.rebalanceReplaySkipped": "This rebalance is already recorded; duplicate submission was skipped. Existing orders will continue reconciliation. If the previous attempt was interrupted, review any unqueued legs.",
     "strategyV2.dualDirectionHedgeModeRequired": "Hedge-leg or neutral strategies require hedge mode on the exchange account.",
     "strategyV2.oneWayPositionModeRequired": "This strategy requires one-way mode on the exchange account.",
     "strategyV2.positionModeDetail.binanceOneWay": "Binance Futures currently reports One-way Mode. Change the account to Hedge Mode, then start the strategy again.",
@@ -210,6 +213,7 @@ export default {
     "strategyV2.commandStatusUnavailable": "The final pause status could not be confirmed. Refresh and verify the strategy state."
   },
   "ja-JP": {
+    "strategyV2.rebalanceReplaySkipped": "このリバランスは記録済みのため、重複送信をスキップしました。既存注文の照合は継続します。前回の処理が中断された場合は、未登録の注文を確認してください。",
     "strategyV2.dualDirectionHedgeModeRequired": "両建てまたは中立ストラテジーでは、取引所口座をヘッジモードにする必要があります。",
     "strategyV2.oneWayPositionModeRequired": "このストラテジーでは、取引所口座をワンウェイモードにする必要があります。",
     "strategyV2.positionModeDetail.binanceOneWay": "Binance 先物口座は現在ワンウェイモードです。ヘッジモードに切り替えてから再起動してください。",
@@ -280,6 +284,7 @@ export default {
     "strategyV2.commandStatusUnavailable": "一時停止の最終状態を確認できません。更新して状態を確認してください。"
   },
   "ko-KR": {
+    "strategyV2.rebalanceReplaySkipped": "이미 기록된 리밸런싱이므로 중복 제출을 건너뛰었습니다. 기존 주문 대조는 계속됩니다. 이전 실행이 중단됐다면 대기열에 등록되지 않은 주문을 확인하세요.",
     "strategyV2.dualDirectionHedgeModeRequired": "양방향 또는 중립 전략은 거래소 계정의 헤지 모드가 필요합니다.",
     "strategyV2.oneWayPositionModeRequired": "이 전략은 거래소 계정의 단방향 모드가 필요합니다.",
     "strategyV2.positionModeDetail.binanceOneWay": "Binance 선물 계정이 현재 단방향 모드입니다. 헤지 모드로 전환한 후 전략을 다시 시작하세요.",
