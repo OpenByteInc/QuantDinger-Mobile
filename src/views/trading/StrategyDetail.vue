@@ -174,8 +174,14 @@ export default {
     reviewMetricItems() { const m = this.reviewMetrics; return [{ key: 'net', label: this.$t('live_detail.cumulativeNetPnl'), value: this.signedMoney(m.window_net_pnl ?? m.total_net_pnl), tone: this.pnlClass(m.window_net_pnl ?? m.total_net_pnl) }, { key: 'return', label: this.$t('live_detail.totalReturn'), value: this.signedPercent(m.performance_total_return_pct ?? m.total_return_pct), tone: this.pnlClass(m.performance_total_return_pct ?? m.total_return_pct) }, { key: 'win', label: this.$t('live_detail.winRate'), value: this.percent(m.win_rate), tone: '', hint: `${m.winning_trades || 0}/${m.closed_trades_with_pnl || 0}` }, { key: 'factor', label: this.$t('live_detail.profitFactor'), value: this.number(m.profit_factor, 2), tone: '' }, { key: 'drawdown', label: this.$t('live_detail.maxDrawdown'), value: this.percent(m.performance_max_drawdown_pct ?? m.max_drawdown_pct), tone: 'warning-value' }, { key: 'fees', label: this.$t('live_detail.totalFees'), value: this.money(m.total_commission), tone: '' }, { key: 'open', label: this.$t('live_detail.openPositions'), value: String(m.open_position_count || 0), tone: '', hint: this.signedMoney(m.unrealized_pnl) }] }
   },
   watch: {
-    activeTab(value) { if (value === 'review' && !this.reviewHistoryLoaded) this.loadReviewHistory(); this.syncGridOrderPolling() },
-    strategyId() { this.stopGridOrderPolling(); this.gridOrders = []; this.gridOrderSummary = {}; this.gridOrdersFailed = false; this.syncGridOrderPolling() },
+    activeTab(value) {
+      if (value === 'review' && !this.reviewHistoryLoaded) {
+        this.stopGridOrderPolling()
+        return this.loadReviewHistory()
+      }
+      return this.syncGridOrderPolling()
+    },
+    strategyId() { this.stopGridOrderPolling(); this.gridOrders = []; this.gridOrderSummary = {}; this.gridOrdersFailed = false; return this.syncGridOrderPolling() },
     logFilter() { this.logPage = 1 }
   },
   mounted() { this.componentActive = true; document.addEventListener('visibilitychange', this.syncGridOrderPolling); this.load() },
@@ -192,7 +198,7 @@ export default {
     },
     syncGridOrderPolling() {
       this.stopGridOrderPolling()
-      if (this.canPollGridOrders()) this.loadGridOrders(true)
+      if (this.canPollGridOrders()) return this.loadGridOrders(true)
     },
     async loadGridOrders(sync = false) {
       if (!this.strategyId || !this.componentActive || document.hidden || this.gridOrdersLoading) return

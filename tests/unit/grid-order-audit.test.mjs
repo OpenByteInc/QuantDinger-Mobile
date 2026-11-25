@@ -30,6 +30,40 @@ function page(getGridRestingOrders) {
 }
 const response = (summary = {}, orders = []) => ({ code: 1, data: { summary, orders } })
 
+test('grid polling synchronization and watchers return the refresh promise', async () => {
+  const { instance, options } = page(async () => response())
+  const pending = Promise.resolve()
+  const calls = []
+  instance.loadGridOrders = sync => { calls.push(sync); return pending }
+  assert.equal(instance.syncGridOrderPolling(), pending)
+  assert.equal(options.watch.activeTab.call(instance, 'grid-orders'), pending)
+  assert.equal(options.watch.strategyId.call(instance), pending)
+  assert.deepEqual(calls, [true, true, true])
+  await pending
+})
+
+test('visibility-triggered polling handles network failures without rejecting', async () => {
+  const { instance, timers } = page(async () => { throw new Error('offline') })
+  const pending = instance.syncGridOrderPolling()
+  assert.equal(instance.gridOrdersLoading, true)
+  await assert.doesNotReject(pending)
+  assert.equal(instance.gridOrdersFailed, true)
+  assert.equal(instance.gridOrdersLoading, false)
+  assert.equal([...timers.values()][0].delay, 15000)
+})
+
+test('opening review stops grid polling and returns the history request', async () => {
+  const { instance, options, timers } = page(async () => response())
+  await instance.loadGridOrders(true)
+  assert.equal(timers.size, 1)
+  const pending = Promise.resolve()
+  instance.loadReviewHistory = () => pending
+  instance.activeTab = 'review'
+  assert.equal(options.watch.activeTab.call(instance, 'review'), pending)
+  assert.equal(timers.size, 0)
+  await pending
+})
+
 test('queued verification is pending, not an error, and polls for results', async () => {
   const calls = []
   const { instance, timers, notices } = page(async (...args) => {
