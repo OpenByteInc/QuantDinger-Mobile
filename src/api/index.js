@@ -635,6 +635,7 @@ export const watchlistApi = {
       data: ensureArray(res.data?.results || res.data?.items || res.data)
     }
   },
+  futuresProducts: () => http.get('/api/market/futures/products'),
   getHot: async (params) => {
     const res = await http.get('/api/market/symbols/hot', { params })
     return {
@@ -938,7 +939,7 @@ export const alpacaApi = {
   cancelOrder: (id, params) => alpacaRequest('delete', `order/${encodeURIComponent(id)}`, params)
 }
 
-const DIRECT_BROKER_IDS = new Set(['tiger', 'webull'])
+const DIRECT_BROKER_IDS = new Set(['tiger', 'webull', 'forthright'])
 
 /**
  * @typedef {Object} BrokerOrderPayload
@@ -965,12 +966,13 @@ const brokerId = (value) => {
   return id
 }
 
-async function brokerRequest(id, method, path, payload = {}) {
+async function brokerRequest(id, method, path, payload = {}, options = {}) {
   const broker = brokerId(id)
   const response = await http.request({
     method,
     url: `/api/${broker}/${path}`,
     raw: true,
+    suppressErrorToast: Boolean(options.suppressErrorToast),
     ...(method === 'get' || method === 'delete' ? { params: payload } : { data: payload })
   })
   if (response?.success !== true) {
@@ -980,15 +982,20 @@ async function brokerRequest(id, method, path, payload = {}) {
 }
 
 export const brokerApi = {
+  instrumentRules: (credentialId, symbol, broker = 'forthright') => brokerRequest(broker, 'get', 'instrument-rules', { credential_id: credentialId, symbol }),
+  closePosition: (credentialId, payload) => brokerRequest('forthright', 'post', 'close-position', { credential_id: credentialId, ...payload }),
+  authorization: credentialId => brokerRequest('forthright', 'get', 'authorization', { credential_id: credentialId }),
+  unlock: (credentialId, smsCode = '') => brokerRequest('forthright', 'post', 'unlock', { credential_id: credentialId, smsCode }),
+  contracts: (credentialId, instrumentCode = '') => brokerRequest('forthright', 'get', 'contracts', { credential_id: credentialId, instrument_code: instrumentCode }),
   accounts: (id) => brokerRequest(id, 'get', 'accounts'),
   status: (id, credentialId) => brokerRequest(id, 'get', 'status', { credential_id: credentialId }),
   connect: (id, payload) => brokerRequest(id, 'post', 'connect', payload),
   disconnect: (id, credentialId) => brokerRequest(id, 'post', 'disconnect', { credential_id: credentialId }),
-  account: (id, credentialId) => brokerRequest(id, 'get', 'account', { credential_id: credentialId }),
+  account: (id, credentialId, params = {}) => brokerRequest(id, 'get', 'account', { credential_id: credentialId, ...params }),
   positions: (id, credentialId) => brokerRequest(id, 'get', 'positions', { credential_id: credentialId }),
   orders: (id, credentialId, params = {}) => brokerRequest(id, 'get', 'orders', { credential_id: credentialId, ...params }),
   fills: (id, credentialId, params = {}) => brokerRequest(id, 'get', 'fills', { credential_id: credentialId, ...params }),
   /** @param {string} id @param {number} credentialId @param {BrokerOrderPayload} payload */
-  placeOrder: (id, credentialId, payload) => brokerRequest(id, 'post', 'order', { credential_id: credentialId, ...payload }),
+  placeOrder: (id, credentialId, payload, options = {}) => brokerRequest(id, 'post', 'order', { credential_id: credentialId, ...payload }, options),
   cancelOrder: (id, credentialId, orderId) => brokerRequest(id, 'delete', `order/${encodeURIComponent(orderId)}`, { credential_id: credentialId })
 }

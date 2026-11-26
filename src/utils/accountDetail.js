@@ -4,7 +4,7 @@ export function accountNumber(value, digits = 6, locale = 'en-US') {
 }
 
 export function canCancelAccountOrder(order) {
-  return Boolean(order?.id) && ['new','accepted','pending_new','partially_filled','accepted_for_bidding'].includes(String(order.status).toLowerCase())
+  return Boolean(order?.id) && ['new','accepted','pending_new','partially_filled','accepted_for_bidding','submitted','working'].includes(String(order.status).toLowerCase())
 }
 
 export function snapshotIssue(data) {

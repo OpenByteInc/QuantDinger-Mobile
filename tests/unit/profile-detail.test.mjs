@@ -27,6 +27,7 @@ test('account errors and unknown values are not presented as zero balances',()=>
 })
 test('cancel is offered only for an identified active Alpaca order',()=>{
   assert.equal(canCancelAccountOrder({id:'owned-order',status:'partially_filled'}),true)
+  for(const status of ['submitted','working'])assert.equal(canCancelAccountOrder({id:'broker-order',status}),true)
   for(const status of ['filled','canceled','pending_cancel','expired','rejected'])assert.equal(canCancelAccountOrder({id:'order',status}),false)
   assert.equal(canCancelAccountOrder({status:'new'}),false)
 })

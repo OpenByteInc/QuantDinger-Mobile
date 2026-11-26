@@ -11,7 +11,7 @@
     </header>
     <div class="timeframes"><button v-for="time in timeframes" :key="time" :class="{active:form.timeframe===time}" @click="form.timeframe=time;loadChart()">{{ time }}</button></div>
     <div class="indicator-select"><button class="indicator-button" @click="indicatorSheetOpen=true"><span>{{ selectedIndicator?.name || t('indicator_chart.choose_indicator') }}</span><van-icon name="arrow-down"/></button><button class="chart-type-button" @click="chartTypeSheetOpen=true"><van-icon name="bar-chart-o"/><span>{{ selectedChartTypeLabel }}</span></button><button v-if="parameters.length" class="parameter-button" @click="paramsOpen=true"><van-icon name="setting-o"/><b>{{ parameters.length }}</b></button></div>
-    <div class="chart-area">
+    <div class="chart-area" :class="{'futures-empty':form.market==='Futures'&&!chartData?.candles?.length&&!expanded}">
       <MarketChart ref="marketChart" :data="chartData" :main="mainIndicator" :lower="lowerIndicator" :chart-type="chartType" :expanded="expanded"/>
       <div v-if="loading&&!chartData?.candles?.length" class="chart-placeholder"><van-skeleton title :row="8"/></div>
       <div v-else-if="error" class="chart-state"><p>{{ error }}</p><van-button size="small" @click="loadChart()">{{ t('common.retry') }}</van-button></div>
@@ -20,8 +20,7 @@
     <div class="indicator-tools"><div class="indicators"><button v-for="name in ['EMA','MA','BOLL','SAR','BBI','SMA']" :key="name" :aria-pressed="mainIndicator===name" :class="{active:mainIndicator===name}" @click="mainIndicator=mainIndicator===name?'':name">{{ name }}</button><i/><button v-for="name in ['RSI','MACD','KDJ','CCI','WR','OBV','DMI','ROC','MTM','TRIX']" :key="name" :aria-pressed="lowerIndicator===name" :class="{active:lowerIndicator===name}" @click="lowerIndicator=lowerIndicator===name?'':name">{{ name }}</button></div><button class="more-indicators" @click="$router.push('/market/all?asset_type=indicator')">+ {{ t('v2.nav.indicator') }}</button></div>
     <div v-if="chartData?.candles?.length" class="signal-summary"><span><i :class="change<0?'down':'up'"/>{{ signalLabel }}</span><button @click="openAi">{{ t('v2.indicator.aiExplain') }} <van-icon name="arrow"/></button></div>
     <small v-if="updated" class="updated">{{ t('audit.updated',{time:new Date(updated).toLocaleTimeString()}) }}</small>
-    <AlpacaTradePanel v-if="isUSStock" v-show="!expanded" :symbol="form.symbol" :chart-price="latestPrice"/>
-    <ChartTradePanel v-else-if="tradeProductReady" v-show="!expanded" :market="form.market" :symbol="form.symbol" :chart-price="latestPrice" :product="selectedProduct" @context-change="onTradeContextChange"/>
+    <ChartTradePanel v-if="tradeProductReady" v-show="!expanded" :market="form.market" :symbol="form.symbol" :chart-price="latestPrice" :product="selectedProduct" @context-change="onTradeContextChange" @contract-change="selectSymbol({market:'Futures',symbol:$event})"/>
     <van-popup v-model:show="indicatorSheetOpen" class="indicator-picker" position="bottom" round closeable teleport="body">
       <div class="indicator-picker-head"><h3>{{ t('indicator_chart.choose_indicator') }}</h3></div>
       <van-search v-model="indicatorQuery" :placeholder="t('common.search')" clearable/>
@@ -37,7 +36,7 @@
     <van-popup v-model:show="paramsOpen" position="bottom" round :style="{maxHeight:'80%'}"><div class="params"><h3>{{ t('indicator_chart.parameters') }}</h3><label v-for="param in parameters" :key="param.name"><span>{{ parameterLabel(param) }}</span><van-switch v-if="param.type==='bool'" v-model="form.params[param.name]" size="22"/><select v-else-if="parameterOptions(param).length" v-model="form.params[param.name]"><option v-for="option in parameterOptions(param)" :key="option.value" :value="option.value">{{ option.label }}</option></select><input v-else v-model="form.params[param.name]" :type="isNumeric(param)?'number':'text'" :min="param.min" :max="param.max" :step="param.step || 'any'"/></label><van-button block type="primary" @click="paramsOpen=false;loadChart()">{{ t('common.confirm') }}</van-button></div></van-popup>
     <van-action-sheet v-model:show="sourceOpen" :title="t('audit.source')" :actions="sourceActions" :cancel-text="t('common.cancel')" @select="selectSource"/>
     <van-action-sheet v-model:show="chartTypeSheetOpen" :title="t('indicator_chart.chart_type')" :actions="chartTypeActions" :cancel-text="t('common.cancel')" @select="selectChartType"/>
-    <SymbolPicker v-model:show="symbolPickerOpen" :title="t('indicator_chart.choose_symbol')" :auto-add="false" :default-market="form.market" :exchange-id="form.exchangeId" :market-type="form.marketType" :selected-symbol="form.symbol" @pick="selectSymbol"/>
+    <SymbolPicker v-model:show="symbolPickerOpen" :title="t('indicator_chart.choose_symbol')" :auto-add="true" :default-market="form.market" :exchange-id="form.exchangeId" :market-type="form.marketType" :selected-symbol="form.symbol" @pick="selectSymbol"/>
   </div>
 </template>
 <script setup>
@@ -48,7 +47,6 @@ import { EXCHANGE_BRANDS } from '@/constants/exchanges'
 import { indicatorApi,klineApi,watchlistApi } from '@/api'
 import MarketChart from '@/components/MarketChart.vue'
 import ChartTradePanel from '@/components/ChartTradePanel.vue'
-import AlpacaTradePanel from '@/components/AlpacaTradePanel.vue'
 import SymbolPicker from '@/components/SymbolPicker.vue'
 import ExchangeKlineWs from '@/utils/exchangeWs'
 import { toCandles } from '@/utils/chartData'
@@ -80,7 +78,6 @@ watch(()=>[form.market,form.symbol,form.exchangeId,form.marketType],async ([mark
  }catch{if(current===productRequest)selectedProduct.value={product_type:'unavailable'}}
  finally{if(current===productRequest)tradeProductReady.value=true}
 },{immediate:true})
-const isUSStock=computed(()=>form.market.toLowerCase()==='usstock')
 const marketChart=ref(null)
 const selectedInstrumentId=computed(()=>{
  const product=selectedProduct.value
@@ -134,7 +131,7 @@ async function warmBaseChart(){
 }
 async function loadChart(silent=false){
  const nextContext=chartContextSignature()
- if(displayedChartContext.value!==snapshotContext())void warmBaseChart()
+ if(displayedChartContext.value!==snapshotContext()){chartData.value=null;updated.value=0;void warmBaseChart()}
  if(chartRefreshing.value){
   if(silent&&nextContext===activeChartRequestContext)return
   queuedChartLoadSilent=queuedChartLoad?queuedChartLoadSilent&&silent:silent
@@ -146,23 +143,24 @@ async function loadChart(silent=false){
  const current=++request
  const context=nextContext,started=Date.now();activeChartRequestContext=context
  if(!silent||!chartData.value)loading.value=true
- error.value=''
+ if(!silent)error.value=''
  try{
   let data
   if(form.indicatorId){const params=Object.fromEntries(parameters.value.map(p=>[p.name,p.type==='bool'?Boolean(form.params[p.name]):isNumeric(p)?Number(form.params[p.name]):form.params[p.name]]));data=(await indicatorApi.previewChart({indicator_id:form.indicatorId,market:form.market,symbol:form.symbol,timeframe:form.timeframe,exchange_id:form.market.toLowerCase()==='crypto'?form.exchangeId:undefined,market_type:form.market.toLowerCase()==='crypto'?form.marketType:'spot',instrument_id:selectedInstrumentId.value||undefined,params,limit:360},{suppressErrorToast:true})).data}
   else data={candles:(await klineApi.getKline({market:form.market,symbol:form.symbol,timeframe:form.timeframe,exchangeId:form.market.toLowerCase()==='crypto'?form.exchangeId:undefined,marketType:form.market.toLowerCase()==='crypto'?form.marketType:'spot',instrumentId:selectedInstrumentId.value||undefined,limit:360,suppressErrorToast:true})).data}
   if(current!==request||context!==chartContextSignature())return
   data.candles=toCandles(data.candles||[])
+  if(form.market==='Futures'&&!data.candles.length)throw new Error(t('brokerAccounts.forthright.feedUnavailable'))
   if(pendingBar&&lastTick>=started)mergeStreamBar(data.candles,pendingBar,form.timeframe)
   applyChartData(data)
- }catch(e){if(current===request&&context===chartContextSignature()&&!silent&&!chartData.value?.candles?.length){error.value=e?.localizedMessage||e?.message||t('audit.loadFailed');chartData.value=null}}
+ }catch(e){if(current===request&&context===chartContextSignature()&&!chartData.value?.candles?.length){error.value=e?.localizedMessage||t(e?.message||'audit.loadFailed');chartData.value=null}}
  finally{if(current===request){loading.value=false;chartRefreshing.value=false;activeChartRequestContext='';if(queuedChartLoad){const nextSilent=queuedChartLoadSilent;queuedChartLoad=false;queuedChartLoadSilent=true;queueMicrotask(()=>loadChart(nextSilent))}}}
 }
 async function selectIndicator(item){
  indicatorSheetOpen.value=false;form.indicatorId=item.indicatorId;parameters.value=[];form.params={};const current=++paramsRequest;loading.value=true
  try{const data=(await indicatorApi.getParams(form.indicatorId)).data||[];if(current!==paramsRequest)return;parameters.value=data;for(const p of data)form.params[p.name]=p.default??'';await loadChart()}catch(e){if(current===paramsRequest){error.value=e?.localizedMessage||e?.message||t('audit.loadFailed');loading.value=false}}
 }
-function selectSymbol(item){form.market=item.market||'Crypto';form.symbol=item.symbol;if(form.market.toLowerCase()==='crypto'){form.exchangeId=item.exchange_id||form.exchangeId;form.marketType=item.market_type||form.marketType;selectedProduct.value={symbol:form.symbol,exchange_id:form.exchangeId,market_type:form.marketType,instrument_id:item.instrument_id||'',settle_currency:item.settle_currency||'',product_type:item.product_type||'',api_family:item.api_family||'',underlying_market:item.underlying_market||'',underlying_symbol:item.underlying_symbol||'',product_meta:item.product_meta||null}}else selectedProduct.value=null;loadChart()}
+function selectSymbol(item){form.market=item.market||'Crypto';form.symbol=item.symbol;if(form.market.toLowerCase()==='crypto'){form.exchangeId=item.exchange_id||form.exchangeId;form.marketType=item.market_type||form.marketType;selectedProduct.value={symbol:form.symbol,exchange_id:form.exchangeId,market_type:form.marketType,instrument_id:item.instrument_id||'',settle_currency:item.settle_currency||'',product_type:item.product_type||'',api_family:item.api_family||'',underlying_market:item.underlying_market||'',underlying_symbol:item.underlying_symbol||'',product_meta:item.product_meta||null}}else selectedProduct.value=null;router.replace({query:{...route.query,market:form.market,symbol:form.symbol,timeframe:form.timeframe}});loadChart()}
 function onTradeContextChange(context){if(!context.exchangeId)return;if(context.exchangeId===form.exchangeId&&context.marketType===form.marketType)return;form.exchangeId=context.exchangeId;form.marketType=context.marketType;loadChart()}
 function openAi(){router.push({path:'/ai',query:{symbol:form.symbol,market:form.market,timeframe:form.timeframe}})}
 async function bootstrap(){void warmBaseChart();try{const loaded=await indicatorApi.getList();indicators.value=loaded.data||[];const id=Number(route.query.indicator_id||route.query.local_copy_id||0);const preferred=indicators.value.find(x=>Number(x.id)===id)||indicators.value[0];if(preferred)await selectIndicator({indicatorId:Number(preferred.id)});else await loadChart()}catch(e){if(!chartData.value?.candles?.length){error.value=e?.localizedMessage||e?.message||t('audit.loadFailed');await warmBaseChart()}}}
@@ -215,6 +213,7 @@ watch(indicatorSheetOpen,value=>{if(!value)indicatorQuery.value=''})
 </script>
 <style scoped>
 .terminal-page{padding:10px 0 24px;background:var(--v2-bg);color:var(--v2-text);min-height:100%}.market-head{padding:0 14px}.market-title-row{display:flex;align-items:center;gap:6px}.market-head button{border:0;background:none;color:inherit}.market-head .symbol{flex:0 1 auto;min-width:0;max-width:40%;display:flex;align-items:center;gap:5px;min-height:40px;text-align:left;font-size:20px}.market-head .symbol strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.quote{flex:1;min-width:0;display:flex;align-items:baseline;gap:6px;white-space:nowrap}.quote strong{overflow:hidden;font-size:21px;font-weight:780;font-variant-numeric:tabular-nums;letter-spacing:-.02em;text-overflow:ellipsis}.quote span{font-size:10px;font-weight:700}.quote.up{color:var(--v2-green)}.quote.down{color:var(--v2-red)}.icon-button{flex:0 0 36px;width:36px;height:40px;border-radius:50%!important;font-size:20px}.icon-button:active{background:var(--v2-surface-2)}.icon-button.refreshing :deep(.van-icon){animation:chart-spin .8s linear infinite}@keyframes chart-spin{to{transform:rotate(360deg)}}.market-head .source{min-height:27px;display:flex;align-items:center;gap:5px;color:var(--v2-muted);font-size:10px}.market-head .source b{color:var(--v2-text);font-size:11px}.timeframes{display:flex;overflow:auto;gap:2px;margin-top:4px;padding:0 10px;border-bottom:1px solid var(--v2-line);scrollbar-width:none}.timeframes::-webkit-scrollbar,.indicators::-webkit-scrollbar{display:none}.timeframes button{position:relative;flex:1 0 42px;min-height:42px;border:0;background:none;color:var(--v2-muted);font-size:12px}.timeframes .active{color:var(--v2-text);font-weight:700}.timeframes .active:after{content:'';position:absolute;left:11px;right:11px;bottom:0;height:3px;border-radius:3px;background:var(--v2-brand)}.indicator-select{display:flex;gap:7px;padding:9px 12px 7px}.indicator-select button{min-height:38px;min-width:0;border:1px solid var(--v2-line);background:var(--v2-surface);color:var(--v2-text);border-radius:8px;padding:7px 11px}.indicator-select button:first-child{flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;overflow:hidden;text-align:left}.indicator-select button:first-child span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.indicator-select .parameter-button{position:relative;width:42px;padding:0;font-size:17px}.parameter-button b{position:absolute;top:2px;right:2px;min-width:15px;padding:1px 3px;border-radius:8px;background:var(--v2-brand);color:var(--v2-on-brand);font-size:9px}.chart-area{position:relative;min-height:340px;overflow:hidden}.chart-placeholder,.chart-state{position:absolute;inset:0;z-index:3;background:var(--v2-bg)}.chart-placeholder{padding:22px 16px}.chart-placeholder :deep(.van-skeleton__title),.chart-placeholder :deep(.van-skeleton__row){background:var(--v2-surface-2)}.chart-state{display:grid;place-content:center;gap:10px;padding:14px;color:var(--v2-muted);text-align:center}.indicator-tools{border-top:1px solid var(--v2-line);border-bottom:1px solid var(--v2-line)}.indicators{display:flex;overflow:auto;gap:0;padding:0 8px;scrollbar-width:none}.indicators button{flex:0 0 auto;min-height:42px;padding:0 11px;border:0;background:none;color:var(--v2-muted);font-size:11px}.indicators button.active{color:var(--v2-brand);font-weight:750}.indicators i{height:18px;margin:auto 2px;border-left:1px solid var(--v2-line)}.indicators .more-indicators{margin-left:auto;color:var(--v2-text)}.signal-summary{margin:9px 12px 0;padding:10px 11px;background:var(--v2-surface-2);display:flex;align-items:center;gap:10px;border-radius:8px;font-size:11px}.signal-summary span{flex:1;display:flex;align-items:center;gap:7px}.signal-summary span i{width:7px;height:7px;border-radius:50%;background:var(--v2-muted)}.signal-summary span i.up{background:var(--v2-green)}.signal-summary span i.down{background:var(--v2-red)}.signal-summary button{border:0;background:none;color:var(--v2-text);white-space:nowrap}.updated{display:block;padding:7px 14px 0;color:var(--v2-muted);font-size:9px}.params{padding:20px;overflow:auto}.params label{display:flex;gap:16px;align-items:center;justify-content:space-between;padding:12px 0}.params input{width:130px;min-height:40px;border:1px solid var(--v2-line);background:var(--v2-surface-2);color:var(--v2-text);border-radius:6px;padding:8px}.expanded{position:fixed;inset:0;z-index:200;overflow:auto}.expanded .signal-summary,.expanded .updated{display:none}@media(min-width:720px){.terminal-page:not(.expanded){max-width:640px;margin:auto}}
+.chart-area.futures-empty{min-height:200px;height:200px}.chart-area.futures-empty :deep(.market-chart){height:200px!important}.terminal-page:has(.futures-panel) .market-head .symbol{font-family:system-ui,sans-serif;font-weight:600}
 </style>
 
 <style scoped>
@@ -246,12 +245,14 @@ watch(indicatorSheetOpen,value=>{if(!value)indicatorQuery.value=''})
 .indicator-picker-list strong { font-weight: 500; }
 .indicator-picker-list > button.selected { border-color: var(--v2-line); background: color-mix(in srgb,var(--v2-brand) 9%,var(--v2-surface)); box-shadow: none; }
 .browse-indicators { min-height: 44px; font-weight: 500; }
+.chart-area.futures-empty{min-height:200px;height:200px}.chart-area.futures-empty :deep(.market-chart){height:200px!important}.terminal-page:has(.futures-panel) .market-head .symbol{font-family:system-ui,sans-serif;font-weight:600}
 </style>
 
 <style>
 .indicator-select .chart-type-button{flex:0 1 108px;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--v2-muted);font-size:11px}.indicator-select .chart-type-button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.indicator-select .parameter-button{flex:0 0 42px}
 .indicator-tools{display:flex;min-width:0}.indicator-tools .indicators{flex:1;min-width:0;overscroll-behavior-x:contain}.indicator-tools .indicators i{flex:0 0 1px}.indicator-tools>.more-indicators{flex:0 0 auto;border:0;border-left:1px solid var(--v2-line);background:var(--v2-bg);color:var(--v2-text);padding:0 12px;font-size:11px}
 .indicator-picker{width:100%;max-height:min(78vh,720px);display:flex;flex-direction:column;background:var(--v2-surface);color:var(--v2-text)}.indicator-picker-head{padding:18px 52px 6px 18px}.indicator-picker-head h3{margin:0;font-size:17px}.indicator-picker .van-search{padding:8px 14px;background:transparent}.indicator-picker .van-search__content{border:1px solid var(--v2-line);border-radius:9px;background:var(--v2-surface-2)}.indicator-picker .van-field__control{color:var(--v2-text)}.indicator-picker-list{flex:1;overflow-y:auto;padding:2px 12px 8px}.indicator-picker-list>button{width:100%;min-height:62px;display:flex;align-items:center;gap:12px;padding:11px 12px;border:0;border-bottom:1px solid var(--v2-line);background:transparent;color:var(--v2-text);text-align:left}.indicator-picker-list>button.selected{border:1px solid color-mix(in srgb,var(--v2-brand) 55%,var(--v2-line));border-radius:9px;background:color-mix(in srgb,var(--v2-brand) 9%,var(--v2-surface));}.indicator-picker-list>button>span{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}.indicator-picker-list strong{overflow:hidden;font-size:14px;text-overflow:ellipsis;white-space:nowrap}.indicator-picker-list small{display:-webkit-box;overflow:hidden;color:var(--v2-muted);font-size:11px;line-height:1.4;-webkit-box-orient:vertical;-webkit-line-clamp:2}.indicator-picker-list .van-icon{color:var(--v2-muted)}.indicator-picker-list .selected .van-icon{color:var(--v2-brand)}.browse-indicators{min-height:48px;margin:0 14px calc(12px + env(safe-area-inset-bottom));border:1px solid var(--v2-line);border-radius:9px;background:var(--v2-surface-2);color:var(--v2-text);font-weight:750}
+.chart-area.futures-empty{min-height:200px;height:200px}.chart-area.futures-empty :deep(.market-chart){height:200px!important}.terminal-page:has(.futures-panel) .market-head .symbol{font-family:system-ui,sans-serif;font-weight:600}
 </style>
 
 <style scoped>
@@ -283,6 +284,7 @@ watch(indicatorSheetOpen,value=>{if(!value)indicatorQuery.value=''})
 .indicator-tools > .more-indicators { padding-inline: 9px; font-size: 9px; }
 .signal-summary { margin: 16px; padding: 14px 0; border: 0; border-block: 1px solid var(--v2-line); border-radius: 0; background: transparent; box-shadow: none; }
 .updated { padding-inline: 16px; }
+.chart-area.futures-empty{min-height:200px;height:200px}.chart-area.futures-empty :deep(.market-chart){height:200px!important}.terminal-page:has(.futures-panel) .market-head .symbol{font-family:system-ui,sans-serif;font-weight:600}
 </style>
 
 <style scoped>
@@ -299,4 +301,5 @@ watch(indicatorSheetOpen,value=>{if(!value)indicatorQuery.value=''})
   .signal-summary { margin: 8px 12px 0; padding: 9px 0; }
   .updated { padding: 5px 12px 0; font-size: 9px; }
 }
+.chart-area.futures-empty{min-height:200px;height:200px}.chart-area.futures-empty :deep(.market-chart){height:200px!important}.terminal-page:has(.futures-panel) .market-head .symbol{font-family:system-ui,sans-serif;font-weight:600}
 </style>

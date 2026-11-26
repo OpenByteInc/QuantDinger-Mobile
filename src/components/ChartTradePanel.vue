@@ -1,5 +1,5 @@
 <template>
-  <section class="trade-terminal" :class="{ unavailable: !isCrypto && !isStockMarket }">
+  <section class="trade-terminal" :class="{ unavailable: !isCrypto && !isStockMarket && market !== 'Futures' }">
     <template v-if="isCrypto">
       <header class="terminal-head">
         <strong>{{ $t('chart_trade.title') }}</strong>
@@ -149,6 +149,7 @@
         </div>
       </div>
     </template>
+    <ForthrightFuturesPanel v-else-if="market === 'Futures'" :symbol="symbol" @contract-change="$emit('contract-change', $event)" />
     <StockTradePanel v-else-if="isStockMarket" :market="market" :symbol="symbol" :chart-price="chartPrice" />
     <button v-else class="unavailable-row" @click="$router.push('/market')"><van-icon name="info-o"/><span>{{ $t('account_ui.unsupported') }}</span><van-icon name="arrow"/></button>
     <van-popup v-model:show="credentialPickerOpen" position="bottom" round teleport="body">
@@ -194,6 +195,7 @@
 <script>
 import ExchangeLogo from '@/components/ExchangeLogo.vue'
 import StockTradePanel from '@/components/StockTradePanel.vue'
+import ForthrightFuturesPanel from '@/components/ForthrightFuturesPanel.vue'
 import {buildOrder,validateOrder,tradeProductFields,isCryptoProduct,OPEN_ORDER_STATUSES} from '@/utils/tradeOrder'
 import {balanceIssue,localizedBalanceIssue} from '@/utils/balanceIssue'
 import ExchangeOrderBookWs from '@/utils/exchangeOrderBookWs'
@@ -206,14 +208,14 @@ const SUPPORTED_EXCHANGES = new Set(['binance', 'okx', 'bitget', 'bybit', 'gate'
 
 export default {
   name: 'ChartTradePanel',
-  components: { ExchangeLogo, StockTradePanel },
+  components: { ExchangeLogo, StockTradePanel, ForthrightFuturesPanel },
   props: {
     market: { type: String, default: 'Crypto' },
     symbol: { type: String, default: 'BTC/USDT' },
     chartPrice: { type: Number, default: null },
     product: { type: Object, default: null }
   },
-  emits: ['context-change'],
+  emits: ['context-change', 'contract-change'],
   data() {
     return {
       positionHistory:[], positionHistorySupported:true, historyPageSize:5, tradeHistoryPage:1, positionHistoryPage:1, closeScope:'full', refreshing:false, dataError:'', orderError:'', balanceReady:false, requestId:0, contextKey:'',

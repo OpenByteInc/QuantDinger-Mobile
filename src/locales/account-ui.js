@@ -1,5 +1,7 @@
 export default {
   "zh-CN": {
+    "referencePrice": "参考价格",
+    "amountConversion": "按参考价折算为 {quantity} 股，向下取整至支持的精度。市价成交金额会变化，费用另计。",
     "connectStocksHint": "连接 Alpaca 账户，查看美股持仓并进行交易。",
     "connectTitle": "连接你的交易账户",
     "connectHint": "连接交易所或 Alpaca 账户，统一查看持仓并进行交易。",
@@ -30,7 +32,9 @@ export default {
       "pending_cancel": "撤单中",
       "rejected": "已拒绝",
       "expired": "已过期",
-      "pending_new": "提交中"
+      "pending_new": "提交中",
+      "submitted": "已提交",
+      "open": "待成交"
     },
     "preview": "预览订单",
     "alpacaName": "例如 Alpaca 主账户",
@@ -38,6 +42,8 @@ export default {
     "unsupported": "此市场暂不支持手机下单"
   },
   "zh-TW": {
+    "referencePrice": "參考價格",
+    "amountConversion": "按參考價折算為 {quantity} 股，向下取整至支援的精度。市價成交金額會變動，費用另計。",
     "connectStocksHint": "連接 Alpaca 帳戶，查看美股持倉並進行交易。",
     "connectTitle": "連接你的交易帳戶",
     "connectHint": "連接交易所或 Alpaca 帳戶，統一查看持倉並進行交易。",
@@ -68,7 +74,9 @@ export default {
       "pending_cancel": "撤單中",
       "rejected": "已拒絕",
       "expired": "已過期",
-      "pending_new": "提交中"
+      "pending_new": "提交中",
+      "submitted": "已提交",
+      "open": "待成交"
     },
     "preview": "預覽訂單",
     "alpacaName": "例如 Alpaca 主帳戶",
@@ -76,6 +84,8 @@ export default {
     "unsupported": "此市場暫不支援手機下單"
   },
   "en-US": {
+    "referencePrice": "Reference price",
+    "amountConversion": "Converted to {quantity} shares at the reference price, rounded down to supported precision. Market execution value may vary; fees are extra.",
     "connectStocksHint": "Connect an Alpaca account to view and trade US stocks.",
     "connectTitle": "Connect your trading account",
     "connectHint": "Connect an exchange or Alpaca account to manage positions and trade.",
@@ -106,7 +116,9 @@ export default {
       "pending_cancel": "Cancel pending",
       "rejected": "Rejected",
       "expired": "Expired",
-      "pending_new": "Submitting"
+      "pending_new": "Submitting",
+      "submitted": "Submitted",
+      "open": "Open"
     },
     "preview": "Review order",
     "alpacaName": "e.g. Alpaca main account",
@@ -114,6 +126,8 @@ export default {
     "unsupported": "Mobile orders are unavailable for this market"
   },
   "ja-JP": {
+    "referencePrice": "参考価格",
+    "amountConversion": "参考価格で {quantity} 株に換算し、対応する桁数で切り捨てます。成行の約定金額は変動し、手数料は別途かかります。",
     "connectStocksHint": "Alpaca 口座を接続して米国株の保有状況を確認し、取引できます。",
     "connectTitle": "取引口座を接続",
     "connectHint": "取引所または Alpaca 口座を接続して保有資産を確認し、取引できます。",
@@ -144,7 +158,9 @@ export default {
       "pending_cancel": "取消中",
       "rejected": "拒否",
       "expired": "期限切れ",
-      "pending_new": "送信中"
+      "pending_new": "送信中",
+      "submitted": "送信済み",
+      "open": "未約定"
     },
     "preview": "注文確認",
     "alpacaName": "例：Alpaca メイン口座",
@@ -152,6 +168,8 @@ export default {
     "unsupported": "この市場ではモバイル注文を利用できません"
   },
   "ko-KR": {
+    "referencePrice": "참고 가격",
+    "amountConversion": "참고 가격으로 {quantity}주로 환산하고 지원 자릿수에서 내림합니다. 시장가 체결 금액은 달라질 수 있으며 수수료는 별도입니다.",
     "connectStocksHint": "Alpaca 계좌를 연결하여 미국 주식 보유 현황을 확인하고 거래하세요.",
     "connectTitle": "거래 계좌 연결",
     "connectHint": "거래소 또는 Alpaca 계좌를 연결하여 포지션을 확인하고 거래하세요.",
@@ -182,7 +200,9 @@ export default {
       "pending_cancel": "취소 중",
       "rejected": "거절됨",
       "expired": "만료됨",
-      "pending_new": "제출 중"
+      "pending_new": "제출 중",
+      "submitted": "제출됨",
+      "open": "미체결"
     },
     "preview": "주문 확인",
     "alpacaName": "예: Alpaca 기본 계좌",

@@ -1,6 +1,7 @@
 // Exchange brand metadata (aligned with PC side)
 
 export const EXCHANGE_BRANDS = {
+  forthright: { name: 'Forthright', short: 'FD', docsUrl: 'https://dev-openapi-doc.techfx88.com/zh/index.html' },
   alpaca: { name: 'Alpaca', docsUrl: 'https://app.alpaca.markets/' },
   ibkr: { name: 'Interactive Brokers', short: 'IB', docsUrl: 'https://www.interactivebrokers.com/' },
   tiger: {
@@ -91,12 +92,12 @@ export const EXCHANGE_BRANDS = {
 
 export const SUPPORTED_TRADING_EXCHANGE_IDS = ['binance', 'okx', 'bitget', 'bybit', 'gate', 'htx']
 
-export const STOCK_BROKER_IDS = ['alpaca', 'ibkr', 'tiger', 'webull']
-export const DIRECT_OPENAPI_BROKER_IDS = ['tiger', 'webull']
+export const STOCK_BROKER_IDS = ['alpaca', 'forthright', 'tiger', 'webull', 'ibkr']
+export const DIRECT_OPENAPI_BROKER_IDS = ['tiger', 'webull', 'forthright']
 export const US_STOCK_BROKER_IDS = new Set(STOCK_BROKER_IDS)
-export const HK_STOCK_BROKER_IDS = new Set(['tiger'])
+export const HK_STOCK_BROKER_IDS = new Set(['tiger', 'forthright'])
 
-export const EXCHANGE_OPTIONS = [...SUPPORTED_TRADING_EXCHANGE_IDS, 'alpaca', 'tiger', 'webull'].map((id) => ({
+export const EXCHANGE_OPTIONS = [...SUPPORTED_TRADING_EXCHANGE_IDS, 'alpaca', 'forthright', 'tiger', 'webull'].map((id) => ({
   value: id,
   label: EXCHANGE_BRANDS[id].name
 }))

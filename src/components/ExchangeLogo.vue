@@ -1,5 +1,5 @@
 <template>
-  <span class="exchange-logo" :style="{ width: `${size}px`, height: `${size}px` }">
+  <span class="exchange-logo" :class="{ 'exchange-logo--forthright': exchange.toLowerCase() === 'forthright' }" :style="{ width: `${size}px`, height: `${size}px` }">
     <img v-if="source && !failed" :src="source" :alt="exchange" @error="failed = true">
     <van-icon v-else name="exchange" :aria-label="exchange" />
   </span>
@@ -19,4 +19,6 @@ watch(source, () => { failed.value = false })
 </script>
 <style scoped>
 .exchange-logo{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;border-radius:50%;background:var(--surface-raised);overflow:hidden;vertical-align:middle}.exchange-logo img{width:78%;height:78%;object-fit:contain}.exchange-logo .van-icon{font-size:22px}
+.exchange-logo--forthright { border-radius: 22%; }
+.exchange-logo--forthright img { width: 100%; height: 100%; object-fit: cover; }
 </style>

@@ -16,8 +16,8 @@ import { apiErrorMessage } from '../../src/utils/apiError.js'
 const source = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8')
 
 test('Tiger and Webull are recognized as stock brokers with market currencies', () => {
-  assert.deepEqual(STOCK_BROKER_IDS, ['alpaca', 'ibkr', 'tiger', 'webull'])
-  assert.deepEqual(DIRECT_OPENAPI_BROKER_IDS, ['tiger', 'webull'])
+  assert.deepEqual(STOCK_BROKER_IDS, ['alpaca', 'forthright', 'tiger', 'webull', 'ibkr'])
+  assert.deepEqual(DIRECT_OPENAPI_BROKER_IDS, ['tiger', 'webull', 'forthright'])
   assert.equal(US_STOCK_BROKER_IDS.has('tiger'), true)
   assert.equal(US_STOCK_BROKER_IDS.has('webull'), true)
   assert.equal(HK_STOCK_BROKER_IDS.has('tiger'), true)

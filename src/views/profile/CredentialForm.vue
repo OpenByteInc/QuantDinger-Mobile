@@ -12,13 +12,13 @@
         <span class="section-icon blue"><van-icon name="records" /></span>
         <div>
           <div class="section-title">{{ $t('credentials.section_basic') }}</div>
-          <p>{{ $t('credentials.section_basic_desc') }}</p>
+          <p>{{ $t(isForthright ? 'brokerAccounts.forthright.autoDiscover' : 'credentials.section_basic_desc') }}</p>
         </div>
       </div>
       <van-field label-align="top"
         v-model="form.name"
         :label="$t('credentials.name')"
-        :placeholder="$t(isAlpaca ? 'account_ui.alpacaName' : 'credentials.name_placeholder')"
+        :placeholder="$t(isAlpaca ? 'account_ui.alpacaName' : isForthright ? 'brokerAccounts.forthright.name' : 'credentials.name_placeholder')"
       />
       <van-cell
         :title="$t('credentials.exchange')"
@@ -27,12 +27,12 @@
         @click="showExchangePicker = true"
       ><template #value><span class="selected-provider"><ExchangeLogo v-if="form.exchange_id" :exchange="form.exchange_id" :size="22"/>{{ selectedExchangeLabel || $t('credentials.exchange_placeholder') }}</span></template></van-cell>
       <van-cell
-        v-if="!isAlpaca" :title="$t('credentials.environment')"
+        v-if="!isAlpaca && !isForthright" :title="$t('credentials.environment')"
         :value="environmentLabel"
         is-link
         @click="showEnvironmentPicker = true"
       />
-      <div class="field-hint">{{ isAlpaca ? $t('account_ui.alpacaEnvironment') : environmentHint }}</div>
+      <div v-if="!isForthright" class="field-hint">{{ isAlpaca ? $t('account_ui.alpacaEnvironment') : environmentHint }}</div>
       <van-cell v-if="!isStockBroker"
         :title="$t('credentials.market_scope')"
         :value="marketScopeLabel"
@@ -82,13 +82,24 @@
       <div v-if="selectedExchangeDocsUrl" class="api-doc-card">
         <div class="api-doc-copy">
           <span class="api-doc-title">{{ $t('credentials.api_doc_title') }}</span>
-          <p>{{ isAlpaca ? $t('account_ui.alpacaKeysHint') : $t('credentials.api_doc_desc', { exchange: selectedExchangeLabel }) }}</p>
+          <p>{{ isAlpaca ? $t('account_ui.alpacaKeysHint') : isForthright ? $t('brokerAccounts.forthright.docsLabel') : $t('credentials.api_doc_desc', { exchange: selectedExchangeLabel }) }}</p>
         </div>
         <button type="button" class="api-doc-action" @click="openDocs">
           {{ $t('credentials.api_doc_action') }}
         </button>
       </div>
-      <template v-if="isTiger">
+      <template v-if="isForthright">
+        <div class="gateway-choice">
+          <span>{{ $t('brokerAccounts.forthright.environment') }}</span>
+          <div class="gateway-segment"><button v-for="mode in ['sandbox','live']" :key="mode" type="button" :class="{active:form.environment===mode}" :aria-pressed="form.environment===mode" :disabled="saving" @click="form.environment=mode">{{ $t('brokerAccounts.forthright.'+mode) }}</button></div>
+          <small>{{ form.environment === 'live' ? 'openapi-gw.forthright-sec.com.hk' : 'test-openapi-gw.techfx88.com' }}</small>
+        </div>
+        <van-field v-model="form.app_id" label-align="top" :label="$t('brokerAccounts.forthright.appId')" />
+        <van-field v-model="form.private_key" label-align="top" type="textarea" autosize autocomplete="new-password" :label="$t('brokerAccounts.forthright.privateKey')" />
+        <van-field v-model="form.trade_password" label-align="top" type="password" autocomplete="new-password" :label="$t('brokerAccounts.forthright.tradePassword')" />
+        <p class="section-note">{{ $t('brokerAccounts.forthright.currencyHint') }}</p><van-field label-align="top" :label="$t('brokerAccounts.forthright.currency')"><template #input><van-radio-group v-model="form.currency" direction="horizontal"><van-radio v-for="currency in ['USD','HKD']" :key="currency" :name="currency">{{ currency }}</van-radio></van-radio-group></template></van-field>
+      </template>
+      <template v-else-if="isTiger">
         <van-field label-align="top" v-model="form.tiger_id" :label="$t('broker_mobile.tigerId')" :placeholder="$t('broker_mobile.tigerIdHint')" />
         <van-field label-align="top" v-model="form.account_id" :label="$t('broker_mobile.accountId')" :placeholder="$t('broker_mobile.accountIdHint')" />
         <van-field label-align="top" v-model="form.private_key" type="textarea" autosize :label="$t('broker_mobile.privateKey')" :placeholder="$t('broker_mobile.privateKeyHint')" />
@@ -150,7 +161,7 @@
     </div>
 
     <van-popup v-model:show="showExchangePicker" position="bottom" round>
-      <div class="provider-picker"><h3>{{ $t('credentials.exchange') }}</h3><button v-for="option in exchangeColumns" :key="option.value" @click="onSelectExchange(option)"><ExchangeLogo :exchange="option.value" :size="32"/><span>{{ option.text }}</span><small>{{ $t(isStockExchange(option.value) ? 'account_ui.usStocks' : 'account_ui.crypto') }}</small><van-icon v-if="form.exchange_id === option.value" name="success"/></button></div>
+      <div class="provider-picker"><h3>{{ $t('credentials.exchange') }}</h3><button v-for="option in exchangeColumns" :key="option.value" @click="onSelectExchange(option)"><ExchangeLogo :exchange="option.value" :size="32"/><span>{{ option.text }}</span><small>{{ option.value === 'forthright' ? `${$t('brokerAccounts.forthright.securities')} · ${$t('brokerAccounts.forthright.futures')}` : $t(isStockExchange(option.value) ? 'account_ui.usStocks' : 'account_ui.crypto') }}</small><van-icon v-if="form.exchange_id === option.value" name="success"/></button></div>
     </van-popup>
     <van-popup v-model:show="showEnvironmentPicker" position="bottom" round>
       <van-picker
@@ -197,6 +208,10 @@ export default {
         api_key: '',
         secret_key: '',
         passphrase: '',
+        app_id: '',
+        account_type: 'securities',
+        trade_password: '',
+        currency: 'USD',
         tiger_id: '',
         account_id: '',
         private_key: '',
@@ -212,6 +227,7 @@ export default {
 
   computed: {
     isAlpaca() { return this.form.exchange_id === 'alpaca' },
+    isForthright() { return this.form.exchange_id === 'forthright' },
     isTiger() { return this.form.exchange_id === 'tiger' },
     isWebull() { return this.form.exchange_id === 'webull' },
     isDirectBroker() { return isDirectOpenApiBroker(this.form.exchange_id) },
@@ -221,11 +237,12 @@ export default {
     },
     exchangeColumns() {
       return EXCHANGE_OPTIONS.map((item) => ({
-        text: item.label,
+        text: item.value === 'forthright' ? this.$t('brokerAccounts.forthright.name') : item.label,
         value: item.value
       }))
     },
     selectedExchangeLabel() {
+      if (this.isForthright) return this.$t('brokerAccounts.forthright.name')
       return EXCHANGE_OPTIONS.find((item) => item.value === this.form.exchange_id)?.label || ''
     },
     selectedExchangeMeta() {
@@ -244,11 +261,11 @@ export default {
       if (['binance', 'okx', 'bitget', 'bybit'].includes(this.form.exchange_id)) return [live, demo]
       if (this.form.exchange_id === 'gate') return [live, testnet]
       if (this.form.exchange_id === 'tiger') return [{ value: 'paper', label: this.$t('broker_mobile.paper') }, live]
-      if (this.form.exchange_id === 'webull') return [{ value: 'sandbox', label: this.$t('broker_mobile.sandbox') }, live]
+      if (['webull', 'forthright'].includes(this.form.exchange_id)) return [{ value: 'sandbox', label: this.$t('broker_mobile.sandbox') }, live]
       return [live]
     },
     environmentColumns() {
-      return this.environmentOptions.map(item => ({ text: item.label, value: item.value }))
+      return this.environmentOptions.map(item => ({ text: item.value === 'forthright' ? this.$t('brokerAccounts.forthright.name') : item.label, value: item.value }))
     },
     environmentLabel() {
       return this.environmentOptions.find(item => item.value === this.form.environment)?.label || ''
@@ -297,7 +314,13 @@ export default {
     this.loadEgressIp()
   },
 
+  beforeUnmount() { this.clearCredentialSecrets() },
   methods: {
+    clearCredentialSecrets() {
+      for (const key of ['private_key', 'trade_password', 'secret_key', 'api_key', 'app_key', 'app_secret', 'access_token', 'passphrase']) {
+        if (Object.prototype.hasOwnProperty.call(this.form, key)) this.form[key] = ''
+      }
+    },
     async loadEgressIp() {
       if (this.isStockBroker) return
       try {
@@ -330,6 +353,7 @@ export default {
     onSelectExchange(payload) {
       const selected = payload?.selectedOptions?.[0] || payload?.selectedOption || payload?.[0] || payload
       this.form.exchange_id = selected?.value || ''
+      if (this.isForthright) this.form.environment = 'sandbox'
       if (!this.needsPassphrase) {
         this.form.passphrase = ''
       }
@@ -368,6 +392,10 @@ export default {
         showToast({ message: this.$t('credentials.exchange_required'), type: 'fail' })
         return false
       }
+      if (this.isForthright && (!this.form.app_id.trim() || !this.form.private_key.trim() || !this.form.trade_password)) {
+        showToast({ message: this.$t('broker_mobile.credentialsRequired'), type: 'fail' })
+        return false
+      }
       if (this.isTiger && (!this.form.tiger_id.trim() || !this.form.account_id.trim() || !this.form.private_key.trim())) {
         showToast({ message: this.$t('broker_mobile.credentialsRequired'), type: 'fail' })
         return false
@@ -392,6 +420,7 @@ export default {
     },
 
     credentialPayload() {
+      if (this.isForthright) return { name: this.form.name.trim(), appId: this.form.app_id.trim(), privateKey: this.form.private_key.trim(), tradePassword: this.form.trade_password, currency: this.form.currency, environment: this.form.environment }
       if (this.isTiger) return {
         name: this.form.name.trim(),
         tigerId: this.form.tiger_id.trim(),
@@ -443,9 +472,10 @@ export default {
         if (this.isDirectBroker) await brokerApi.connect(this.form.exchange_id, this.credentialPayload())
         else await credentialsApi.create(this.credentialPayload())
         showToast({ message: this.$t(this.isDirectBroker ? 'broker_mobile.connectSuccess' : 'credentials.saved'), type: 'success' })
+        this.clearCredentialSecrets()
         this.$router.replace('/profile/credentials')
       } catch (error) {
-        console.error('Create credential failed:', error)
+        showToast({ message: this.$t('api_errors.request_failed'), type: 'fail' })
       } finally {
         this.saving = false
       }
@@ -455,6 +485,12 @@ export default {
 </script>
 
 <style scoped>
+.gateway-choice { padding: 12px 16px; }
+.gateway-choice > span { display: block; font-size: 14px; margin-bottom: 10px; }
+.gateway-choice small { display: block; margin-top: 8px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.gateway-segment { display: flex; padding: 4px; gap: 4px; border: 1px solid var(--border); border-radius: 10px; }
+.gateway-segment button { flex: 1; min-height: 40px; border: 0; border-radius: 7px; background: transparent; color: var(--text-secondary); }
+.gateway-segment button.active { background: var(--bg-elevated); color: var(--primary); box-shadow: 0 1px 4px #00000012; }
 .credential-form-page {
   min-height: 100vh;
   padding-bottom: calc(28px + var(--safe-area-bottom, 0px));

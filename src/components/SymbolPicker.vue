@@ -79,6 +79,7 @@
             @click="onMarketTab(m.value)"
           >{{ m.label }}</button>
         </div>
+        <select v-if="searchMarketInner === 'Futures'" class="futures-product-filter" :value="futuresProducts.some(item => item.symbol === keyword) ? keyword : ''" :aria-label="$t('watchlist.market_futures')" @change="chooseFuturesProduct($event.target.value)"><option value="">{{ $t('watchlist.market_futures') }}</option><option v-for="product in futuresProducts" :key="product.symbol" :value="product.symbol">{{ product.symbol }} · {{ product.name }} · {{ product.exchange }}</option></select>
         <van-search
           v-model="keyword"
           :placeholder="$t('watchlist.search_placeholder')"
@@ -88,7 +89,7 @@
         <div v-if="searching" class="loading"><van-loading color="var(--v2-brand)" size="20" /></div>
         <template v-else>
           <div v-if="!keyword" class="hot-wrap">
-            <div class="hot-title">{{ $t('watchlist.hot_title') }}</div>
+            <div class="hot-title">{{ $t(searchMarketInner === 'Futures' ? 'brokerAccounts.forthright.contract' : 'watchlist.hot_title') }}</div>
             <div class="hot-grid">
               <button
                 type="button"
@@ -124,7 +125,7 @@
 
 <script>
 import { showConfirmDialog, showToast } from 'vant'
-import { watchlistApi } from '@/api'
+import { watchlistApi, brokerApi, credentialsApi } from '@/api'
 import { useWatchlistStore } from '@/stores'
 import { isSupportedMarketSymbol } from '@/utils/tradeOrder'
 import { groupWatchlistAssets, watchlistAssetKey, watchlistPayload } from '@/utils/watchlistAssets'
@@ -152,6 +153,9 @@ export default {
       searchResults: [],
       hotList: [],
       searchTimer: null,
+      futuresCatalog: null,
+      futuresProducts: [],
+      searchSequence: 0,
       searchMarketInner: this.defaultMarket || 'Crypto'
     }
   },
@@ -183,6 +187,7 @@ export default {
       if (val) {
         this.mode = 'mine'
         this.keyword = ''
+        this.futuresCatalog = null
         this.searchResults = []
         this.searchMarketInner = this.searchMarket || this.defaultMarket || 'Crypto'
         this.load()
@@ -209,46 +214,61 @@ export default {
       }
     },
     async loadHot() {
-      const market = this.onlyCrypto ? 'Crypto' : (this.defaultMarket || 'Crypto')
-      try {
-        const res = await watchlistApi.getHot({ market, limit: 8 })
-        const items = (res.data || []).filter(isSupportedMarketSymbol)
-        this.hotList = items.length ? items : this.watchlistFallback(market)
-      } catch {
-        this.hotList = this.watchlistFallback(market)
-      }
+      return this.loadHotForMarket(this.onlyCrypto ? 'Crypto' : this.searchMarketInner)
     },
     debouncedSearch(kw) {
       clearTimeout(this.searchTimer)
       if (!kw || kw.trim().length < 1) {
         this.searchResults = []
+        if (this.searchMarketInner === 'Futures') this.loadHotForMarket('Futures')
         return
       }
       this.searchTimer = setTimeout(() => this.doSearch(kw), 300)
     },
     async doSearch(kw) {
+      const sequence = ++this.searchSequence
       const keyword = String(kw || '').trim()
       if (!keyword) {
         this.searchResults = []
+        this.searching = false
         return
       }
       this.searching = true
       try {
         const market = this.onlyCrypto ? 'Crypto' : this.searchMarketInner
+        if (market === 'Futures') {
+          if (!this.futuresCatalog) this.futuresCatalog = this.loadFuturesCatalog()
+          await this.futuresCatalog
+        }
+        if (sequence !== this.searchSequence) return
         const res = await watchlistApi.search({
           market,
           keyword,
           limit: 60
         })
+        if (sequence !== this.searchSequence) return
         const supported = (res.data || []).filter(isSupportedMarketSymbol)
         this.searchResults = groupWatchlistAssets(supported).map(group => group.item)
       } catch {
-        this.searchResults = []
+        this.futuresCatalog = null
+        if (sequence === this.searchSequence) this.searchResults = []
       } finally {
-        this.searching = false
+        if (sequence === this.searchSequence) this.searching = false
       }
     },
+    async loadFuturesCatalog() {
+      const products = await watchlistApi.futuresProducts()
+      this.futuresProducts = products.data || []
+      try {
+      const response = await credentialsApi.list()
+      const account = (response.data || []).find(item => item.exchange_id === 'forthright' && item.account_type === 'futures')
+      if (account) await brokerApi.contracts(account.id)
+      } catch { this.futuresCatalog = null }
+    },
+    chooseFuturesProduct(value) { this.keyword = value; if (value) this.doSearch(value); else this.loadHotForMarket('Futures') },
     onMarketTab(market) {
+      this.searchSequence++
+      this.searching = false
       this.searchMarketInner = market
       if (this.keyword && this.keyword.trim().length > 0) {
         this.doSearch(this.keyword)
@@ -257,13 +277,22 @@ export default {
       }
     },
     async loadHotForMarket(market) {
+      const sequence = ++this.searchSequence
+      this.hotList = []
+      this.searching = true
       try {
-        const res = await watchlistApi.getHot({ market, limit: 8 })
+        if (market === 'Futures') {
+          if (!this.futuresCatalog) this.futuresCatalog = this.loadFuturesCatalog()
+          await this.futuresCatalog
+        }
+        const res = market === 'Futures' ? await watchlistApi.search({ market, keyword: '', limit: 100 }) : await watchlistApi.getHot({ market, limit: 8 })
+        if (sequence !== this.searchSequence) return
         const items = (res.data || []).filter(isSupportedMarketSymbol)
-        this.hotList = items.length ? items : this.watchlistFallback(market)
+        this.hotList = items.length || market === 'Futures' ? items : this.watchlistFallback(market)
       } catch {
-        this.hotList = this.watchlistFallback(market)
-      }
+        this.futuresCatalog = null
+        if (sequence === this.searchSequence) this.hotList = market === 'Futures' ? [] : this.watchlistFallback(market)
+      } finally { if (sequence === this.searchSequence) this.searching = false }
     },
     async chooseResult(item) {
       if (!isSupportedMarketSymbol(item)) return
@@ -534,4 +563,8 @@ export default {
 .hot-item.selected .van-icon { color: var(--v2-brand-strong); }
 .empty-block :deep(.van-empty__description) { color: var(--v2-muted); }
 .empty-block :deep(.van-button--primary) { border-color: var(--v2-brand); background: var(--v2-brand); color: var(--v2-on-brand); }
+</style>
+
+<style scoped>
+.futures-product-filter{box-sizing:border-box;width:calc(100% - 32px);margin:8px 16px;padding:12px;min-height:44px;border:1px solid var(--v2-line);border-radius:8px;color:var(--v2-text);background:var(--v2-surface);font-size:13px}
 </style>

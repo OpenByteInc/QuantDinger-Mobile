@@ -189,6 +189,7 @@ export default {
     },
 
     credentialEnvironmentLabel(item) {
+      if (item?.exchange_id === 'forthright') return this.$t('brokerAccounts.forthright.' + (item.environment || 'sandbox'))
       if (item?.exchange_id === 'alpaca') return this.$t(/paper/i.test(item.api_key_hint || '') ? 'audit.paperMode' : 'credentials.environment_live')
       const environment = String(item?.environment || (item?.enable_demo_trading ? 'demo' : 'live')).toLowerCase()
       if (environment === 'paper') return this.$t('broker_mobile.paper')
@@ -199,6 +200,7 @@ export default {
     },
 
     credentialScopeLabel(item) {
+      if (item?.exchange_id === 'forthright') return this.$t(item.account_type === 'futures' ? 'brokerAccounts.forthright.futures' : 'brokerAccounts.forthright.securities')
       if (isStockBroker(item?.exchange_id)) return this.$t(item?.exchange_id === 'tiger' ? 'broker_mobile.stockMarket' : 'account_ui.usStocks')
       const scope = String(item?.market_scope || 'both').toLowerCase()
       if (scope === 'spot') return this.$t('credentials.market_scope_spot')

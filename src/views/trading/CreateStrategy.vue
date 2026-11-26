@@ -594,6 +594,7 @@ export default {
       return this.credentialsStore.items.filter(item => {
         const exchange = String(item.exchange_id || '').toLowerCase()
         const marketCategory = String(this.marketCategory || '')
+        if (exchange === 'forthright') return ['USStock', 'HKStock'].includes(marketCategory) && item.account_type === 'securities'
         if (marketCategory === 'Crypto') return LIVE_CRYPTO_EXCHANGES.has(exchange)
         if (marketCategory === 'USStock') return ['alpaca', 'ibkr', 'tiger', 'webull'].includes(exchange)
         if (marketCategory === 'HKStock') return exchange === 'tiger'
@@ -701,6 +702,9 @@ export default {
       return this.supportsLeverage ? PLATFORM_MAX_LEVERAGE : 1
     },
     capitalCurrency() {
+      if (this.marketCategory === 'Futures' && this.form.executionMode === 'live') {
+        return this.credentials.find(item => String(item.id) === String(this.form.credentialId))?.currency || ''
+      }
       const universe = this.parseObject(this.manifest?.universe)
       if (universe.reference) {
         return {
@@ -754,6 +758,7 @@ export default {
       return (capital * (1 + ratio)).toLocaleString(undefined, { maximumFractionDigits: 2 })
     },
     requiresDirectionMode() {
+      if (this.marketCategory === 'Futures') return true
       return this.marketCategory === 'Crypto' && this.instruments.length > 0 && this.instruments.every(item => (
         String(item.market_type || '').toLowerCase() === 'swap'
       ))
@@ -777,7 +782,7 @@ export default {
       return String(this.credentials.find(item => item.id === this.form.credentialId)?.exchange_id || '').toLowerCase()
     },
     requiresHedgeAccount() {
-      return this.requiresDirectionMode && ['both', 'neutral'].includes(this.effectiveDirectionMode)
+      return this.marketCategory === 'Crypto' && this.requiresDirectionMode && ['both', 'neutral'].includes(this.effectiveDirectionMode)
     },
     hedgeModeHint() {
       const exchange = this.selectedCredentialExchange
@@ -1218,6 +1223,7 @@ export default {
       this.runtimeDraft = { ...this.runtimeDraft, [field]: value }
       if (
         field === 'market_type' &&
+        this.runtimeDraft.market_category === 'Crypto' &&
         String(value || '').toLowerCase() === 'spot' &&
         Object.prototype.hasOwnProperty.call(this.params, 'allow_short')
       ) this.params.allow_short = false

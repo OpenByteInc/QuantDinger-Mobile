@@ -1,3 +1,4 @@
+import forthrightMessages from './forthright'
 import { createI18n } from 'vue-i18n'
 import zhCN from './zh-CN'
 import zhTW from './zh-TW'
@@ -75,7 +76,7 @@ const withExchangeAccountErrors = (base, locale) => mergeLocale(
 )
 
 const buildLocale = (base, locale) => {
-  let result = withExchangeAccountErrors(base, locale)
+  let result = mergeLocale(withExchangeAccountErrors(base, locale), expandKeys(forthrightMessages[locale]))
   result = mergeLocale(result, {
     professional_report: professionalReport[locale],
     broker_mobile: brokerMobile[locale],
