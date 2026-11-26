@@ -96,7 +96,7 @@
         </div>
         <van-field v-model="form.app_id" label-align="top" :label="$t('brokerAccounts.forthright.appId')" />
         <van-field v-model="form.private_key" label-align="top" type="textarea" autosize autocomplete="new-password" :label="$t('brokerAccounts.forthright.privateKey')" />
-        <van-field v-model="form.trade_password" label-align="top" type="password" autocomplete="new-password" :label="$t('brokerAccounts.forthright.tradePassword')" />
+        <van-field v-model="form.trade_password" label-align="top" type="password" autocomplete="new-password" :label="$t('brokerAccounts.forthright.tradingCredentialLabel')" />
         <p class="section-note">{{ $t('brokerAccounts.forthright.currencyHint') }}</p><van-field label-align="top" :label="$t('brokerAccounts.forthright.currency')"><template #input><van-radio-group v-model="form.currency" direction="horizontal"><van-radio v-for="currency in ['USD','HKD']" :key="currency" :name="currency">{{ currency }}</van-radio></van-radio-group></template></van-field>
       </template>
       <template v-else-if="isTiger">

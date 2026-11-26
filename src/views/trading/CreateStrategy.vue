@@ -465,6 +465,7 @@
 </template>
 
 <script>
+import { defineComponent } from 'vue'
 import { contractChanged } from '@/utils/strategyDisplay'
 import SymbolPicker from '@/components/SymbolPicker.vue'
 import { showToast } from 'vant'
@@ -536,7 +537,7 @@ const directionModePositionSide = (value) => {
   return ''
 }
 
-export default {
+export default defineComponent({
   name: 'CreateStrategy',
   components: { SymbolPicker },
   data() {
@@ -1568,7 +1569,7 @@ export default {
       }
     }
   }
-}
+})
 </script>
 
 <style scoped>

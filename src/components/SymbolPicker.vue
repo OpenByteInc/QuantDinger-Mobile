@@ -190,7 +190,7 @@ export default {
         this.futuresCatalog = null
         this.searchResults = []
         this.searchMarketInner = this.searchMarket || this.defaultMarket || 'Crypto'
-        this.load()
+        return this.load()
       }
     }
   },
@@ -208,7 +208,9 @@ export default {
       try {
         const res = await watchlistApi.getList()
         this.watchlistStore.setItems(res.data || [])
-        this.loadHot()
+        await this.loadHot()
+      } catch (error) {
+        showToast({ message: error?.localizedMessage || this.$t('common.failed'), type: 'fail' })
       } finally {
         this.loading = false
       }
@@ -265,7 +267,7 @@ export default {
       if (account) await brokerApi.contracts(account.id)
       } catch { this.futuresCatalog = null }
     },
-    chooseFuturesProduct(value) { this.keyword = value; if (value) this.doSearch(value); else this.loadHotForMarket('Futures') },
+    chooseFuturesProduct(value) { this.keyword = value; return value ? this.doSearch(value) : this.loadHotForMarket('Futures') },
     onMarketTab(market) {
       this.searchSequence++
       this.searching = false

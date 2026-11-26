@@ -19,7 +19,7 @@ import { brokerApi } from '@/api'
 const props = defineProps({ credentialId: { type: Number, required: true } })
 const { t } = useI18n()
 const code = ref(''), message = ref(''), busy = ref(false), phase = ref('idle')
-watch(() => props.credentialId, () => { code.value = ''; message.value = ''; phase.value = 'idle'; restore() }, { immediate: true })
+watch(() => props.credentialId, () => { code.value = ''; message.value = ''; phase.value = 'idle'; return restore() }, { immediate: true })
 async function restore() {
   const selectedId = props.credentialId
   busy.value = true
