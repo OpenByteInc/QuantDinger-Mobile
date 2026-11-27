@@ -703,7 +703,8 @@ export default defineComponent({
       return this.supportsLeverage ? PLATFORM_MAX_LEVERAGE : 1
     },
     capitalCurrency() {
-      if (this.marketCategory === 'Futures' && this.form.executionMode === 'live') {
+      const market = String(this.marketCategory || '')
+      if (market === 'Futures' && this.form.executionMode === 'live') {
         return this.credentials.find(item => String(item.id) === String(this.form.credentialId))?.currency || ''
       }
       const universe = this.parseObject(this.manifest?.universe)
@@ -714,7 +715,7 @@ export default defineComponent({
           CNStock: 'CNY',
           ChinaStock: 'CNY',
           AStock: 'CNY'
-        }[this.marketCategory] || ''
+        }[market] || ''
       }
       const currencies = new Set(this.instruments.map(item => {
         if (item.market === 'USStock') return 'USD'
@@ -759,8 +760,9 @@ export default defineComponent({
       return (capital * (1 + ratio)).toLocaleString(undefined, { maximumFractionDigits: 2 })
     },
     requiresDirectionMode() {
-      if (this.marketCategory === 'Futures') return true
-      return this.marketCategory === 'Crypto' && this.instruments.length > 0 && this.instruments.every(item => (
+      const market = String(this.marketCategory || '')
+      if (market === 'Futures') return true
+      return market === 'Crypto' && this.instruments.length > 0 && this.instruments.every(item => (
         String(item.market_type || '').toLowerCase() === 'swap'
       ))
     },
@@ -783,7 +785,8 @@ export default defineComponent({
       return String(this.credentials.find(item => item.id === this.form.credentialId)?.exchange_id || '').toLowerCase()
     },
     requiresHedgeAccount() {
-      return this.marketCategory === 'Crypto' && this.requiresDirectionMode && ['both', 'neutral'].includes(this.effectiveDirectionMode)
+      const market = String(this.marketCategory || '')
+      return market === 'Crypto' && this.requiresDirectionMode && ['both', 'neutral'].includes(this.effectiveDirectionMode)
     },
     hedgeModeHint() {
       const exchange = this.selectedCredentialExchange

@@ -247,9 +247,9 @@ export default {
       } catch (error) { this.error = forthrightErrorMessage(error, this.$t.bind(this)) } finally { this.busy = false }
     },
     async refreshAfterBusy() { this.busy = false; await this.refresh(); this.busy = true },
-    amount(value) { const number = value == null || value === '' ? NaN : Number(value); return Number.isFinite(number) ? number.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—' },
+    amount(value) { const number = value == null || value === '' ? Number.NaN : Number(value); return Number.isFinite(number) ? number.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—' },
     price(value) { const number = Number(value); return Number.isFinite(number) && number !== 0 ? number.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '—' },
-    quantity(value) { const number = value == null || value === '' ? NaN : Number(value); return Number.isFinite(number) ? number.toLocaleString(undefined, { maximumFractionDigits: 8 }) : '—' },
+    quantity(value) { const number = value == null || value === '' ? Number.NaN : Number(value); return Number.isFinite(number) ? number.toLocaleString(undefined, { maximumFractionDigits: 8 }) : '—' },
     tone(row) { const value = this.tab === 'positions' ? Number(row.unrealized_pnl || 0) : String(row.side || '').toLowerCase() === 'sell' ? -1 : 1; return value > 0 ? 'positive' : value < 0 ? 'negative' : '' },
     rowLabel(row) { if (this.tab === 'positions') return `${this.amount(row.unrealized_pnl)} ${row.currency || this.currency}`; const key = `account_ui.status.${String(row.status || 'new').toLowerCase()}`; return this.$te(key) ? this.$t(key) : row.status || '—' }
   }

@@ -220,9 +220,11 @@ export default {
     },
     debouncedSearch(kw) {
       clearTimeout(this.searchTimer)
+      this.searchSequence++
+      this.searching = false
       if (!kw || kw.trim().length < 1) {
         this.searchResults = []
-        if (this.searchMarketInner === 'Futures') this.loadHotForMarket('Futures')
+        if (this.searchMarketInner === 'Futures') return this.loadHotForMarket('Futures')
         return
       }
       this.searchTimer = setTimeout(() => this.doSearch(kw), 300)
@@ -269,13 +271,14 @@ export default {
     },
     chooseFuturesProduct(value) { this.keyword = value; return value ? this.doSearch(value) : this.loadHotForMarket('Futures') },
     onMarketTab(market) {
+      clearTimeout(this.searchTimer)
       this.searchSequence++
       this.searching = false
       this.searchMarketInner = market
       if (this.keyword && this.keyword.trim().length > 0) {
-        this.doSearch(this.keyword)
+        return this.doSearch(this.keyword)
       } else {
-        this.loadHotForMarket(market)
+        return this.loadHotForMarket(market)
       }
     },
     async loadHotForMarket(market) {
