@@ -33,7 +33,7 @@
 
         <div v-if="isCurrentReport(item)" class="meta">
           <span class="confidence">{{ $t('ai_analysis.confidence') }}: {{ formatConfidence(item.confidence) }}%</span>
-          <span v-if="item.price" class="price">${{ formatNumber(item.price) }}</span>
+          <span v-if="item.price" class="price">${{ formatNumber(item.price, item.market, item.symbol) }}</span>
         </div>
 
         <div v-if="item.summary" class="summary">{{ truncatedSummary(item.summary) }}</div>
@@ -64,6 +64,7 @@ import { showConfirmDialog, showToast } from 'vant'
 import { aiAnalysisApi } from '@/api'
 import { useAiAnalysisStore } from '@/stores'
 import { buildHistoryResultPayload } from '@/utils/aiAnalysisHistory'
+import { formatFuturesPrice } from '@/utils/futuresPricePrecision'
 
 const MARKET_COLORS = {
   Crypto: '#722ed1',
@@ -188,9 +189,11 @@ export default {
       if (num <= 1) return (num * 100).toFixed(0)
       return num.toFixed(0)
     },
-    formatNumber(value) {
+    formatNumber(value, market, symbol) {
       const num = Number(value || 0)
       if (!Number.isFinite(num) || num === 0) return '0'
+      const futuresPrice = formatFuturesPrice(value, market, symbol, this.$i18n.locale)
+      if (futuresPrice !== null) return futuresPrice
       if (num >= 1000) return num.toLocaleString('en-US', { maximumFractionDigits: 2 })
       return num.toFixed(num < 1 ? 6 : 4)
     },

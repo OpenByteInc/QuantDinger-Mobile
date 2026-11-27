@@ -12,7 +12,7 @@
     <div class="timeframes"><button v-for="time in timeframes" :key="time" :class="{active:form.timeframe===time}" @click="form.timeframe=time;loadChart()">{{ time }}</button></div>
     <div class="indicator-select"><button class="indicator-button" @click="indicatorSheetOpen=true"><span>{{ selectedIndicator?.name || t('indicator_chart.choose_indicator') }}</span><van-icon name="arrow-down"/></button><button class="chart-type-button" @click="chartTypeSheetOpen=true"><van-icon name="bar-chart-o"/><span>{{ selectedChartTypeLabel }}</span></button><button v-if="parameters.length" class="parameter-button" @click="paramsOpen=true"><van-icon name="setting-o"/><b>{{ parameters.length }}</b></button></div>
     <div class="chart-area" :class="{'futures-empty':form.market==='Futures'&&!chartData?.candles?.length&&!expanded}">
-      <MarketChart ref="marketChart" :data="chartData" :main="mainIndicator" :lower="lowerIndicator" :chart-type="chartType" :expanded="expanded"/>
+      <MarketChart ref="marketChart" :data="chartData" :market="form.market" :symbol="form.symbol" :main="mainIndicator" :lower="lowerIndicator" :chart-type="chartType" :expanded="expanded"/>
       <div v-if="loading&&!chartData?.candles?.length" class="chart-placeholder"><van-skeleton title :row="8"/></div>
       <div v-else-if="error" class="chart-state"><p>{{ error }}</p><van-button size="small" @click="loadChart()">{{ t('common.retry') }}</van-button></div>
       <div v-else-if="!chartData?.candles?.length" class="chart-state"><p>{{ t('audit.noData') }}</p></div>
@@ -52,9 +52,10 @@ import ExchangeKlineWs from '@/utils/exchangeWs'
 import { toCandles } from '@/utils/chartData'
 import { mergeStreamBar, streamIsFresh } from '@/utils/chartStream'
 import { PRICE_CHART_TYPES, normalizePriceChartType } from '@/utils/priceChartTypes'
+import { formatFuturesPrice } from '@/utils/futuresPricePrecision'
 import { useQuickTradeStore } from '@/stores'
 defineOptions({name:'IndicatorChart'})
-const {t,te}=useI18n();const route=useRoute();const router=useRouter()
+const {t,te,locale}=useI18n();const route=useRoute();const router=useRouter()
 const quickTradeStore=useQuickTradeStore()
 const CHART_SNAPSHOT_KEY='quantdinger.mobile.chartSnapshots.v1'
 const CHART_SNAPSHOT_TTL=30*60*1000
@@ -100,7 +101,7 @@ const selectedIndicator=computed(()=>indicators.value.find(x=>Number(x.id)===for
 const filteredIndicators=computed(()=>{const keyword=indicatorQuery.value.trim().toLowerCase();if(!keyword)return indicators.value;return indicators.value.filter(item=>`${item.name||''} ${item.description||''}`.toLowerCase().includes(keyword))})
 const latestPrice=computed(()=>{const value=chartData.value?.candles?.at(-1)?.close;return value==null?null:Number(value)})
 const change=computed(()=>{const open=Number(chartData.value?.candles?.at(-1)?.open);return open&&latestPrice.value!==null?(latestPrice.value-open)/open*100:null})
-const price=value=>value==null?'—':Number(value).toLocaleString(undefined,{maximumFractionDigits:Number(value)>=100?2:6})
+const price=value=>value==null?'—':formatFuturesPrice(value,form.market,form.symbol,locale.value)??Number(value).toLocaleString(undefined,{maximumFractionDigits:Number(value)>=100?2:6})
 const isNumeric=p=>['int','integer','float','number'].includes(p.type)
 const parameterLabel=p=>p.label_key&&te(p.label_key)?t(p.label_key):p.label||p.name
 const parameterOptions=p=>{

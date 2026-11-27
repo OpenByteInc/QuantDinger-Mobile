@@ -425,6 +425,7 @@ import SymbolPicker from '@/components/SymbolPicker.vue'
 import QuantCat from '@/components/QuantCat.vue'
 import ResearchChart from '@/components/ResearchChart.vue'
 import { renderMobileMarkdown } from '@/utils/mobileMarkdown.mjs'
+import { formatFuturesPrice } from '@/utils/futuresPricePrecision'
 import {
   professionalReportArtifact,
   professionalReportEnvelope,
@@ -568,6 +569,8 @@ export default {
     formatMarketPrice(value) {
       const number = Number(value)
       if (!Number.isFinite(number)) return '--'
+      const futuresPrice = formatFuturesPrice(value, this.context.market, this.context.symbol, this.$i18n.locale)
+      if (futuresPrice !== null) return futuresPrice
       const digits = Math.abs(number) < 1 ? 6 : 2
       return number.toLocaleString(undefined, { maximumFractionDigits: digits })
     },

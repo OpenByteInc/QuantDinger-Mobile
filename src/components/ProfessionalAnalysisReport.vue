@@ -249,6 +249,7 @@
 </template>
 
 <script>
+import { formatFuturesPrice } from '@/utils/futuresPricePrecision'
 import {
   evidenceProviderTokens,
   formatEvidenceObservation,
@@ -409,6 +410,8 @@ export default {
     formatPrice(value) {
       const number = Number(value)
       if (!Number.isFinite(number)) return '--'
+      const futuresPrice = formatFuturesPrice(value, this.instrument.market, this.instrument.symbol || this.instrument.canonical_symbol, this.$i18n.locale)
+      if (futuresPrice !== null) return futuresPrice
       if (Math.abs(number) < 1) return number.toFixed(6)
       return number.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })
     },

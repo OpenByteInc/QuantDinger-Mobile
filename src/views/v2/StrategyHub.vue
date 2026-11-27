@@ -92,7 +92,7 @@
             <div class="watchlist-labels" aria-hidden="true"><span>{{ t('v2.strategy.watchlistAsset') }}</span><span>{{ t('v2.strategy.watchlistPrice') }}</span><span>{{ t('v2.strategy.watchlistChange') }}</span></div>
             <button v-for="item in watchlistRows" :key="watchKey(item)" type="button" class="watchlist-row" @click="openQuote(item)">
               <span class="watch-identity"><b>{{ displaySymbol(item.symbol) }}</b><small>{{ watchMarketLabel(item) }}</small></span>
-              <strong class="watch-price">{{ formatPrice(item.price) }}</strong><strong :class="['watch-change', quoteTone(item.changePercent)]">{{ formatQuoteChange(item.changePercent) }}</strong><van-icon name="arrow" />
+              <strong class="watch-price">{{ formatPrice(item.price, item.market, item.symbol) }}</strong><strong :class="['watch-change', quoteTone(item.changePercent)]">{{ formatQuoteChange(item.changePercent) }}</strong><van-icon name="arrow" />
             </button>
           </div>
           <div v-if="watchlistPageCount > 1" class="watchlist-pagination">
@@ -116,6 +116,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { globalMarketApi, marketApi, strategyApi, watchlistApi } from '@/api'
 import { rankStrategies } from '@/utils/strategyDisplay'
+import { formatFuturesPrice } from '@/utils/futuresPricePrecision'
 import { ASSET_TYPES, buildCreateRouteFromMarketAsset } from '@/utils/marketRoutes'
 import SymbolPicker from '@/components/SymbolPicker.vue'
 
@@ -364,9 +365,11 @@ function watchMarketLabel(item) {
   const context = rawMarket === 'Crypto' ? [item?.exchange_id, item?.market_type] : [item?.exchange_id]
   return [market, ...context].filter(Boolean).join(' · ') || t('v2.strategy.marketUnknown')
 }
-function formatPrice(value) {
+function formatPrice(value, market, symbol) {
   const number = Number(value)
   if (!Number.isFinite(number) || number <= 0) return '—'
+  const futuresPrice = formatFuturesPrice(value, market, symbol, locale.value)
+  if (futuresPrice !== null) return futuresPrice
   const decimals = number >= 1000 ? 2 : number >= 1 ? 4 : 6
   return new Intl.NumberFormat(locale.value, { maximumFractionDigits: decimals }).format(number)
 }

@@ -76,7 +76,7 @@ function orderType(value){return ['market','limit'].includes(value)?t('chart_tra
 function recordFields(row){
   const currency=brokerRowCurrency(row,credential.value?.exchange_id)
   const money=value=>isStockBroker.value?(value==null||!currency?'—':`${price(value)} ${currency}`):price(value)
-  const quote=value=>row.market==='Futures'?price(value):money(value)
+  const quote=value=>row.market==='Futures'?accountPrice(value,locale.value,row.market,row.symbol):money(value)
   if(activeTab.value==='positions')return [
     {key:'quantity',value:number(row.quantity??row.size,8)}, {key:'entry',value:quote(row.avg_entry_price??row.entry_price)},
     ...(isStockBroker.value?[{key:'current',value:quote(row.current_price)},{key:'value',value:money(row.market_value)},{key:'pnl',value:money(row.unrealized_pnl)}]:[])

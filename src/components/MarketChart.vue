@@ -26,8 +26,9 @@ import { toCandles, signalPoints, toTimestamp } from '@/utils/chartData'
 import { assignIndicatorSignalLanes, normalizeIndicatorLabelAnchor, normalizeIndicatorLabelFontSize, normalizeIndicatorOutput, resolveIndicatorLabelTextColor, resolveIndicatorPlotTitle } from '@/utils/indicatorOutputProtocol'
 import { captureChartViewport, restoreChartViewport } from '@/utils/chartViewport'
 import { buildPriceChartData, klineCandleType, normalizePriceChartType, usesDerivedPriceBars } from '@/utils/priceChartTypes'
+import { futuresPriceDecimals } from '@/utils/futuresPricePrecision'
 import { useSettingsStore } from '@/stores'
-const props=defineProps({data:{type:Object,default:null},main:{type:String,default:'EMA'},lower:{type:String,default:''},chartType:{type:String,default:'candle_solid'},expanded:Boolean})
+const props=defineProps({data:{type:Object,default:null},market:{type:String,default:''},symbol:{type:String,default:''},main:{type:String,default:'EMA'},lower:{type:String,default:''},chartType:{type:String,default:'candle_solid'},expanded:Boolean})
 const {locale}=useI18n();const settingsStore=useSettingsStore();const container=ref(null);const theme=computed(()=>settingsStore.theme)
 const renderer=createPlotRenderer(theme);let chart;let observer;let overlays=[];let customPanes=[];let renderVersion=0;let priceFrame=0
 const normalizedOutput=computed(()=>normalizeIndicatorOutput(props.data,toCandles(props.data?.candles||[])))
@@ -59,6 +60,7 @@ registerOverlay({name:'mobileLine',totalStep:2,needDefaultPointFigure:false,need
 function applyTheme(){if(!chart)return;const light=theme.value==='light',lineOnly=normalizePriceChartType(props.chartType)==='line';chart.setStyles(light?'light':'dark');chart.setStyles({candle:{type:klineCandleType(props.chartType),tooltip:{showRule:'follow_cross',showType:'rect'},bar:{upColor:'#0e603f',downColor:'#8b2437',upBorderColor:'#0e603f',downBorderColor:'#8b2437',upWickColor:'#0e603f',downWickColor:'#8b2437'},area:{lineSize:2,lineColor:light?'#0e603f':'#7cb99b',value:'close',smooth:false,backgroundColor:lineOnly?'rgba(14,96,63,0)':[ {offset:0,color:light?'rgba(14,96,63,.16)':'rgba(124,185,155,.2)'},{offset:1,color:'rgba(14,96,63,.01)'}],point:{show:false,animation:false,animationDuration:0}}},indicator:{bars:[{upColor:'#0e603f',downColor:'#8b2437',noChangeColor:'#8b8479'}]},grid:{horizontal:{color:light?'#e7ded0':'#2b302d'},vertical:{color:light?'#e7ded0':'#2b302d'}}});chart.setLocale(locale.value.startsWith('zh')?'zh-CN':'en-US')}
 function render(){
  if(!chart)return
+ chart.setPriceVolumePrecision(futuresPriceDecimals(props.market,props.symbol)??2,chart.getPriceVolumePrecision().volume)
  renderVersion++
  for(const {pane,name} of customPanes)chart.removeIndicator(pane,name)
  customPanes=[];for(const id of overlays)if(id)chart.removeOverlay(id);overlays=[]
@@ -110,7 +112,7 @@ function refreshPriceData(){
 }
 onMounted(()=>{chart=init(container.value);applyTheme();chart.setBarSpace(7);chart.setOffsetRightDistance(24);observer=new ResizeObserver(()=>chart?.resize());observer.observe(container.value);render()})
 onActivated(resize)
-watch(()=>[props.data,props.main,props.lower],render,{flush:'post'});watch(()=>props.chartType,()=>{applyTheme();render()});watch(()=>[theme.value,locale.value],()=>{applyTheme();render()});watch(height,()=>nextTick(()=>chart?.resize()))
+watch(()=>[props.data,props.market,props.symbol,props.main,props.lower],render,{flush:'post'});watch(()=>props.chartType,()=>{applyTheme();render()});watch(()=>[theme.value,locale.value],()=>{applyTheme();render()});watch(height,()=>nextTick(()=>chart?.resize()))
 onBeforeUnmount(()=>{observer?.disconnect();if(priceFrame)cancelAnimationFrame(priceFrame);priceFrame=0;if(chart)dispose(chart);chart=null})
 function updateBar(bar){if(!chart)return;if(usesDerivedPriceBars(props.chartType))refreshPriceData();else chart.updateData(bar)}
 defineExpose({updateBar,resize})

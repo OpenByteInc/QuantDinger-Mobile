@@ -1,3 +1,5 @@
+import { formatFuturesPrice } from './futuresPricePrecision.js'
+
 export function accountNumber(value, digits = 6, locale = 'en-US') {
   if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return '—'
   return Number(value).toLocaleString(locale, {maximumFractionDigits: digits})
@@ -12,4 +14,7 @@ export function snapshotIssue(data) {
   return [...new Set([data?.error, ...warnings].filter(Boolean))].map(String)
 }
 
-export function accountPrice(value,locale='en-US') { return Number(value)>0?accountNumber(value,6,locale):'—' }
+export function accountPrice(value, locale = 'en-US', market = '', symbol = '') {
+  if (!(Number(value) > 0)) return '—'
+  return formatFuturesPrice(value, market, symbol, locale) ?? accountNumber(value, 6, locale)
+}
