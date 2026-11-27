@@ -6,6 +6,29 @@ import {stockSymbolsMatch,stockFillRows} from '../../src/utils/stockRecords.js'
 import {validateAlpacaOrder} from '../../src/utils/alpacaOrder.js'
 import {watchlistAssetKey} from '../../src/utils/watchlistAssets.js'
 
+test('mobile fills preserve allocated fees, currency and pending evidence', () => {
+  const rows = stockFillRows([
+    { filled_qty: 100, commission: 65.48, commission_ccy: 'HKD', fee_status: 'actual' },
+    { filled_qty: 1, fee_amount: 0, fee_currency: 'USD', fee_status: 'actual_zero' },
+    { filled_qty: 20, fee_status: 'pending' }
+  ])
+  assert.equal(rows[0].fee_amount, 65.48)
+  assert.equal(rows[0].fee_currency, 'HKD')
+  assert.equal(rows[1].fee_amount, 0)
+  assert.equal(rows[1].fee_status, 'actual_zero')
+  assert.equal(rows[2].fee_amount, undefined)
+})
+
+test('mobile strategy fees do not present pending fees as zero', () => {
+  const source = readFileSync(new URL('../../src/views/trading/StrategyDetail.vue', import.meta.url), 'utf8')
+  const method = source.match(/tradeFeeText\(item\) \{([\s\S]*?)\n    \}/)[1]
+  const format = new Function('item', method)
+  const context = { currency: 'HKD', finite: v => v == null ? null : Number(v), money: v => Number(v).toFixed(2) }
+  assert.equal(format.call(context, { commission_quote: 65.48, fee_status: 'actual' }), '65.48 HKD')
+  assert.equal(format.call(context, { commission: 0, fee_status: 'pending' }), '—')
+  assert.equal(format.call(context, { commission: 0, fee_status: 'actual_zero' }), '0.00 HKD')
+})
+
 test('HK-prefixed saved selections match fills and canonical search results', () => {
   assert.ok(stockSymbolsMatch('HK07709', '07709.HK', 'HKStock', 'forthright'))
   assert.ok(!stockSymbolsMatch('HK07709', '07709.HK', 'USStock', 'alpaca'))
