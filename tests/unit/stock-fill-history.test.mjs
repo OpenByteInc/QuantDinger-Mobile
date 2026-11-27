@@ -4,6 +4,14 @@ import {readFileSync} from 'node:fs'
 import {computed,reactive,ref} from 'vue'
 import {stockSymbolsMatch,stockFillRows} from '../../src/utils/stockRecords.js'
 import {validateAlpacaOrder} from '../../src/utils/alpacaOrder.js'
+import {watchlistAssetKey} from '../../src/utils/watchlistAssets.js'
+
+test('HK-prefixed saved selections match fills and canonical search results', () => {
+  assert.ok(stockSymbolsMatch('HK07709', '07709.HK', 'HKStock', 'forthright'))
+  assert.ok(!stockSymbolsMatch('HK07709', '07709.HK', 'USStock', 'alpaca'))
+  assert.equal(watchlistAssetKey({asset_id:1,market:'HKStock',symbol:'HK07709'}),
+    watchlistAssetKey({asset_id:2,market:'HKStock',symbol:'07709'}))
+})
 
 const script=readFileSync(new URL('../../src/components/AlpacaTradePanel.vue',import.meta.url),'utf8')
   .split('<script setup>')[1].split('</script>')[0].replace(/^import .*$/gm,'')
