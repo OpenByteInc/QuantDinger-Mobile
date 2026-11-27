@@ -60,14 +60,14 @@
             <div><dt>{{ $t('profile_detail.pnl') }}</dt><dd>{{ amount(row.unrealized_pnl) }} {{ row.currency || currency }}</dd></div>
           </dl>
           <dl v-else>
-            <div><dt>{{ $t('profile_detail.orderType') }}</dt><dd>{{ orderTypeLabel(row.order_type) }}</dd></div>
+            <div v-if="tab==='orders'"><dt>{{ $t('profile_detail.orderType') }}</dt><dd>{{ orderTypeLabel(row.order_type) }}</dd></div>
             <div><dt>{{ $t('profile_detail.quantity') }}</dt><dd>{{ quantity(row.quantity) }}</dd></div>
-            <div><dt>{{ $t('profile_detail.filled') }}</dt><dd>{{ quantity(row.filled_qty) }}</dd></div>
-            <div><dt>{{ $t('profile_detail.price') }}</dt><dd>{{ price(row.limit_price || row.price || row.filled_avg_price) }} {{ row.currency || currency }}</dd></div>
+            <div v-if="tab==='orders'"><dt>{{ $t('profile_detail.filled') }}</dt><dd>{{ quantity(row.filled_qty) }}</dd></div>
+            <div><dt>{{ $t(tab==='history' ? 'chart_trade.fill_price' : 'profile_detail.price') }}</dt><dd>{{ price(tab==='history' ? row.filled_avg_price : row.limit_price || row.price || row.filled_avg_price) }} {{ row.currency || currency }}</dd></div>
             <div v-if="selectedCredential?.exchange_id === 'forthright'"><dt>{{ $t('chart_trade.fee') }}</dt><dd>{{ amount(row.fee_amount) }} {{ row.fee_currency || row.currency || currency }}</dd></div>
           </dl>
           <button v-if="tab==='positions' && Number(row.quantity)>0" class="cancel" :disabled="busy" @click="prepareSell(row)">{{ $t('chart_trade.sell') }}</button>
-          <button v-if="tab!=='positions' && canCancel(row)" class="cancel" :disabled="busy" @click="cancel(row)">{{ $t('audit.cancelOrder') }}</button>
+          <button v-if="tab==='orders' && canCancel(row)" class="cancel" :disabled="busy" @click="cancel(row)">{{ $t('audit.cancelOrder') }}</button>
         </article>
         <van-empty v-if="!visibleRows.length" :description="$t('profile_detail.empty')" />
       </div>
@@ -97,6 +97,7 @@
 </template>
 
 <script>
+import { stockSymbolsMatch, stockFillRows } from '@/utils/stockRecords'
 import { forthrightErrorMessage, forthrightStockOrderIssue } from '@/utils/forthright'
 import { buildStockOrder, validateStockOrder, stockQuantityPrecision, STOCK_OPEN_STATUSES } from '@/utils/stockOrder'
 import '@/styles/order-review.css'
@@ -165,14 +166,15 @@ export default {
       if (this.busy) return
       this.tab = 'history'; this.busy = true
       const context = this.tradeContext
-      try { const result = await this.request('orders', {status:'all', limit:100}); if (context === this.tradeContext) this.history = Array.isArray(result.data) ? result.data : [] } catch (error) { if (context === this.tradeContext) this.error = forthrightErrorMessage(error, this.$t.bind(this)) } finally { this.busy = false; if (context !== this.tradeContext) await this.refresh() }
+      this.history = []; this.error = ''
+      try { const result = await this.request('fills', {symbol:this.displaySymbol, limit:100}); if (!this.disposed && context === this.tradeContext) this.history = stockFillRows(result.data) } catch (error) { if (!this.disposed && context === this.tradeContext) this.error = forthrightErrorMessage(error, this.$t.bind(this)) } finally { this.busy = false; if (!this.disposed && context !== this.tradeContext) await this.refresh() }
     },
     orderIssue(side) {
       if (this.selectedCredential?.exchange_id !== 'forthright') return ''
       return forthrightStockOrderIssue({account: this.account, market: this.market, quantity: this.form.quantity, orderType: this.form.orderType, price: this.form.price, referencePrice: this.chartPrice, side})
     },
     applyRequestedAccount(items) { const requested = items.find(item => String(item.id) === String(this.$route.query.credential_id)); const sameBroker = items.find(item => item.exchange_id === this.$route.query.exchange_id); this.selectedCredentialId = (requested || sameBroker || items[0])?.id || null },
-    matchesSymbol(row) { const normalize = value => String(value || '').toUpperCase().replace(/^(?:USSTOCK|HKSTOCK|HK):/, '').replace(/\.(?:US|HK)$/, '').replace(/^0+(?=\d)/, ''); return normalize(row.symbol) === normalize(this.symbol) && (!['us', 'usstock', 'hk', 'hkstock', 'futures'].includes(String(row.market || '').toLowerCase()) || ({ us: 'USStock', usstock: 'USStock', hk: 'HKStock', hkstock: 'HKStock', futures: 'Futures' })[String(row.market).toLowerCase()] === this.market) },
+    matchesSymbol(row) { return stockSymbolsMatch(row.symbol, this.symbol, this.market, this.selectedCredential?.exchange_id) && (!['us', 'usstock', 'hk', 'hkstock', 'futures'].includes(String(row.market || '').toLowerCase()) || ({ us: 'USStock', usstock: 'USStock', hk: 'HKStock', hkstock: 'HKStock', futures: 'Futures' })[String(row.market).toLowerCase()] === this.market) },
     orderTypeLabel(value) { const key = `chart_trade.order_${String(value || '').toLowerCase()}`; return this.$te(key) ? this.$t(key) : value || '—' },
     accountLabel(item) { return `${item.name || item.exchange_id} · ${String(item.exchange_id || '').toUpperCase()}` },
     directBroker() { return isDirectOpenApiBroker(this.selectedCredential?.exchange_id) },
@@ -181,6 +183,7 @@ export default {
       if (isDirectOpenApiBroker(credential.exchange_id)) return brokerApi[kind](credential.exchange_id, credential.id, { ...params, ...(kind === 'account' && credential.exchange_id === 'forthright' ? { currency: brokerCurrency('forthright', market) } : {}) })
       if (kind === 'account') return alpacaApi.account({ credential_id: credential.id })
       if (kind === 'positions') return alpacaApi.positions({ credential_id: credential.id })
+      if (kind === 'fills') return alpacaApi.fills({ credential_id: credential.id, ...params })
       return alpacaApi.orders({ credential_id: credential.id, ...params })
     },
     async refresh() {

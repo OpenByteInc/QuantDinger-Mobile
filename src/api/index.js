@@ -935,6 +935,7 @@ export const alpacaApi = {
   account: params => alpacaRequest('get', 'account', {...params, include_counts: false}),
   positions: params => alpacaRequest('get', 'positions', params),
   orders: params => alpacaRequest('get', 'orders', params),
+  fills: params => alpacaRequest('get', 'fills', params),
   placeOrder: payload => alpacaRequest('post', 'order', payload),
   cancelOrder: (id, params) => alpacaRequest('delete', `order/${encodeURIComponent(id)}`, params)
 }

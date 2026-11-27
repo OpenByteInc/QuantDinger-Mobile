@@ -1,3 +1,5 @@
+import {stockSymbolsMatch} from './stockRecords.js'
+
 export const ALPACA_OPEN_STATUSES = new Set(['new', 'accepted', 'pending_new', 'partially_filled', 'pending_cancel', 'pending_replace', 'accepted_for_bidding', 'held', 'stopped', 'suspended', 'calculated'])
 
 export function buildAlpacaOrder({credentialId, symbol, side, form, referencePrice}) {
@@ -29,9 +31,9 @@ export function validateAlpacaOrder(order, {account, positions = [], openOrders 
     if (account.buying_power == null || !Number.isFinite(available)) return 'audit.stale'
     if ((hasNotional ? order.notional : order.quantity * value) > available) return 'audit.insufficientBalance'
   } else {
-    const held = positions.find(p => String(p.symbol).toUpperCase() === order.symbol)
+    const held = positions.find(p => stockSymbolsMatch(p.symbol, order.symbol, 'USStock', 'alpaca'))
     const quantity = Number(held?.quantity ?? held?.qty ?? 0)
-    const pending = openOrders.some(o => String(o.symbol).toUpperCase() === order.symbol && o.side === 'sell')
+    const pending = openOrders.some(o => stockSymbolsMatch(o.symbol, order.symbol, 'USStock', 'alpaca') && String(o.side).toLowerCase() === 'sell')
     const requestedQuantity=hasQuantity?order.quantity:order.notional/value
     if (pending || quantity < requestedQuantity) return 'account_ui.sellAvailable'
   }

@@ -5,11 +5,12 @@ import messages from '../../src/locales/account-ui.js'
 import { forthrightStockOrderIssue, forthrightBuyingPower } from '../../src/utils/forthright.js'
 import { buildStockOrder, validateStockOrder, stockQuantityPrecision, STOCK_OPEN_STATUSES } from '../../src/utils/stockOrder.js'
 import { US_STOCK_BROKER_IDS, HK_STOCK_BROKER_IDS, isDirectOpenApiBroker, brokerCurrency } from '../../src/constants/exchanges.js'
+import { stockSymbolsMatch, stockFillRows } from '../../src/utils/stockRecords.js'
 
 const script = readFileSync(new URL('../../src/components/StockTradePanel.vue', import.meta.url), 'utf8').split('<script>')[1].split('</script>')[0].replace(/^import .*$/gm, '').replace('export default', 'return')
 const brokerReads=[]
-const brokerApi=Object.fromEntries(['account','positions','orders'].map(kind=>[kind,async(...args)=>{brokerReads.push({kind,args});return {data:{}}}]))
-const options = new Function('showToast', 'forthrightErrorMessage', 'buildStockOrder', 'validateStockOrder', 'stockQuantityPrecision', 'STOCK_OPEN_STATUSES', 'ExchangeLogo', 'AlpacaTradePanel', 'forthrightStockOrderIssue', 'US_STOCK_BROKER_IDS', 'HK_STOCK_BROKER_IDS', 'brokerApi', 'isDirectOpenApiBroker', 'brokerCurrency', script)(()=>{}, error=>error.message, buildStockOrder, validateStockOrder, stockQuantityPrecision, STOCK_OPEN_STATUSES, null, null, forthrightStockOrderIssue, US_STOCK_BROKER_IDS, HK_STOCK_BROKER_IDS, brokerApi, isDirectOpenApiBroker, brokerCurrency)
+const brokerApi=Object.fromEntries(['account','positions','orders','fills'].map(kind=>[kind,async(...args)=>{brokerReads.push({kind,args});return {data:{}}}]))
+const options = new Function('showToast', 'forthrightErrorMessage', 'buildStockOrder', 'validateStockOrder', 'stockQuantityPrecision', 'STOCK_OPEN_STATUSES', 'ExchangeLogo', 'AlpacaTradePanel', 'forthrightStockOrderIssue', 'US_STOCK_BROKER_IDS', 'HK_STOCK_BROKER_IDS', 'brokerApi', 'isDirectOpenApiBroker', 'brokerCurrency', 'stockSymbolsMatch', 'stockFillRows', script)(()=>{}, error=>error.message, buildStockOrder, validateStockOrder, stockQuantityPrecision, STOCK_OPEN_STATUSES, null, null, forthrightStockOrderIssue, US_STOCK_BROKER_IDS, HK_STOCK_BROKER_IDS, brokerApi, isDirectOpenApiBroker, brokerCurrency, stockSymbolsMatch, stockFillRows)
 function panel() {
   const vm = { ...options.data(), market: 'HKStock', symbol: '03690', $route: { query: { credential_id: '18', exchange_id: 'forthright' } }, $t: key => key }
   for (const [name, method] of Object.entries(options.methods)) vm[name] = method.bind(vm)
@@ -144,6 +145,47 @@ test('missing financial values remain unavailable while zero is valid', () => {
   for (const value of [null, undefined, '', NaN]) assert.equal(vm.amount(value), '—')
   assert.notEqual(vm.amount(0), '—')
   assert.equal(vm.quantity(null), '—')
+})
+
+test('HK aliases match without crossing markets or merging US share classes', () => {
+  const vm=panel();vm.symbol='00700'
+  for(const symbol of ['700','00700.HK','HK.00700','HKStock:00700']) assert.equal(vm.matchesSymbol({symbol}),true)
+  assert.equal(vm.matchesSymbol({symbol:'USStock:00700'}),false)
+  vm.market='USStock';vm.symbol='BRK.B';vm.selectedCredential={exchange_id:'alpaca'}
+  assert.equal(vm.matchesSymbol({symbol:'BRK/B'}),true)
+  for(const symbol of ['BRKB','BRK-B']) assert.equal(vm.matchesSymbol({symbol}),false)
+})
+
+test('each direct broker reads account-scoped fills for trade history', async () => {
+  for(const exchange_id of ['tiger','webull','forthright']) {
+    const vm=panel();vm.selectedCredential={id:18,exchange_id};vm.displaySymbol='03690';vm.tradeContext='18:HKStock:03690'
+    await vm.loadHistory()
+    assert.deepEqual(brokerReads.at(-1),{kind:'fills',args:[exchange_id,18,{symbol:'03690',limit:100}]})
+  }
+})
+
+test('history shows filled shares and retains partial cancelled fills', async () => {
+  const vm=panel();vm.tradeContext='18:HKStock:03690';vm.displaySymbol='03690'
+  vm.request=async()=>({data:[
+    {id:'partial',symbol:'03690.HK',quantity:100,filled_qty:20,filled_avg_price:24,status:'cancelled',commission:1,commission_ccy:'HKD'},
+    {id:'unfilled',symbol:'03690.HK',quantity:100,filled_qty:0}
+  ]})
+  await vm.loadHistory()
+  assert.equal(vm.history.length,1)
+  assert.equal(vm.history[0].quantity,20)
+  assert.equal(vm.history[0].filled_avg_price,24)
+  assert.equal(vm.history[0].fee_amount,1)
+})
+
+test('late history from another account cannot replace current records', async () => {
+  const vm=panel();vm.tradeContext='18:HKStock:03690';vm.refresh=async()=>{}
+  let release
+  vm.request=()=>new Promise(resolve=>{release=resolve})
+  const pending=vm.loadHistory()
+  vm.tradeContext='19:HKStock:03690';vm.history=[{id:'current'}]
+  release({data:[{id:'old',filled_qty:100}]})
+  await pending
+  assert.deepEqual(vm.history,[{id:'current'}])
 })
 
 test('slow responses from the previous account cannot overwrite the selected account', async () => {

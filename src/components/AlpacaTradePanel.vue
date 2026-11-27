@@ -62,6 +62,7 @@ import {alpacaApi,credentialsApi} from '@/api'
 import ExchangeLogo from './ExchangeLogo.vue'
 import '@/styles/order-review.css'
 import {buildAlpacaOrder,validateAlpacaOrder} from '@/utils/alpacaOrder'
+import {stockSymbolsMatch,stockFillRows} from '@/utils/stockRecords'
 const props=defineProps({symbol:{type:String,required:true},chartPrice:{type:Number,default:null},credentialId:{type:[Number,String],default:null},embedded:{type:Boolean,default:false}})
 const emit=defineEmits(['busy-change'])
 const {t,te}=useI18n(),route=useRoute(),router=useRouter()
@@ -77,8 +78,8 @@ const form=reactive({side:'buy',type:'market',inputMode:'quantity',quantity:'',n
 const tabs=[{id:'order',label:'chart_trade.order'},{id:'positions',label:'chart_trade.positions'},{id:'orders',label:'audit.orders'},{id:'history',label:'chart_trade.history'}]
 const context=computed(()=>`${selectedId.value}:${props.symbol}`)
 const selected=computed(()=>accounts.value.find(x=>String(x.id)===selectedId.value))
-const symbolPositions=computed(()=>positions.value.filter(p=>p.symbol===props.symbol))
-const visibleOrders=computed(()=>(activeTab.value==='orders'?openOrders.value:orders.value).filter(o=>o.symbol===props.symbol))
+const symbolPositions=computed(()=>positions.value.filter(p=>stockSymbolsMatch(p.symbol,props.symbol,'USStock','alpaca')))
+const visibleOrders=computed(()=>(activeTab.value==='orders'?openOrders.value:orders.value).filter(o=>stockSymbolsMatch(o.symbol,props.symbol,'USStock','alpaca')))
 const orderInput=computed(()=>form.inputMode==='amount'?form.notional:form.quantity)
 const estimated=computed(()=>form.inputMode==='amount'?(Number(form.notional)>0?Number(form.notional):null):(Number(form.quantity)>0?Number(form.quantity)*Number(form.type==='limit'?form.price:props.chartPrice):null))
 const ACCOUNT_STORAGE_KEY='quantdinger.alpaca.credential_id'
@@ -97,7 +98,7 @@ function closeAccountMenu(event){if(accountMenuOpen.value&&!accountSelectEl.valu
 async function refresh(){
   const token=++sequence;const id=Number(selectedId.value);ready.value=false;account.value=null;positions.value=[];orders.value=[];openOrders.value=[];error.value=''
   if(!id){loading.value=false;return}loading.value=true
-  try{const params={credential_id:id};const result=await Promise.all([alpacaApi.account(params),alpacaApi.positions(params),alpacaApi.orders({...params,status:'all',limit:100}),alpacaApi.orders({...params,status:'open',limit:500})]);if(token!==sequence)return;account.value=result[0].data;positions.value=result[1].data||[];orders.value=result[2].data||[];openOrders.value=result[3].data||[];ready.value=true}
+  try{const params={credential_id:id};const result=await Promise.all([alpacaApi.account(params),alpacaApi.positions(params),alpacaApi.fills({...params,symbol:props.symbol,limit:100}),alpacaApi.orders({...params,status:'open',limit:500})]);if(token!==sequence)return;account.value=result[0].data;positions.value=result[1].data||[];orders.value=stockFillRows(result[2].data);openOrders.value=result[3].data||[];ready.value=true}
   catch(e){if(token===sequence)error.value=e.localizedMessage||e.message||t('audit.loadFailed')}
   finally{if(token===sequence)loading.value=false}
 }
