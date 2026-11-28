@@ -167,7 +167,10 @@ function openAi(){router.push({path:'/ai',query:{symbol:form.symbol,market:form.
 async function bootstrap(){void warmBaseChart();try{const loaded=await indicatorApi.getList();indicators.value=loaded.data||[];const id=Number(route.query.indicator_id||route.query.local_copy_id||0);const preferred=indicators.value.find(x=>Number(x.id)===id)||indicators.value[0];if(preferred)await selectIndicator({indicatorId:Number(preferred.id)});else await loadChart()}catch(e){if(!chartData.value?.candles?.length){error.value=e?.localizedMessage||e?.message||t('audit.loadFailed');await warmBaseChart()}}}
 function clearStreamFallback(){clearTimeout(streamFallbackTimer);streamFallbackTimer=null}
 function flushChartBar(){chartFrame=null;const bar=pendingChartBar;pendingChartBar=null;if(bar)marketChart.value?.updateBar(bar)}
-function scheduleChartBar(bar){pendingChartBar=bar;if(chartFrame===null)chartFrame=requestAnimationFrame(flushChartBar)}
+function scheduleChartBar(bar){
+ if(pendingChartBar&&bar.timestamp>pendingChartBar.timestamp){cancelAnimationFrame(chartFrame);flushChartBar()}
+ pendingChartBar=bar;if(chartFrame===null)chartFrame=requestAnimationFrame(flushChartBar)
+}
 function stopStream(){streamGeneration++;stream?.disconnect();stream=null;clearStreamFallback();if(chartFrame!==null)cancelAnimationFrame(chartFrame);chartFrame=null;pendingChartBar=null;lastTick=0;pendingBar=null}
 function startStream(){
  stopStream()
