@@ -1,13 +1,15 @@
-QuantDinger Android release signing (tracked for your GitHub backup)
+QuantDinger Android release signing
 
-Files:
-  quantdinger-release.jks  — PKCS12 keystore (alias: quantdinger)
-  keystore.properties       — storePassword / keyPassword / keyAlias / storeFile
+Signing credentials are local-only and must never be committed to this public
+repository. Store release keystores and passwords securely or in CI secrets.
+Only this setup guide is tracked under signing/.
 
-Security:
-  - Anyone with this repo can sign APKs with your package name. Use a PRIVATE
-    GitHub repo, or remove this folder from git and use CI secrets instead.
-  - If this folder is ever leaked, rotate keys and Play App Signing as applicable.
+Local setup:
+  - Place the release keystore in signing/.
+  - Create signing/keystore.properties with storeFile, storePassword, keyAlias,
+    and keyPassword. storeFile is resolved relative to this signing directory.
+  - android/app/build.gradle loads these properties when the file exists.
 
-Build:
-  Gradle reads ../signing from android/ (see android/app/build.gradle).
+The repository ignores signing/*.jks, signing/*.keystore, and
+signing/keystore.properties. Do not force-add these files or include credentials
+in logs, screenshots, or documentation.

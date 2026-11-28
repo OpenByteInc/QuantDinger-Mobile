@@ -68,3 +68,11 @@ coverage/
 /screenshots/
 /playwright-report/
 /test-results/
+/docs/design-references/
+/public/**/*.prompt.txt
+/banner-v2.png
+
+# Local agent state
+.codex/
+.codex-logs/
+.agents/
