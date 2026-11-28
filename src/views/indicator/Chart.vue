@@ -50,7 +50,7 @@ import ChartTradePanel from '@/components/ChartTradePanel.vue'
 import SymbolPicker from '@/components/SymbolPicker.vue'
 import ExchangeKlineWs from '@/utils/exchangeWs'
 import { toCandles } from '@/utils/chartData'
-import { mergeStreamBar, streamIsFresh } from '@/utils/chartStream'
+import { mergeStreamBar, streamIsFresh, reconcileChartSnapshot } from '@/utils/chartStream'
 import { PRICE_CHART_TYPES, normalizePriceChartType } from '@/utils/priceChartTypes'
 import { formatFuturesPrice } from '@/utils/futuresPricePrecision'
 import { useQuickTradeStore } from '@/stores'
@@ -112,6 +112,7 @@ const parameterOptions=p=>{
 }
 const chartContextSignature=()=>JSON.stringify([streamContext.value,form.indicatorId,form.params])
 function applyChartData(data,context=snapshotContext()){
+ clearScheduledChartBar()
  chartData.value=data;displayedChartContext.value=context;updated.value=Date.now();writeChartSnapshot(context,data,updated.value)
 }
 function restoreChartSnapshot(context=snapshotContext()){
@@ -130,11 +131,11 @@ async function warmBaseChart(){
   if(candles.length)applyChartData({candles},context)
  }catch{}
 }
-async function loadChart(silent=false){
+async function loadChart(silent=false,queueIfBusy=false){
  const nextContext=chartContextSignature()
  if(displayedChartContext.value!==snapshotContext()){chartData.value=null;updated.value=0;void warmBaseChart()}
  if(chartRefreshing.value){
-  if(silent&&nextContext===activeChartRequestContext)return
+  if(silent&&!queueIfBusy&&nextContext===activeChartRequestContext)return
   queuedChartLoadSilent=queuedChartLoad?queuedChartLoadSilent&&silent:silent
   queuedChartLoad=true
   if(!silent||!chartData.value)loading.value=true
@@ -152,7 +153,7 @@ async function loadChart(silent=false){
   if(current!==request||context!==chartContextSignature())return
   data.candles=toCandles(data.candles||[])
   if(form.market==='Futures'&&!data.candles.length)throw new Error(t('brokerAccounts.forthright.feedUnavailable'))
-  if(pendingBar&&lastTick>=started)mergeStreamBar(data.candles,pendingBar,form.timeframe)
+  if(pendingBar&&lastTick>=started)data.candles=reconcileChartSnapshot(data.candles,chartData.value?.candles,pendingBar)
   applyChartData(data)
  }catch(e){if(current===request&&context===chartContextSignature()&&!chartData.value?.candles?.length){error.value=e?.localizedMessage||t(e?.message||'audit.loadFailed');chartData.value=null}}
  finally{if(current===request){loading.value=false;chartRefreshing.value=false;activeChartRequestContext='';if(queuedChartLoad){const nextSilent=queuedChartLoadSilent;queuedChartLoad=false;queuedChartLoadSilent=true;queueMicrotask(()=>loadChart(nextSilent))}}}
@@ -166,12 +167,14 @@ function onTradeContextChange(context){if(!context.exchangeId)return;if(context.
 function openAi(){router.push({path:'/ai',query:{symbol:form.symbol,market:form.market,timeframe:form.timeframe}})}
 async function bootstrap(){void warmBaseChart();try{const loaded=await indicatorApi.getList();indicators.value=loaded.data||[];const id=Number(route.query.indicator_id||route.query.local_copy_id||0);const preferred=indicators.value.find(x=>Number(x.id)===id)||indicators.value[0];if(preferred)await selectIndicator({indicatorId:Number(preferred.id)});else await loadChart()}catch(e){if(!chartData.value?.candles?.length){error.value=e?.localizedMessage||e?.message||t('audit.loadFailed');await warmBaseChart()}}}
 function clearStreamFallback(){clearTimeout(streamFallbackTimer);streamFallbackTimer=null}
+let lastScheduledClosedBar=0
+function clearScheduledChartBar(){if(chartFrame!==null)cancelAnimationFrame(chartFrame);chartFrame=null;pendingChartBar=null}
 function flushChartBar(){chartFrame=null;const bar=pendingChartBar;pendingChartBar=null;if(bar)marketChart.value?.updateBar(bar)}
 function scheduleChartBar(bar){
  if(pendingChartBar&&bar.timestamp>pendingChartBar.timestamp){cancelAnimationFrame(chartFrame);flushChartBar()}
  pendingChartBar=bar;if(chartFrame===null)chartFrame=requestAnimationFrame(flushChartBar)
 }
-function stopStream(){streamGeneration++;stream?.disconnect();stream=null;clearStreamFallback();if(chartFrame!==null)cancelAnimationFrame(chartFrame);chartFrame=null;pendingChartBar=null;lastTick=0;pendingBar=null}
+function stopStream(){streamGeneration++;stream?.disconnect();stream=null;clearStreamFallback();clearScheduledChartBar();lastTick=0;pendingBar=null;lastScheduledClosedBar=0}
 function startStream(){
  stopStream()
  if(!pageActive||document.hidden||form.market.toLowerCase()!=='crypto')return
@@ -180,15 +183,17 @@ function startStream(){
  const connecting=stream.connect(form.symbol,form.timeframe,{
   onTick(bar){
    if(generation!==streamGeneration||!pageActive||document.hidden)return
-   pendingBar=bar
    const candles=chartData.value?.candles
-   if(!candles?.length){lastTick=Date.now();clearStreamFallback();return}
+   if(!candles?.length){pendingBar=bar;lastTick=Date.now();clearStreamFallback();return}
+   const previousTail=candles.at(-1)?.timestamp||0
    const result=mergeStreamBar(candles,bar,form.timeframe)
-   if(result==='gap'){lastTick=0;loadChart(true);return}
+   if(result==='gap'){pendingBar=bar;lastTick=0;void loadChart(true);return}
    if(result==='ignored')return
+   pendingBar=bar
    lastTick=Date.now();updated.value=lastTick;clearStreamFallback()
    scheduleChartBar(bar)
-   if(bar.isClosed)void loadChart(true)
+   const closedTimestamp=bar.isClosed?bar.timestamp:result==='appended'?previousTail:0
+   if(closedTimestamp>lastScheduledClosedBar){lastScheduledClosedBar=closedTimestamp;void loadChart(true,true)}
   },
    onError(){if(generation===streamGeneration){lastTick=0;requestRecovery()}},
    onReconnecting(){if(generation===streamGeneration)lastTick=0},

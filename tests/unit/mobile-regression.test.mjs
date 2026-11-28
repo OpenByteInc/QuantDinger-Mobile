@@ -157,7 +157,7 @@ test('quick trade submits immediately without opening a confirmation dialog',asy
  panel.balanceReady=true;panel.quickTradeStore.balance={available:500};await panel.submitOrder('buy');assert.equal(calls,1);assert.equal(dialogs,0);assert.equal(panel.submitting,false)
 })
 
-test('background account refresh retains the displayed balance and entered order',async()=>{
+test('background account refresh retains displayed values but blocks orders after a balance failure',async()=>{
  let rejectBalance
  const pending=new Promise((_,reject)=>{rejectBalance=reject})
  const api={getBalance:()=>pending,getHistory:async()=>({data:[]}),getPosition:async()=>({data:[]}),getAiDecisions:async()=>({data:[]})}
@@ -165,7 +165,9 @@ test('background account refresh retains the displayed balance and entered order
  const refreshing=panel.refreshTradeData()
  assert.equal(panel.balanceReady,true);assert.equal(panel.activeBalanceAvailable,500);assert.equal(panel.form.amount,'100')
  rejectBalance(new Error('offline'));await refreshing
- assert.equal(panel.balanceReady,true);assert.equal(panel.activeBalanceAvailable,500);assert.equal(panel.form.amount,'100')
+ assert.equal(panel.balanceReady,false);assert.equal(panel.activeBalanceAvailable,500);assert.equal(panel.form.amount,'100')
+ assert.equal(panel.canSubmitSide('buy'),false);assert.equal(panel.canSubmitSide('sell'),false)
+ assert.equal(panel.dataError,'audit.loadFailed')
 })
 
 test('spot sell percentage uses the base asset holdings rather than available USDT',()=>{

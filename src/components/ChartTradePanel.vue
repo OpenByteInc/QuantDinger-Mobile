@@ -508,6 +508,7 @@ export default {
           this.balanceReady=true
         }
       }
+      if(results[0].status==='rejected')this.balanceReady=false
       if(results[2].status==='fulfilled')this.updateStoreIfChanged('positions',results[2].value.data,value=>this.quickTradeStore.setPositions(value))
       if(results[1].status==='fulfilled')this.updateStoreIfChanged('history',results[1].value.data,value=>this.quickTradeStore.setHistory(value))
       this.pruneMarketOrderConfirmations()

@@ -17,3 +17,15 @@ export function mergeStreamBar(candles, bar, timeframe) {
 export function streamIsFresh(lastTick, now = Date.now()) {
   return lastTick > 0 && now - lastTick < 15000
 }
+
+export function reconcileChartSnapshot(snapshot, liveCandles, latestBar) {
+  const rows = new Map(snapshot.map(bar => [bar.timestamp, bar]))
+  const tail = snapshot.at(-1)?.timestamp || 0
+  for (const bar of liveCandles || []) {
+    if (bar.timestamp > tail) rows.set(bar.timestamp, { ...bar })
+  }
+  if (latestBar && ['timestamp','open','high','low','close','volume'].every(key => Number.isFinite(latestBar[key])) && latestBar.volume >= 0) {
+    rows.set(latestBar.timestamp, { ...latestBar })
+  }
+  return [...rows.values()].sort((a, b) => a.timestamp - b.timestamp)
+}
